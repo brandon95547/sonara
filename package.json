@@ -13,6 +13,7 @@
   ],
   "scripts": {
     "build:shared": "npm run build -w @sonara/shared",
+    "predev": "node scripts/check-ports.mjs",
     "dev": "npm run build:shared && concurrently -n api,web -c magenta,cyan \"npm:dev:api\" \"npm:dev:web\"",
     "dev:api": "npm run dev -w @sonara/api",
     "dev:web": "npm run dev -w @sonara/web",

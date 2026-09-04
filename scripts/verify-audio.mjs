@@ -136,7 +136,9 @@ try {
       sessionId,
     )
     if (result.exceptionDetails) {
-      throw new Error(result.exceptionDetails.exception?.description ?? result.exceptionDetails.text)
+      throw new Error(
+        result.exceptionDetails.exception?.description ?? result.exceptionDetails.text,
+      )
     }
     return result.result?.value
   }
@@ -181,7 +183,8 @@ try {
   console.log(`  RMS after release  ${after.toFixed(5)}`)
 
   if (!held.lit) fail('the key did not light up')
-  if (held.state !== 'running') fail(`AudioContext is "${held.state}" — the click did not unlock it`)
+  if (held.state !== 'running')
+    fail(`AudioContext is "${held.state}" — the click did not unlock it`)
   // Well above the noise floor of an idle analyser, well below a clipped signal.
   if (!(held.rms > 0.001)) fail(`no signal reached the output (RMS ${held.rms})`)
   if (!(after < held.rms)) fail('the note never decayed after release')
