@@ -1,0 +1,353 @@
+/* ============================================================================
+   SONARA — COMPONENT TIER
+   ----------------------------------------------------------------------------
+   Tier 3 of the UI Bible's token model: per-component values that reference the
+   semantic tier and never reach past it to a primitive.
+
+   The keyboard is the one deliberate exception, and it is worth stating why.
+   Every other surface in this app takes its colour from the elevation ramp,
+   because every other surface is a UI surface. A piano key is not — it is a
+   depiction of a physical object, and a "white key" that has been assigned
+   `--ds-surface-raised` because that is where it sits in the hierarchy is a
+   piano nobody recognises. So the key faces are real-world values, defined
+   here, once, with the reasoning attached; everything about them that is UI —
+   the pressed state, the focus ring, the frame they sit in — is semantic.
+   ========================================================================= */
+
+:root {
+  /* --- White keys ------------------------------------------------------
+     Ivory, not #ffffff. Pure white on a near-black page blooms, which is the
+     same halation the Bible's foreground ceiling is set to avoid — and a real
+     key is not pure white either. */
+  --c-key-white: #e9e8e4;
+  --c-key-white-hover: #f4f3f0;
+  /* The bottom lip. A 4px darker band instead of a bevel: it gives the key an
+     edge to end on without a gradient the flat brief does not want. */
+  --c-key-white-lip: #bcbab4;
+  /* The gap between adjacent keys, drawn as a right border rather than a real
+     gap so the keybed stays continuous at any width. */
+  --c-key-gap: rgb(0 0 0 / 0.32);
+
+  /* --- Black keys ------------------------------------------------------
+     Lifted well clear of the canvas (#101010). A black key rendered at the
+     page colour is a hole in the keybed, not a key. */
+  --c-key-black: #24252a;
+  --c-key-black-face: #16171b;
+  --c-key-black-hover: #303138;
+
+  /* --- Pressed ---------------------------------------------------------
+     The accent, so a struck key is unmistakable at a glance across the room.
+     Black keys press to the *active* step so they stay visually below the
+     white keys they sit between — the accent must not erase the layout. */
+  --c-key-press: var(--ds-accent);
+  --c-key-press-black: var(--ds-accent-active);
+  --c-key-press-fg: var(--ds-accent-fg);
+
+  /* --- The instrument body --------------------------------------------- */
+  --c-piano-body: var(--ds-surface-raised);
+  /* The felt strip that runs above the keys on a real piano, in brand colour. */
+  --c-piano-felt: var(--ds-accent);
+  --c-key-radius: 0 0 var(--radius-sm) var(--radius-sm);
+
+  /* Keybed height. Viewport-relative with hard limits: tall enough on a phone
+     in landscape to aim at, capped on a large monitor so the keyboard stays an
+     instrument on a page rather than the page itself. */
+  --keybed-height: clamp(104px, 24vh, 196px);
+}
+
+/* ============================================================================
+   TOUCH TARGETS — UI Bible
+   ----------------------------------------------------------------------------
+   A 44x44 hit area on coarse pointers, delivered by an ::after overlay so the
+   button's own box stays at its designed size. Growing the box instead
+   flattens the whole size ladder: xs, sm and md all become 44px the moment a
+   touch device is in play, and the density the sizes exist for is gone.
+
+   Three things this has to keep doing. The first two have been shipped broken
+   in a sibling product, so they are asserted here rather than assumed:
+
+     1. NO `pointer-events: none`. That removes the pseudo-element from hit
+        testing altogether and the promised 44px is not real. Probe it with
+        `document.elementFromPoint(x, boxTop - 4)` — it must return the button.
+     2. Icon buttons need the horizontal half too. `inset-inline: 0` alone
+        gives a 44px-tall, 28px-wide target on an xs icon button.
+     3. Adjacent icon buttons need clear space, because the overlay overhangs
+        by (44 - height) / 2 — 8px at xs, 6px at sm, 4px at md. Give a row of
+        icon buttons `coarse:gap-3` or the later sibling wins the tap.
+
+   A labelled button's overlay is `inset-inline: 0` and so only grows
+   vertically, which is what keeps rule 3 an icon-button problem only.
+   ========================================================================= */
+
+@custom-variant coarse (@media (pointer: coarse));
+
+@media (pointer: coarse) {
+  .touch-target {
+    position: relative;
+  }
+  .touch-target::after {
+    content: '';
+    position: absolute;
+    inset-inline: 0;
+    top: 50%;
+    height: 44px;
+    transform: translateY(-50%);
+  }
+  .touch-target--icon::after {
+    inset-inline: auto;
+    left: 50%;
+    width: 44px;
+    transform: translate(-50%, -50%);
+  }
+}
+
+/* ============================================================================
+   KEYBED
+   ========================================================================= */
+
+.keybed {
+  position: relative;
+  display: flex;
+  width: 100%;
+  isolation: isolate;
+  /* The keyboard handles its own pointer semantics: a drag across the keys is
+     a glissando, not a text selection or a page scroll. */
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.piano-key {
+  position: relative;
+  padding: 0;
+  border: 0;
+  cursor: pointer;
+  /* Transitions are on colour only. A transform transition would smear the
+     attack — the visual has to land on the same frame as the note. */
+  transition: background-color var(--duration-instant) var(--ease-standard);
+}
+
+.piano-key:focus-visible {
+  outline: 2px solid var(--ds-focus-ring);
+  outline-offset: -3px;
+  z-index: 4;
+}
+
+/* --- White ---------------------------------------------------------------- */
+.piano-key--white {
+  flex: 1 1 0;
+  min-width: 0;
+  align-self: stretch;
+  border-right: 1px solid var(--c-key-gap);
+  border-radius: var(--c-key-radius);
+  background-color: var(--c-key-white);
+  box-shadow: inset 0 -4px 0 var(--c-key-white-lip);
+  z-index: 1;
+}
+.keybed > .piano-key--white:last-of-type {
+  border-right: 0;
+}
+@media (hover: hover) {
+  .piano-key--white:hover:not([data-active='true']) {
+    background-color: var(--c-key-white-hover);
+  }
+}
+.piano-key--white[data-active='true'] {
+  background-color: var(--c-key-press);
+  box-shadow: inset 0 -4px 0 var(--ds-accent-active);
+}
+
+/* --- Black ---------------------------------------------------------------- */
+.piano-key--black {
+  position: absolute;
+  top: 0;
+  z-index: 3;
+  border-radius: var(--c-key-radius);
+  background-color: var(--c-key-black-face);
+  /* Two flat bands rather than a gradient: the top face catches the light and
+     the body does not, which is all the depth a flat design needs. */
+  box-shadow:
+    inset 0 6px 0 var(--c-key-black),
+    inset 0 -3px 0 rgb(0 0 0 / 0.55),
+    0 2px 4px -1px rgb(0 0 0 / 0.7);
+}
+@media (hover: hover) {
+  .piano-key--black:hover:not([data-active='true']) {
+    background-color: var(--c-key-black-hover);
+  }
+}
+.piano-key--black[data-active='true'] {
+  background-color: var(--c-key-press-black);
+  box-shadow:
+    inset 0 6px 0 var(--ds-accent),
+    inset 0 -3px 0 rgb(0 0 0 / 0.5);
+}
+
+/* --- Velocity ------------------------------------------------------------
+   How hard the note was struck, shown as the strength of the accent wash. A
+   pianissimo note and a fortissimo note both light the key, but they do not
+   light it the same amount — which is the whole point of watching a keyboard
+   while you play. */
+.piano-key[data-active='true']::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: rgb(255 255 255 / 0.55);
+  opacity: calc((1 - var(--key-velocity, 0.75)) * 0.5);
+  pointer-events: none;
+}
+
+/* --- The label on middle C and every other C ------------------------------ */
+.piano-key__label {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 6px;
+  text-align: center;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: rgb(0 0 0 / 0.42);
+  pointer-events: none;
+}
+.piano-key--white[data-active='true'] .piano-key__label {
+  color: rgb(255 255 255 / 0.85);
+}
+.piano-key__label--anchor {
+  color: var(--ds-accent-active);
+  font-weight: 700;
+}
+
+/* ============================================================================
+   INSTRUMENT BODY
+   ========================================================================= */
+
+.piano-body {
+  background-color: var(--c-piano-body);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--ds-shadow-4);
+  overflow: hidden;
+}
+
+/* The felt. 3px, full-bleed, sitting directly on top of the keybed. */
+.piano-felt {
+  height: 3px;
+  background: linear-gradient(
+    to right,
+    var(--ds-accent-active),
+    var(--c-piano-felt) 18%,
+    var(--c-piano-felt) 82%,
+    var(--ds-accent-active)
+  );
+}
+
+/* ============================================================================
+   OUT-OF-VIEW MARKERS
+   A note played outside the visible window still has to be visible as *having
+   happened*, or a player on a phone gets silence from the interface.
+   ========================================================================= */
+
+.range-edge {
+  position: absolute;
+  inset-block: 0;
+  width: 18px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--duration-quick) var(--ease-standard);
+  z-index: 5;
+}
+.range-edge[data-lit='true'] {
+  opacity: 1;
+}
+.range-edge--start {
+  left: 0;
+  background: linear-gradient(to right, var(--ds-accent), transparent);
+}
+.range-edge--end {
+  right: 0;
+  background: linear-gradient(to left, var(--ds-accent), transparent);
+}
+
+/* ============================================================================
+   RANGE INPUT
+   A native <input type="range"> restyled rather than replaced. The native
+   control already has the keyboard behaviour, the assistive-tech role and the
+   touch handling; a div-based slider has to rebuild all three and usually
+   ships without the first.
+   ========================================================================= */
+
+.sonara-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 20px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.sonara-slider::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 99px;
+  /* Two boundaries rather than one, so a bipolar control (transpose, pan) can
+     fill outward from its centre. A left-anchored fill on a -12..+12 slider
+     reads as "half on" when the value is zero. */
+  background: linear-gradient(
+    to right,
+    var(--ds-field) var(--slider-from, 0%),
+    var(--ds-accent) var(--slider-from, 0%),
+    var(--ds-accent) var(--slider-to, 0%),
+    var(--ds-field) var(--slider-to, 0%)
+  );
+}
+.sonara-slider::-moz-range-track {
+  height: 4px;
+  border-radius: 99px;
+  /* Two boundaries rather than one, so a bipolar control (transpose, pan) can
+     fill outward from its centre. A left-anchored fill on a -12..+12 slider
+     reads as "half on" when the value is zero. */
+  background: linear-gradient(
+    to right,
+    var(--ds-field) var(--slider-from, 0%),
+    var(--ds-accent) var(--slider-from, 0%),
+    var(--ds-accent) var(--slider-to, 0%),
+    var(--ds-field) var(--slider-to, 0%)
+  );
+}
+
+.sonara-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 16px;
+  width: 16px;
+  margin-top: -6px;
+  border-radius: 99px;
+  background: var(--ds-fg);
+  border: 2px solid var(--ds-canvas);
+  box-shadow: var(--ds-shadow-1);
+  transition: transform var(--duration-fast) var(--ease-standard);
+}
+.sonara-slider::-moz-range-thumb {
+  height: 16px;
+  width: 16px;
+  border-radius: 99px;
+  background: var(--ds-fg);
+  border: 2px solid var(--ds-canvas);
+  box-shadow: var(--ds-shadow-1);
+}
+
+.sonara-slider:active::-webkit-slider-thumb {
+  transform: scale(1.15);
+}
+.sonara-slider:focus-visible {
+  outline: none;
+}
+.sonara-slider:focus-visible::-webkit-slider-thumb {
+  outline: 2px solid var(--ds-focus-ring);
+  outline-offset: 2px;
+}
+.sonara-slider:focus-visible::-moz-range-thumb {
+  outline: 2px solid var(--ds-focus-ring);
+  outline-offset: 2px;
+}

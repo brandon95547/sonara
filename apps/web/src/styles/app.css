@@ -1,0 +1,7 @@
+@import '@fontsource-variable/inter';
+
+@import 'tailwindcss';
+
+@import './tokens.css';
+@import './globals.css';
+@import './sonara.css';

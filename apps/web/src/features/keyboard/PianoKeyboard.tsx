@@ -1,0 +1,232 @@
+import * as React from 'react'
+import { clampVelocity } from '@sonara/shared'
+import { useAudio } from '@/audio/AudioProvider'
+import { keyboardActions, useKeyboardStore } from '@/state/keyboard-store'
+import { PianoKey } from './PianoKey'
+import { buildLayout, type KeyboardWindow } from './keyboard-layout'
+
+/**
+ * The keybed.
+ *
+ * ## Pointer handling
+ *
+ * Three things a virtual keyboard has to get right, and all three are here
+ * rather than on the individual keys, because a key cannot know about a
+ * gesture that started on its neighbour:
+ *
+ *  - **Glissando.** Touch browsers implicitly capture the pointer on
+ *    pointerdown, which stops `pointerenter` firing on the keys you slide
+ *    onto. Releasing the capture immediately is what makes a slide play a run
+ *    instead of one very long note.
+ *  - **Multi-touch.** Each pointer id owns at most one note, so a chord played
+ *    with three fingers is three independent presses. Tracking a single
+ *    "current note" instead is how virtual keyboards end up monophonic under
+ *    a chord.
+ *  - **Release anywhere.** The pointerup that ends a note frequently happens
+ *    off the key — off the keyboard, off the window. The listener is on
+ *    `window`, so a note cannot be left sounding by lifting a finger onto the
+ *    page background.
+ *
+ * ## Velocity from the strike point
+ *
+ * Pressing near the bottom of a key plays louder, the way depth of touch does
+ * on a real action. It costs one rectangle measurement and it makes the
+ * on-screen keyboard expressive rather than a row of on/off switches.
+ */
+
+/** Black keys reach this far down the white keys. */
+const BLACK_KEY_HEIGHT_PERCENT = 62
+const POINTER_VELOCITY = { min: 42, max: 122 } as const
+
+export interface PianoKeyboardProps {
+  window: KeyboardWindow
+  showLabels?: boolean
+  className?: string
+}
+
+export function PianoKeyboard({
+  window: keyWindow,
+  showLabels = true,
+  className,
+}: PianoKeyboardProps) {
+  const audio = useAudio()
+  const layout = React.useMemo(() => buildLayout(keyWindow), [keyWindow])
+
+  const audioRef = React.useRef(audio)
+  audioRef.current = audio
+  /** pointerId -> the note that pointer is currently holding. */
+  const pointersRef = React.useRef(new Map<number, number>())
+  /** Notes held by the keyboard's own focus ring, so a key repeat cannot double-trigger. */
+  const keyboardHeldRef = React.useRef(new Set<number>())
+
+  const press = React.useCallback((note: number, velocity: number) => {
+    keyboardActions.noteOn(note, velocity, 'pointer')
+    audioRef.current.noteOn(note, velocity)
+  }, [])
+
+  const release = React.useCallback((note: number) => {
+    keyboardActions.noteOff(note)
+    audioRef.current.noteOff(note)
+  }, [])
+
+  const velocityFor = React.useCallback((event: React.PointerEvent<HTMLButtonElement>) => {
+    // A mouse or a pen has no pressure to read, so the strike point stands in
+    // for it. A touch that reports real pressure is used directly.
+    if (event.pointerType === 'touch' && event.pressure > 0 && event.pressure < 1) {
+      return clampVelocity(
+        POINTER_VELOCITY.min + event.pressure * (POINTER_VELOCITY.max - POINTER_VELOCITY.min),
+      )
+    }
+    const rect = event.currentTarget.getBoundingClientRect()
+    const depth = rect.height > 0 ? (event.clientY - rect.top) / rect.height : 0.7
+    const clamped = Math.min(1, Math.max(0, depth))
+    return clampVelocity(
+      POINTER_VELOCITY.min + clamped * (POINTER_VELOCITY.max - POINTER_VELOCITY.min),
+    )
+  }, [])
+
+  const onPress = React.useCallback(
+    (note: number, event: React.PointerEvent<HTMLButtonElement>) => {
+      // Touch captures the pointer implicitly. Without this, a slide across the
+      // keys never leaves the key it started on.
+      if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+        event.currentTarget.releasePointerCapture(event.pointerId)
+      }
+      pointersRef.current.set(event.pointerId, note)
+      press(note, velocityFor(event))
+    },
+    [press, velocityFor],
+  )
+
+  const onEnter = React.useCallback(
+    (note: number, event: React.PointerEvent<HTMLButtonElement>) => {
+      const held = pointersRef.current.get(event.pointerId)
+      if (held === undefined || held === note) return
+      release(held)
+      pointersRef.current.set(event.pointerId, note)
+      press(note, velocityFor(event))
+    },
+    [press, release, velocityFor],
+  )
+
+  const onRelease = React.useCallback(
+    (_note: number, event: React.PointerEvent<HTMLButtonElement>) => {
+      const held = pointersRef.current.get(event.pointerId)
+      if (held === undefined) return
+      pointersRef.current.delete(event.pointerId)
+      release(held)
+    },
+    [release],
+  )
+
+  // A note must never survive the pointer that started it, wherever it ends up.
+  React.useEffect(() => {
+    const finish = (event: PointerEvent) => {
+      const held = pointersRef.current.get(event.pointerId)
+      if (held === undefined) return
+      pointersRef.current.delete(event.pointerId)
+      release(held)
+    }
+    globalThis.addEventListener('pointerup', finish)
+    globalThis.addEventListener('pointercancel', finish)
+    // Switching tab mid-chord otherwise leaves every note held for ever.
+    const onBlur = () => {
+      for (const note of pointersRef.current.values()) release(note)
+      pointersRef.current.clear()
+    }
+    globalThis.addEventListener('blur', onBlur)
+    return () => {
+      globalThis.removeEventListener('pointerup', finish)
+      globalThis.removeEventListener('pointercancel', finish)
+      globalThis.removeEventListener('blur', onBlur)
+    }
+  }, [release])
+
+  const onKeyDown = React.useCallback(
+    (note: number, event: React.KeyboardEvent<HTMLButtonElement>) => {
+      if (event.key !== 'Enter' && event.key !== ' ') return
+      event.preventDefault()
+      // Holding the key down produces a repeat storm; one press is one note.
+      if (keyboardHeldRef.current.has(note)) return
+      keyboardHeldRef.current.add(note)
+      press(note, 96)
+    },
+    [press],
+  )
+
+  const onKeyUp = React.useCallback(
+    (note: number, event: React.KeyboardEvent<HTMLButtonElement>) => {
+      if (event.key !== 'Enter' && event.key !== ' ') return
+      if (!keyboardHeldRef.current.delete(note)) return
+      release(note)
+    },
+    [release],
+  )
+
+  return (
+    <div className={className}>
+      <div
+        className="keybed"
+        role="group"
+        aria-label={`Piano keyboard, ${layout.whiteCount} white keys`}
+        style={{ height: 'var(--keybed-height)' }}
+      >
+        {layout.whiteKeys.map((geometry) => (
+          <PianoKey
+            key={geometry.note}
+            geometry={geometry}
+            blackHeightPercent={BLACK_KEY_HEIGHT_PERCENT}
+            showLabel={showLabels}
+            onPress={onPress}
+            onEnter={onEnter}
+            onRelease={onRelease}
+            onKeyDown={onKeyDown}
+            onKeyUp={onKeyUp}
+          />
+        ))}
+        {layout.blackKeys.map((geometry) => (
+          <PianoKey
+            key={geometry.note}
+            geometry={geometry}
+            blackHeightPercent={BLACK_KEY_HEIGHT_PERCENT}
+            showLabel={false}
+            onPress={onPress}
+            onEnter={onEnter}
+            onRelease={onRelease}
+            onKeyDown={onKeyDown}
+            onKeyUp={onKeyUp}
+          />
+        ))}
+        <RangeEdges window={keyWindow} />
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Lights the edge of the keybed when a note sounds outside the visible window.
+ *
+ * On a phone showing two octaves of an 88-key controller, most of what a
+ * player does happens off-screen. An edge that glows says "that went below the
+ * view" — which is a great deal better than a keyboard that appears not to
+ * have noticed.
+ */
+function RangeEdges({ window: keyWindow }: { window: KeyboardWindow }) {
+  const lastNote = useKeyboardStore((state) => state.lastNote)
+  const [edge, setEdge] = React.useState<'low' | 'high' | null>(null)
+
+  React.useEffect(() => {
+    if (!lastNote) return
+    if (lastNote.note >= keyWindow.low && lastNote.note <= keyWindow.high) return
+    setEdge(lastNote.note < keyWindow.low ? 'low' : 'high')
+    const timer = globalThis.setTimeout(() => setEdge(null), 420)
+    return () => globalThis.clearTimeout(timer)
+  }, [lastNote, keyWindow.low, keyWindow.high])
+
+  return (
+    <>
+      <span className="range-edge range-edge--start" data-lit={edge === 'low'} aria-hidden />
+      <span className="range-edge range-edge--end" data-lit={edge === 'high'} aria-hidden />
+    </>
+  )
+}

@@ -1,0 +1,30 @@
+node_modules/
+dist/
+dist-ssr/
+build/
+coverage/
+*.tsbuildinfo
+
+# Local data + secrets
+.env
+.env.local
+*.local
+# Anchored: a bare `data/` would also swallow apps/api/src/data, which is source.
+/apps/api/data/
+*.sqlite
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
+*.db
+
+# Editors / OS
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+*.swp
+
+# Logs
+logs/
+*.log
+npm-debug.log*
