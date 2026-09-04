@@ -251,11 +251,30 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
+  /**
+   * Teardown.
+   *
+   * The refs are cleared, not just closed. React StrictMode mounts, unmounts
+   * and remounts in development, and refs survive that round trip: leaving a
+   * CLOSED AudioContext in `contextRef` means `ensureContext` hands it back on
+   * the remount and every note after that is silent, with no error anywhere.
+   * Nulling them makes the remount build a fresh context, which is what an
+   * unmount/remount should mean.
+   *
+   * Today the catalogue request cannot resolve before StrictMode's second
+   * pass, so no context exists yet when this runs and the bug does not fire —
+   * but that is luck about network timing, not a design.
+   */
   React.useEffect(
     () => () => {
       loadRef.current?.abort()
+      loadRef.current = null
       engineRef.current?.dispose()
-      void contextRef.current?.close()
+      engineRef.current = null
+      const context = contextRef.current
+      contextRef.current = null
+      masterRef.current = null
+      void context?.close().catch(() => {})
     },
     [],
   )

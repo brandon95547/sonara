@@ -128,6 +128,12 @@ function EngineChip() {
   const { status } = useAudio()
   if (!status.instrumentId) return null
 
+  // Browsers refuse to start audio before a gesture, so a freshly loaded page
+  // is silent until the first click — including the click on a piano key,
+  // which both unlocks the audio and plays the note. Saying so costs one chip
+  // and is the difference between "ready when you are" and "this is broken".
+  if (!status.unlocked) return <Chip tone="info">Press a key to start audio</Chip>
+
   if (status.loadingSamples) {
     return (
       <Chip tone="info">

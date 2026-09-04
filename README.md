@@ -40,6 +40,21 @@ CORS in development and no difference from production.
 Node 22.12 or newer (see `.nvmrc`). API docs are served at
 <http://localhost:5175/docs> from the OpenAPI document the routes generate.
 
+### Checking that it actually makes a sound
+
+A silent app and a working one are identical in the DOM — the key lights up
+either way, and every unit test passes either way. `npm run verify:audio`
+(with `npm run dev` already running) drives real Chrome over the DevTools
+Protocol, taps every connection into the audio destination with an analyser,
+clicks middle C and reads the RMS.
+
+It deliberately does **not** relax Chrome's autoplay policy. Browsers refuse to
+start audio before a user gesture, so a freshly loaded page sits with a
+suspended AudioContext and the first click on a key has to both unlock the
+audio and play the note. That is the interesting case, and relaxing the policy
+would hide it. Until that first gesture the app says so, on the instrument
+itself, rather than being quietly silent.
+
 ## Layout
 
 ```
