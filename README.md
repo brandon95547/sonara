@@ -28,6 +28,13 @@ touchscreen or a USB MIDI keyboard, and watch every note land on the keys.
 
 ## Getting started
 
+Node **24** — pinned in `.nvmrc` / `.node-version` and used by CI. With
+[nvm](https://github.com/nvm-sh/nvm), identically on macOS and Linux:
+
+```bash
+nvm install && nvm use
+```
+
 ```bash
 npm install
 npm run dev
@@ -45,7 +52,9 @@ CORS in development and no difference from production.
 | `npm run typecheck` | Type-check without emitting          |
 | `npm run format`    | Prettier over the repo               |
 
-Node 22.12 or newer (see `.nvmrc`). API docs are served at
+Node 24 is the pinned version; 22.12+ also works. Node **23 does not** — it is
+end-of-life and several dependencies exclude it, which shows up as `EBADENGINE`
+warnings on install. API docs are served at
 <http://localhost:5175/docs> from the OpenAPI document the routes generate.
 
 ### If the app says "Loading pianos…" and stays there
