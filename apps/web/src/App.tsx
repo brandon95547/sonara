@@ -113,10 +113,17 @@ function Shell() {
           <>
             {/* Above the keyboard, and in this order: what you are working on,
                 then how it is set up, then the instrument itself. Each row
-                changes what the row below it does. */}
+                changes what the row below it does.
+
+                The device strip belongs to that middle group on every topic,
+                not just Free Play. It used to drop to the foot of the page
+                everywhere else, which put the one control you need before you
+                can play at all below the fold on five of the six tabs — with
+                the header's status dot, which is not a button, as the only
+                visible hint that a keyboard is a thing you can connect. */}
             <LearningBar />
             {topic === 'scales' && <ScaleConfigRow />}
-            {topic === 'free' && <DeviceBar onConfigure={() => setSettingsOpen(true)} />}
+            <DeviceBar onConfigure={() => setSettingsOpen(true)} />
 
             <KeyboardStage
               instrumentName={selected?.name ?? 'Loading…'}
@@ -130,8 +137,6 @@ function Shell() {
             ) : (
               <ComingNext />
             )}
-
-            {topic !== 'free' && <DeviceBar onConfigure={() => setSettingsOpen(true)} />}
           </>
         )}
       </main>
