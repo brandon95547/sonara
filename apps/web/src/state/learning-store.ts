@@ -1,0 +1,274 @@
+import { create } from 'zustand'
+import {
+  buildScaleExercise,
+  DEFAULT_SCALE_SPEC,
+  IDLE_SESSION,
+  isInExercise,
+  normalisePitchClass,
+  PIANO_HIGHEST_NOTE,
+  PIANO_LOWEST_NOTE,
+  accuracy,
+  sessionReducer,
+  tempo,
+  WRONG_NOTE_FLASH_MS,
+  type Exercise,
+  type LearningMode,
+  type ScaleSpec,
+  type SessionState,
+} from '@sonara/shared'
+
+/**
+ * The learning session, and the keyboard annotations that come out of it.
+ *
+ * The engine itself lives in `@sonara/shared` as a pure reducer; this store is
+ * the thin React-facing shell around it. Everything derived — which keys light
+ * up, in what role, with which finger — is computed here, once per change, into
+ * a plain map keyed by MIDI note.
+ *
+ * That map is the whole interface between the learning system and the keyboard.
+ * A key subscribes to `annotations[note]` and re-renders only when its own
+ * entry changes, so a 61-key keyboard costs one re-render per note event rather
+ * than sixty-one. It is also why the keyboard knows nothing about scales: when
+ * chords and progressions arrive they produce the same map.
+ */
+
+export const LEARNING_TOPICS = [
+  'free',
+  'scales',
+  'chords',
+  'arpeggios',
+  'progressions',
+  'exercises',
+] as const
+export type LearningTopic = (typeof LEARNING_TOPICS)[number]
+
+export const LEARNING_TOPIC_LABELS: Record<LearningTopic, string> = {
+  free: 'Free Play',
+  scales: 'Scales',
+  chords: 'Chords',
+  arpeggios: 'Arpeggios',
+  progressions: 'Progressions',
+  exercises: 'Exercises',
+}
+
+/** Topics with a builder. The rest are announced honestly rather than faked. */
+export const AVAILABLE_TOPICS: readonly LearningTopic[] = ['free', 'scales']
+
+export type KeyRole = 'scale' | 'root' | 'upcoming' | 'target' | 'wrong'
+
+export interface KeyAnnotation {
+  readonly role: KeyRole
+  /** Recommended finger, 1-5. Never a claim about which finger was used. */
+  readonly finger?: number
+  /** `Thumb under` — shown only on the key it applies to, while it is current. */
+  readonly cue?: string
+  /** The spelled note name, e.g. `E♭`. */
+  readonly label?: string
+}
+
+interface LearningState {
+  topic: LearningTopic
+  mode: LearningMode
+  spec: ScaleSpec
+  exercise: Exercise | null
+  session: SessionState
+  annotations: Readonly<Record<number, KeyAnnotation>>
+  /** Beats per minute the practice controls are set to. A target, not a metronome. */
+  targetBpm: number
+  /** Let a clean run raise the target and a scrappy one lower it. */
+  autoTempo: boolean
+
+  setTopic: (topic: LearningTopic) => void
+  setMode: (mode: LearningMode) => void
+  updateSpec: (patch: Partial<ScaleSpec>) => void
+  start: () => void
+  reset: () => void
+  setTargetBpm: (bpm: number) => void
+  setAutoTempo: (enabled: boolean) => void
+  noteOn: (note: number) => void
+  expireWrongNotes: () => void
+}
+
+/** How many notes ahead carry a finger badge in Learn mode. */
+const LOOKAHEAD = 6
+
+function buildExercise(topic: LearningTopic, spec: ScaleSpec): Exercise | null {
+  // One switch, and it is the only place that maps a topic to a builder. Adding
+  // chords is a case here plus a builder in shared — no other file changes.
+  return topic === 'scales' ? buildScaleExercise(spec) : null
+}
+
+function buildAnnotations(
+  exercise: Exercise | null,
+  mode: LearningMode,
+  session: SessionState,
+): Record<number, KeyAnnotation> {
+  const annotations: Record<number, KeyAnnotation> = {}
+  if (!exercise) return annotations
+
+  const nameFor = (note: number) => exercise.pitchNames[normalisePitchClass(note)]
+
+  if (mode === 'explore') {
+    // Every octave, because "the notes of A minor" is a fact about the whole
+    // keyboard, not about the two octaves this exercise happens to walk.
+    for (let note = PIANO_LOWEST_NOTE; note <= PIANO_HIGHEST_NOTE; note++) {
+      if (!isInExercise(exercise, note)) continue
+      annotations[note] = {
+        role: normalisePitchClass(note) === exercise.rootPitchClass ? 'root' : 'scale',
+        label: nameFor(note),
+      }
+    }
+    return annotations
+  }
+
+  if (mode === 'practice') {
+    // The guidance goes away. Only your own mistakes come back.
+    for (const note of Object.keys(session.wrongNotes)) {
+      annotations[Number(note)] = { role: 'wrong' }
+    }
+    return annotations
+  }
+
+  // Learn: the exercise's own notes, in the octaves it actually walks.
+  exercise.steps.forEach((step, index) => {
+    const ahead = index - session.stepIndex
+    step.notes.forEach((note, i) => {
+      const existing = annotations[note]
+      // A note played twice in a scale keeps the annotation of its earliest
+      // remaining occurrence, which is the one the player is heading for.
+      if (existing && existing.role !== 'scale') return
+      annotations[note] = {
+        // Notes already played keep the quiet wash and lose their badge. The
+        // shape of the scale stays on the keyboard — a keybed that empties out
+        // behind you takes away the very thing you are learning to see.
+        role:
+          ahead < 0 ? 'scale' : ahead === 0 ? 'target' : ahead <= LOOKAHEAD ? 'upcoming' : 'scale',
+        finger: ahead < 0 ? undefined : step.fingers[i]?.finger,
+        cue: ahead === 0 ? step.cue : undefined,
+        label: step.label,
+      }
+    })
+  })
+
+  for (const note of Object.keys(session.wrongNotes)) {
+    annotations[Number(note)] = { role: 'wrong' }
+  }
+
+  return annotations
+}
+
+const initialExercise = buildScaleExercise(DEFAULT_SCALE_SPEC)
+
+export const useLearningStore = create<LearningState>((set, get) => {
+  const rebuild = (
+    topic: LearningTopic,
+    spec: ScaleSpec,
+    mode: LearningMode,
+    session: SessionState,
+  ) => {
+    const exercise = buildExercise(topic, spec)
+    return { exercise, session, annotations: buildAnnotations(exercise, mode, session) }
+  }
+
+  return {
+    topic: 'scales',
+    mode: 'learn',
+    spec: DEFAULT_SCALE_SPEC,
+    exercise: initialExercise,
+    session: IDLE_SESSION,
+    annotations: buildAnnotations(initialExercise, 'learn', IDLE_SESSION),
+    targetBpm: initialExercise.defaultBpm,
+    autoTempo: false,
+
+    setTopic: (topic) =>
+      set((state) => ({ topic, ...rebuild(topic, state.spec, state.mode, IDLE_SESSION) })),
+
+    setMode: (mode) =>
+      // Changing mode ends the run. Half a scale learned with the answers on
+      // screen is not half a scale practised, and merging the two scores would
+      // say it was.
+      set((state) => ({ mode, ...rebuild(state.topic, state.spec, mode, IDLE_SESSION) })),
+
+    updateSpec: (patch) =>
+      set((state) => {
+        const spec = { ...state.spec, ...patch }
+        return { spec, ...rebuild(state.topic, spec, state.mode, IDLE_SESSION) }
+      }),
+
+    start: () =>
+      set((state) => {
+        const session = sessionReducer(
+          state.session,
+          { type: 'start', at: Date.now() },
+          state.exercise,
+        )
+        return { session, annotations: buildAnnotations(state.exercise, state.mode, session) }
+      }),
+
+    reset: () =>
+      set((state) => ({
+        session: IDLE_SESSION,
+        annotations: buildAnnotations(state.exercise, state.mode, IDLE_SESSION),
+      })),
+
+    setTargetBpm: (bpm) => set({ targetBpm: clampBpm(bpm) }),
+
+    setAutoTempo: (autoTempo) => set({ autoTempo }),
+
+    noteOn: (note) => {
+      const state = get()
+      if (state.session.status !== 'running') return
+      const session = sessionReducer(
+        state.session,
+        { type: 'noteOn', note, at: Date.now() },
+        state.exercise,
+      )
+      if (session === state.session) return
+
+      set({
+        session,
+        annotations: buildAnnotations(state.exercise, state.mode, session),
+        // Auto tempo moves the target only at the end of a run, and only on
+        // evidence: a clean pass at or above the current target earns a nudge
+        // up, a scrappy one earns a nudge down, and anything in between leaves
+        // it alone. Adjusting mid-scale would chase the player's own hesitation.
+        ...(session.status === 'complete' && state.autoTempo
+          ? { targetBpm: nextTargetBpm(state.targetBpm, session) }
+          : {}),
+      })
+    },
+
+    expireWrongNotes: () => {
+      const state = get()
+      if (Object.keys(state.session.wrongNotes).length === 0) return
+      const session = sessionReducer(
+        state.session,
+        { type: 'expireWrong', before: Date.now() - WRONG_NOTE_FLASH_MS },
+        state.exercise,
+      )
+      if (session === state.session) return
+      set({ session, annotations: buildAnnotations(state.exercise, state.mode, session) })
+    },
+  }
+})
+
+function clampBpm(bpm: number): number {
+  return Math.min(208, Math.max(30, Math.round(bpm)))
+}
+
+const AUTO_TEMPO_STEP = 4
+
+function nextTargetBpm(target: number, session: SessionState): number {
+  const score = accuracy(session)
+  const measured = tempo(session)
+  if (score >= 0.95 && measured !== null && measured >= target * 0.95) {
+    return clampBpm(target + AUTO_TEMPO_STEP)
+  }
+  if (score < 0.85) return clampBpm(target - AUTO_TEMPO_STEP)
+  return target
+}
+
+/** For hot paths and event handlers — no subscription, no re-render. */
+export const learningActions = {
+  noteOn: (note: number) => useLearningStore.getState().noteOn(note),
+}

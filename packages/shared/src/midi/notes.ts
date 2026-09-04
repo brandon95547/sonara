@@ -27,7 +27,10 @@ const FLAT_NAMES = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 
  */
 const BLACK_PITCH_CLASSES = new Set([1, 3, 6, 8, 10])
 
-export type Accidental = 'sharp' | 'flat'
+/** Which way to spell a black key when only a preference is available.
+ * Not to be confused with a written accidental (see music/pitch.ts) — this is a
+ * choice between two names, not a symbol attached to a letter. */
+export type AccidentalPreference = 'sharp' | 'flat'
 
 /** 0-11, where 0 is C. Correct for negative note numbers too. */
 export function pitchClass(note: number): number {
@@ -48,13 +51,13 @@ export function isWhiteKey(note: number): boolean {
 }
 
 /** `noteName(61)` -> `'C#4'`. */
-export function noteName(note: number, accidental: Accidental = 'sharp'): string {
+export function noteName(note: number, accidental: AccidentalPreference = 'sharp'): string {
   const names = accidental === 'flat' ? FLAT_NAMES : SHARP_NAMES
   return `${names[pitchClass(note)]}${octaveOf(note)}`
 }
 
 /** The letter without the octave: `'C#'`. */
-export function pitchName(note: number, accidental: Accidental = 'sharp'): string {
+export function pitchName(note: number, accidental: AccidentalPreference = 'sharp'): string {
   const names = accidental === 'flat' ? FLAT_NAMES : SHARP_NAMES
   return names[pitchClass(note)] as string
 }

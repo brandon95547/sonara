@@ -351,3 +351,161 @@
   outline: 2px solid var(--ds-focus-ring);
   outline-offset: 2px;
 }
+
+/* ============================================================================
+   LEARNING ANNOTATIONS
+   ----------------------------------------------------------------------------
+   Four roles, four levels of emphasis, and one meaning each:
+
+     scale / root   this note belongs to the material          (information)
+     upcoming       you will need this one shortly             (context)
+     target         play this, now                             (the action)
+     wrong          that was not it                            (the error)
+
+   The target is the accent, and the accent is used for nothing else on the
+   keybed — the whole point of a single accent colour is that when it appears,
+   there is exactly one thing to do. The scale wash therefore has to be
+   quiet enough that the accent still reads as an instruction rather than as
+   more of the same, which is why it is a low-alpha tint rather than a fill.
+   ========================================================================= */
+
+.piano-key[data-role='scale'],
+.piano-key[data-role='upcoming'],
+.piano-key[data-role='root'] {
+  /* An alpha wash rather than a solid colour, so one value composes correctly
+     over both an ivory white key and a near-black black key. */
+  background-image: linear-gradient(var(--key-wash), var(--key-wash));
+}
+.piano-key--white[data-role='scale'] {
+  --key-wash: rgb(112 111 211 / 0.13);
+}
+
+/* Explore has no target on the keybed, so the wash has nothing to defer to and
+   can carry the information properly. In Learn it has to stay quiet, because
+   the accent target is competing with it and the accent has to win. Same role,
+   different amount of room — which is why this is keyed to the mode rather
+   than baked into the role. */
+.keybed[data-mode='explore'] .piano-key--white[data-role='scale'] {
+  --key-wash: rgb(112 111 211 / 0.27);
+}
+.keybed[data-mode='explore'] .piano-key--white[data-role='root'] {
+  --key-wash: rgb(112 111 211 / 0.52);
+}
+.keybed[data-mode='explore'] .piano-key--black[data-role='scale'] {
+  --key-wash: rgb(150 149 240 / 0.4);
+}
+.keybed[data-mode='explore'] .piano-key--black[data-role='root'] {
+  --key-wash: rgb(150 149 240 / 0.66);
+}
+.piano-key--white[data-role='upcoming'] {
+  --key-wash: rgb(112 111 211 / 0.28);
+}
+.piano-key--white[data-role='root'] {
+  --key-wash: rgb(112 111 211 / 0.3);
+}
+.piano-key--black[data-role='scale'] {
+  --key-wash: rgb(150 149 240 / 0.2);
+}
+.piano-key--black[data-role='upcoming'],
+.piano-key--black[data-role='root'] {
+  --key-wash: rgb(150 149 240 / 0.4);
+}
+
+/* The one key to play now.
+   Solid, not a wash — an instruction should not be a stronger version of the
+   surrounding information, it should be a different kind of thing. The wash
+   above is deliberately quiet for the same reason: the accent only reads as
+   "do this" if nothing else on the keybed is wearing it. */
+.piano-key--white[data-role='target']:not([data-active='true']) {
+  background-color: var(--ds-accent);
+  box-shadow:
+    inset 0 -4px 0 var(--ds-accent-active),
+    0 0 22px -4px var(--ds-accent);
+}
+.piano-key--black[data-role='target']:not([data-active='true']) {
+  background-color: var(--ds-accent-active);
+  box-shadow:
+    inset 0 6px 0 var(--ds-accent),
+    inset 0 -3px 0 rgb(0 0 0 / 0.5),
+    0 0 22px -6px var(--ds-accent);
+}
+.piano-key--white[data-role='target'] .piano-key__label,
+.piano-key--black[data-role='target'] .piano-key__label {
+  color: rgb(255 255 255 / 0.9);
+}
+
+/* A wrong note. Muted rather than alarming: it is a correction, not a fault,
+   and it has to be legible next to an accent key without shouting over it. */
+.piano-key--white[data-role='wrong'],
+.piano-key--white[data-role='wrong'][data-active='true'] {
+  background-color: var(--ds-danger-active);
+  box-shadow: inset 0 -4px 0 rgb(0 0 0 / 0.35);
+}
+.piano-key--black[data-role='wrong'],
+.piano-key--black[data-role='wrong'][data-active='true'] {
+  background-color: var(--ds-danger-active);
+  box-shadow: inset 0 6px 0 var(--ds-danger);
+}
+.piano-key[data-role='wrong'] .piano-key__label {
+  color: rgb(255 255 255 / 0.9);
+}
+
+/* ---- Finger badges -------------------------------------------------------
+   In their own layer above every key. A badge drawn inside a white key would
+   be hidden by the black keys that overlap it, and a badge inside a black key
+   would be 12px wide. */
+.key-badges {
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  height: 100%;
+  pointer-events: none;
+  z-index: 6;
+}
+
+.key-badge {
+  position: absolute;
+  top: 6px;
+  display: grid;
+  place-items: center;
+  height: 20px;
+  width: 20px;
+  margin-left: -10px;
+  border-radius: 99px;
+  font-size: 11px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  border: 1px solid rgb(0 0 0 / 0.4);
+  background: var(--ds-surface-overlay);
+  color: var(--ds-fg);
+  box-shadow: var(--ds-shadow-2);
+  transition:
+    background-color var(--duration-fast) var(--ease-standard),
+    transform var(--duration-fast) var(--ease-standard);
+}
+
+.key-badge[data-role='target'] {
+  background: var(--ds-accent);
+  color: var(--ds-accent-fg);
+  border-color: rgb(255 255 255 / 0.35);
+  transform: scale(1.15);
+}
+
+/* The cue that arrives with the note it applies to. Anchored to the key rather
+   than parked in a panel, because "thumb under" is about THIS key and reading
+   it three inches away at the wrong moment is no use. */
+.key-cue {
+  position: absolute;
+  top: 30px;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  padding: 2px 7px;
+  border-radius: var(--radius-sm);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  background: var(--ds-accent);
+  color: var(--ds-accent-fg);
+  box-shadow: var(--ds-shadow-2);
+}

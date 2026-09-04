@@ -21,6 +21,10 @@ touchscreen or a USB MIDI keyboard, and watch every note land on the keys.
 - **USB MIDI in**, with per-keyboard detection and configuration: transpose,
   octave shift, velocity curve, channel filter and sustain pedal, saved against
   the keyboard and restored the next time it is plugged in.
+- **A learning system built into the instrument.** Pick a scale, then pick how
+  much help you want: **Explore** lights every note of it across the whole
+  keyboard, **Learn** walks you through one note at a time with the recommended
+  finger on the key, and **Practice** takes the guidance away and keeps score.
 
 ## Getting started
 
@@ -112,6 +116,47 @@ entry carries a voicing for exactly this reason.
 The sustain pedal is held by the provider rather than by either engine: it is a
 property of the performance, not of the instrument, so every engine gets
 identical pedal behaviour and an engine swap mid-pedal cannot strand a note.
+
+### The learning system
+
+Everything Sonara can teach reduces to the same thing: an ordered list of steps,
+where a step is a set of notes that has to sound before the next one is due. A
+scale is a sequence of one-note steps; a chord is one step of three notes; a
+progression is a sequence of chord-shaped steps.
+
+```
+packages/shared/src/music/      pitch spelling, scale definitions, fingering
+packages/shared/src/learning/   the Exercise model, builders, the session engine
+```
+
+Nothing downstream — not the engine, not the keyboard, not the dashboard — knows
+which of those it is looking at. Adding Chords, Arpeggios, Progressions or
+Exercises is a builder that returns steps; the highlighting, the finger badges,
+the scoring and the dashboard already work on them. The topic tabs for those are
+shown and disabled rather than hidden, because the shape of the thing is the
+promise.
+
+The session engine is a **pure reducer over note events**, deliberately:
+everything interesting in it — when a step advances, what counts as a mistake,
+how tempo is inferred — is logic that has to be right, and logic that is right is
+logic you can test without a browser, an AudioContext or a MIDI cable.
+
+**Notes are spelled properly.** A MIDI note number knows its pitch but not its
+name: note 6 is F♯ in D major and G♭ in D♭ major. Each degree takes the letter
+its _number_ implies and whatever accidental makes that letter sound right, so
+A♭ major comes out as A♭ B♭ C D♭ E♭ F G rather than G♯ A♯ C C♯ D♯ F G, C blues
+keeps its traditional G♭ and G♮ on the same letter, and G♯ harmonic minor gets
+the F𝄪 it actually has. The root spelling is chosen the way a musician would —
+whichever of the two enharmonics needs fewer accidentals — which is how pitch
+class 1 comes out as D♭ _major_ and C♯ _minor_.
+
+**Fingering is a recommendation, never a reading.** MIDI reports which note was
+played and how hard. It does not report which finger played it, and Sonara does
+not pretend otherwise — the cards say so. Major and natural minor carry the
+fingerings method books teach; other scale types are derived from the two rules
+those fingerings themselves follow (the thumb does not play a black key; the
+hand moves in groups of three or four) and are labelled _Suggested_ rather than
+_Standard_, because those are different claims.
 
 ### MIDI
 

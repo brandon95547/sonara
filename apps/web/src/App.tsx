@@ -7,12 +7,15 @@ import { AudioProvider, useAudio } from '@/audio/AudioProvider'
 import { MidiProvider } from '@/midi/MidiProvider'
 import { AppBar } from '@/components/AppBar'
 import { KeyboardStage } from '@/features/keyboard/KeyboardStage'
-import { InstrumentPicker } from '@/features/instruments/InstrumentPicker'
 import { DeviceBar } from '@/features/devices/DeviceBar'
 import { DeviceSettingsDrawer } from '@/features/devices/DeviceSettingsDrawer'
-import { Section } from '@/ui/Surface'
+import { LearningBar } from '@/features/learning/LearningBar'
+import { ScaleConfigRow } from '@/features/learning/ScaleConfigRow'
+import { LearningDashboard } from '@/features/learning/LearningDashboard'
+import { Card } from '@/ui/Surface'
 import { Chip } from '@/ui/Display'
 import { Button } from '@/ui/Button'
+import { LEARNING_TOPIC_LABELS, useLearningStore } from '@/state/learning-store'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -44,6 +47,7 @@ function Shell() {
   const audio = useAudio()
   const [settingsOpen, setSettingsOpen] = React.useState(false)
   const [selectedId, setSelectedId] = React.useState<string | null>(null)
+  const topic = useLearningStore((state) => state.topic)
 
   const catalogue = useQuery({
     queryKey: ['instruments'],
@@ -89,37 +93,78 @@ function Shell() {
 
   return (
     <div className="app-ambient relative min-h-dvh">
-      <AppBar />
+      <AppBar instruments={instruments} selectedId={selectedId} onSelectInstrument={select} />
 
-      <main className="relative z-10 mx-auto flex max-w-[var(--ds-layout-container)] flex-col gap-6 px-[var(--ds-layout-gutter)] py-6 sm:px-[var(--ds-layout-gutter-lg)] sm:py-8">
-        <DeviceBar onConfigure={() => setSettingsOpen(true)} />
-
+      <main className="relative z-10 mx-auto flex max-w-[var(--ds-layout-container)] flex-col gap-4 px-[var(--ds-layout-gutter)] py-5 sm:px-[var(--ds-layout-gutter-lg)] sm:py-6">
         {catalogue.isError ? (
           <CatalogueError error={catalogue.error} onRetry={() => void catalogue.refetch()} />
         ) : (
           <>
+            {/* Above the keyboard, and in this order: what you are working on,
+                then how it is set up, then the instrument itself. Each row
+                changes what the row below it does. */}
+            <LearningBar />
+            {topic === 'scales' && <ScaleConfigRow />}
+            {topic === 'free' && <DeviceBar onConfigure={() => setSettingsOpen(true)} />}
+
             <KeyboardStage
               instrumentName={selected?.name ?? 'Loading…'}
               statusSlot={<EngineChip />}
             />
 
-            <Section
-              title="Choose a piano"
-              description="Each one loads on demand and is cached for next time."
-            >
-              <InstrumentPicker
-                instruments={instruments}
-                selectedId={selectedId}
-                onSelect={select}
-                status={audio.status}
-              />
-            </Section>
+            {topic === 'scales' ? (
+              <LearningDashboard />
+            ) : topic === 'free' ? (
+              <FreePlayNote />
+            ) : (
+              <ComingNext />
+            )}
+
+            {topic !== 'free' && <DeviceBar onConfigure={() => setSettingsOpen(true)} />}
           </>
         )}
       </main>
 
       <DeviceSettingsDrawer open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </div>
+  )
+}
+
+function FreePlayNote() {
+  return (
+    <Card className="flex flex-col gap-1.5">
+      <h2 className="text-h4 text-[var(--ds-fg)]">Free play</h2>
+      <p className="text-body-sm text-[var(--ds-fg-secondary)]">
+        No exercise, no scoring, nothing lit. Pick a topic above when you want the keyboard to teach
+        rather than just sound.
+      </p>
+    </Card>
+  )
+}
+
+/**
+ * Topics whose builder has not been written yet.
+ *
+ * Says what is actually missing rather than "coming soon". The engine, the
+ * keyboard highlighting and this dashboard are all generic over
+ * `Exercise` — a chord topic is a builder that returns steps of three notes
+ * instead of one, and nothing else.
+ */
+function ComingNext() {
+  const topic = useLearningStore((state) => state.topic)
+  return (
+    <Card className="flex flex-col items-start gap-2">
+      <div className="flex items-center gap-2">
+        <h2 className="text-h4 text-[var(--ds-fg)]">{LEARNING_TOPIC_LABELS[topic]}</h2>
+        <Chip tone="info">Next</Chip>
+      </div>
+      <p className="max-w-prose text-body-sm leading-relaxed text-[var(--ds-fg-secondary)]">
+        The Explore, Learn and Practice engine behind Scales is not scale-specific — it walks a list
+        of steps, where a step is a set of notes. {LEARNING_TOPIC_LABELS[topic]} needs a builder
+        that produces those steps, and nothing else: the keyboard highlighting, the fingering
+        badges, the scoring and this dashboard all work on them already.
+      </p>
+    </Card>
   )
 }
 

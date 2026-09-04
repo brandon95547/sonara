@@ -1,9 +1,10 @@
 import * as React from 'react'
-import { clampVelocity } from '@sonara/shared'
+import { clampVelocity, WRONG_NOTE_FLASH_MS } from '@sonara/shared'
 import { useAudio } from '@/audio/AudioProvider'
 import { keyboardActions, useKeyboardStore } from '@/state/keyboard-store'
+import { learningActions, useLearningStore } from '@/state/learning-store'
 import { PianoKey } from './PianoKey'
-import { buildLayout, type KeyboardWindow } from './keyboard-layout'
+import { buildLayout, type KeyboardLayout, type KeyboardWindow } from './keyboard-layout'
 
 /**
  * The keybed.
@@ -50,6 +51,7 @@ export function PianoKeyboard({
   className,
 }: PianoKeyboardProps) {
   const audio = useAudio()
+  const mode = useLearningStore((state) => state.mode)
   const layout = React.useMemo(() => buildLayout(keyWindow), [keyWindow])
 
   const audioRef = React.useRef(audio)
@@ -62,6 +64,10 @@ export function PianoKeyboard({
   const press = React.useCallback((note: number, velocity: number) => {
     keyboardActions.noteOn(note, velocity, 'pointer')
     audioRef.current.noteOn(note, velocity)
+    // The learning session is told directly rather than by watching the
+    // keyboard store, so a chord played in one frame arrives as three notes
+    // instead of as whichever one happened to land last.
+    learningActions.noteOn(note)
   }, [])
 
   const release = React.useCallback((note: number) => {
@@ -119,6 +125,21 @@ export function PianoKeyboard({
     [release],
   )
 
+  // Wrong-note flashes are recorded with a timestamp by the pure reducer and
+  // swept here. A `setTimeout` per mistake would be one timer per wrong note;
+  // one interval, running only while something is lit, is enough.
+  const hasWrongNotes = useLearningStore(
+    (state) => Object.keys(state.session.wrongNotes).length > 0,
+  )
+  React.useEffect(() => {
+    if (!hasWrongNotes) return
+    const timer = globalThis.setInterval(
+      () => useLearningStore.getState().expireWrongNotes(),
+      WRONG_NOTE_FLASH_MS / 3,
+    )
+    return () => globalThis.clearInterval(timer)
+  }, [hasWrongNotes])
+
   // A note must never survive the pointer that started it, wherever it ends up.
   React.useEffect(() => {
     const finish = (event: PointerEvent) => {
@@ -167,6 +188,7 @@ export function PianoKeyboard({
     <div className={className}>
       <div
         className="keybed"
+        data-mode={mode}
         role="group"
         aria-label={`Piano keyboard, ${layout.whiteCount} white keys`}
         style={{ height: 'var(--keybed-height)' }}
@@ -198,7 +220,56 @@ export function PianoKeyboard({
           />
         ))}
         <RangeEdges window={keyWindow} />
+        <FingerBadges layout={layout} />
       </div>
+    </div>
+  )
+}
+
+/**
+ * Recommended finger numbers, in their own layer above every key.
+ *
+ * Above, because a badge drawn inside a white key would be covered by the black
+ * keys that overlap it, and a badge drawn inside a black key would be twelve
+ * pixels wide. Positioned from the same percentages the keys are, so it stays
+ * aligned at any width with nothing to keep in sync.
+ *
+ * These are recommendations. MIDI reports the note and the velocity; it does
+ * not report which finger played it, and Sonara does not pretend otherwise.
+ */
+function FingerBadges({ layout }: { layout: KeyboardLayout }) {
+  const annotations = useLearningStore((state) => state.annotations)
+
+  const badges = React.useMemo(() => {
+    const all = [...layout.whiteKeys, ...layout.blackKeys]
+    return all
+      .map((key) => ({ key, annotation: annotations[key.note] }))
+      .filter((entry) => entry.annotation?.finger !== undefined)
+  }, [layout, annotations])
+
+  if (badges.length === 0) return null
+
+  return (
+    <div className="key-badges" aria-hidden>
+      {badges.map(({ key, annotation }) => (
+        <React.Fragment key={key.note}>
+          <span
+            className="key-badge"
+            data-role={annotation!.role}
+            style={{ left: `${key.leftPercent + key.widthPercent / 2}%` }}
+          >
+            {annotation!.finger}
+          </span>
+          {annotation!.cue && (
+            <span
+              className="key-cue"
+              style={{ left: `${key.leftPercent + key.widthPercent / 2}%` }}
+            >
+              {annotation!.cue}
+            </span>
+          )}
+        </React.Fragment>
+      ))}
     </div>
   )
 }

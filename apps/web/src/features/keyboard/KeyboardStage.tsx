@@ -6,6 +6,7 @@ import { Chip, StatusDot } from '@/ui/Display'
 import { Select } from '@/ui/Controls'
 import { useAudio } from '@/audio/AudioProvider'
 import { useKeyboardStore } from '@/state/keyboard-store'
+import { useLearningStore } from '@/state/learning-store'
 import { useCoarsePointer, useElementWidth } from '@/lib/hooks'
 import { cn } from '@/lib/cn'
 import { PianoKeyboard } from './PianoKeyboard'
@@ -61,14 +62,27 @@ export function KeyboardStage({ instrumentName, statusSlot }: KeyboardStageProps
     [spanId, autoSpan],
   )
 
-  // Re-anchor whenever the span changes, keeping the current low note in view
-  // so a resize does not teleport the player to the other end of the piano.
+  /**
+   * Re-anchor when the span changes, or when a new exercise is loaded.
+   *
+   * A resize keeps the current low note, so it does not teleport the player to
+   * the other end of the piano. A new exercise instead CENTRES the window on
+   * the notes it covers — on a phone the window is two octaves of an
+   * eighty-eight key piano, and an exercise placed merely "in view" opens with
+   * its first note jammed against the right edge and the rest off screen.
+   */
   const spanKey = span.id
+  const exerciseId = useLearningStore((state) => state.exercise?.id ?? null)
   React.useEffect(() => {
-    setWindow((current) => windowForSpan(span, current.low))
-    // Only the span identity should re-anchor; `span` is a stable table entry.
+    const exercise = useLearningStore.getState().exercise
+    setWindow((current) => {
+      if (!exercise || exercise.notes.length === 0) return windowForSpan(span, current.low)
+      const middle = (Math.min(...exercise.notes) + Math.max(...exercise.notes)) / 2
+      return windowForSpan(span, Math.round(middle - span.semitones / 2))
+    })
+    // `span` is a stable table entry; its id is what identifies a change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [spanKey])
+  }, [spanKey, exerciseId])
 
   // Follow the player. Whole-octave jumps, and only when the note is genuinely
   // outside the window — see `windowIncluding` for why not "scroll to fit".
@@ -77,6 +91,18 @@ export function KeyboardStage({ instrumentName, statusSlot }: KeyboardStageProps
     if (!follow || !lastNote) return
     setWindow((current) => windowIncluding(current, lastNote.note))
   }, [follow, lastNote])
+
+  // And follow the note you have been ASKED to play, not only the one you did.
+  // On a phone the visible window is two octaves of an eighty-eight key piano,
+  // so an exercise starting outside it would open with its first note off
+  // screen and stay there until the player guessed where to go.
+  const targetNote = useLearningStore(
+    (state) => state.exercise?.steps[state.session.stepIndex]?.notes[0] ?? null,
+  )
+  React.useEffect(() => {
+    if (!follow || targetNote === null) return
+    setWindow((current) => windowIncluding(current, targetNote))
+  }, [follow, targetNote])
 
   const sustain = useKeyboardStore((state) => state.sustain)
   const canGoDown = canShift(window, -1)

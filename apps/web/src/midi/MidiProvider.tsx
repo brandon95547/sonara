@@ -15,6 +15,7 @@ import {
 import { api } from '@/lib/api'
 import { useAudio } from '@/audio/AudioProvider'
 import { keyboardActions } from '@/state/keyboard-store'
+import { learningActions } from '@/state/learning-store'
 import { requestMidiAccess, detectMidiSupport, type MidiAccessState } from './midi-access'
 
 /**
@@ -148,6 +149,11 @@ export function MidiProvider({ children }: { children: React.ReactNode }) {
         )
         keyboardActions.noteOn(note, velocity, 'midi')
         audioRef.current.noteOn(note, velocity)
+        // The learning session sees the note AFTER the device's transpose and
+        // octave shift, which is the note that actually sounded — so a player
+        // transposing to reach a scale is judged on what they played, not on
+        // what their controller sent.
+        learningActions.noteOn(note)
         return
       }
       case 'noteOff': {

@@ -1,6 +1,7 @@
 import * as React from 'react'
 import { noteName, pitchClass } from '@sonara/shared'
 import { useKeyboardStore } from '@/state/keyboard-store'
+import { useLearningStore } from '@/state/learning-store'
 import type { KeyGeometry } from './keyboard-layout'
 
 /**
@@ -36,6 +37,10 @@ export const PianoKey = React.memo(function PianoKey({
 }: PianoKeyProps) {
   const { note, black } = geometry
   const active = useKeyboardStore((state) => state.active[note])
+  // One subscription per key, to that key's own entry. A note event rebuilds
+  // the map but leaves every other entry referentially identical, so only the
+  // keys that actually changed re-render.
+  const annotation = useLearningStore((state) => state.annotations[note])
   const label = noteName(note)
   // Middle C is the one landmark every player navigates from.
   const isAnchor = note === 60
@@ -56,9 +61,10 @@ export const PianoKey = React.memo(function PianoKey({
       type="button"
       // A key is not a toggle: aria-pressed would say it stays down. `data-active`
       // drives the paint, and the live region in the keyboard announces notes.
-      aria-label={label}
+      aria-label={annotation?.finger ? `${label}, finger ${annotation.finger}` : label}
       data-note={note}
       data-active={active ? 'true' : undefined}
+      data-role={annotation?.role}
       className={black ? 'piano-key piano-key--black' : 'piano-key piano-key--white'}
       style={style}
       onPointerDown={(event) => onPress(note, event)}
@@ -70,10 +76,19 @@ export const PianoKey = React.memo(function PianoKey({
       // Dragging a key would start a native drag and swallow the glissando.
       draggable={false}
     >
-      {showLabel && !black && pitchClass(note) === 0 && (
-        <span className={`piano-key__label${isAnchor ? ' piano-key__label--anchor' : ''}`}>
-          {label}
-        </span>
+      {/* An annotated key shows the note it IS — `E♭`, not `E♭4` — because in
+          a scale you are reading letters, not octaves. Unannotated keys keep
+          the octave marker on every C, which is how you find your place. */}
+      {annotation?.label && !black ? (
+        <span className="piano-key__label">{annotation.label}</span>
+      ) : (
+        showLabel &&
+        !black &&
+        pitchClass(note) === 0 && (
+          <span className={`piano-key__label${isAnchor ? ' piano-key__label--anchor' : ''}`}>
+            {label}
+          </span>
+        )
       )}
     </button>
   )
