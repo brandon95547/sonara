@@ -1,17 +1,20 @@
 import { describe, expect, it } from 'vitest'
-import { countWhiteKeys, isBlackKey, noteName } from '@sonara/shared'
+import { KEY_COUNTS, isBlackKey, pitchClass, STANDARD_RANGES } from '@sonara/shared'
 import {
   buildLayout,
   canShift,
   chooseSpan,
+  DEFAULT_KEY_COUNT,
+  DEFAULT_SPAN,
   FULL_PIANO,
   KEYBOARD_SPANS,
   shiftWindow,
+  spanForKeyCount,
   windowForSpan,
   windowIncluding,
 } from '@/features/keyboard/keyboard-layout'
 
-const span = (id: string) => KEYBOARD_SPANS.find((s) => s.id === id)!
+const span = (keyCount: number) => spanForKeyCount(keyCount as (typeof KEY_COUNTS)[number])
 
 describe('buildLayout', () => {
   it('lays out a full 88-key piano', () => {
@@ -61,57 +64,115 @@ describe('buildLayout', () => {
   })
 })
 
-describe('chooseSpan', () => {
-  it('shows the full piano on a wide desktop', () => {
-    expect(chooseSpan(1400, false).id).toBe('full')
+describe('the size table', () => {
+  it('is named the way keyboards are sold', () => {
+    expect(KEYBOARD_SPANS.map((s) => s.label)).toEqual([
+      '25 key',
+      '32 key',
+      '37 key',
+      '49 key',
+      '61 key',
+      '76 key',
+      '88 key',
+    ])
   })
 
-  it('narrows as the viewport does', () => {
-    const wide = chooseSpan(1400, false)
-    const tablet = chooseSpan(760, false)
-    const phone = chooseSpan(340, true)
-    expect(wide.semitones).toBeGreaterThan(tablet.semitones)
-    expect(tablet.semitones).toBeGreaterThan(phone.semitones)
+  it('carries every standard size, smallest first', () => {
+    expect(KEYBOARD_SPANS.map((s) => s.keyCount)).toEqual([...KEY_COUNTS])
+  })
+
+  it('gives each size the range that size really has', () => {
+    for (const entry of KEYBOARD_SPANS) {
+      const standard = STANDARD_RANGES[entry.keyCount]
+      expect(entry.semitones).toBe(standard.high - standard.low)
+      // The count in the name is the count of keys, black ones included.
+      expect(entry.semitones + 1).toBe(entry.keyCount)
+    }
+  })
+
+  it('defaults to 61 key', () => {
+    expect(DEFAULT_KEY_COUNT).toBe(61)
+    expect(DEFAULT_SPAN.label).toBe('61 key')
+  })
+})
+
+describe('chooseSpan', () => {
+  it('picks the default size on an ordinary desktop', () => {
+    expect(chooseSpan(1400, false).keyCount).toBe(61)
+  })
+
+  it('never goes above the default, however much room there is', () => {
+    // A 4K monitor has space for 88 keys. That is not a reason to hand someone
+    // a keyboard twice the size of the one they own.
+    expect(chooseSpan(3840, false).keyCount).toBe(DEFAULT_KEY_COUNT)
+  })
+
+  it('narrows once the default no longer fits', () => {
+    // 61 keys is 36 white keys, so it fits comfortably at 760px and does not
+    // at 600. Below that the sizes step down rather than squeezing.
+    expect(chooseSpan(1400, false).keyCount).toBe(61)
+    expect(chooseSpan(760, false).keyCount).toBe(61)
+    expect(chooseSpan(600, false).keyCount).toBeLessThan(61)
+    expect(chooseSpan(340, true).keyCount).toBeLessThan(chooseSpan(600, false).keyCount)
+  })
+
+  it('never widens as the screen narrows', () => {
+    let previous = Number.POSITIVE_INFINITY
+    for (const width of [1920, 1400, 1024, 900, 768, 600, 480, 390, 320]) {
+      const chosen = chooseSpan(width, false).keyCount
+      expect(chosen).toBeLessThanOrEqual(previous)
+      previous = chosen
+    }
   })
 
   it('keeps keys wider under a finger than under a mouse', () => {
     // Same width, different pointer: touch gets fewer, wider keys.
-    expect(chooseSpan(700, true).semitones).toBeLessThanOrEqual(chooseSpan(700, false).semitones)
+    expect(chooseSpan(700, true).keyCount).toBeLessThanOrEqual(chooseSpan(700, false).keyCount)
   })
 
   it('still returns a keyboard at 320px rather than nothing', () => {
-    const chosen = chooseSpan(320, true)
-    expect(chosen.semitones).toBeGreaterThan(0)
+    expect(chooseSpan(320, true).keyCount).toBeGreaterThan(0)
   })
 
   it('respects the minimum key width it picked for', () => {
     for (const width of [320, 480, 768, 1024, 1440, 1920]) {
       const chosen = chooseSpan(width, false)
-      if (chosen.id === KEYBOARD_SPANS[0]!.id) continue
-      const whites = countWhiteKeys(60, 60 + chosen.semitones)
-      expect(width / whites).toBeGreaterThanOrEqual(20)
+      if (chosen.keyCount === KEYBOARD_SPANS[0]!.keyCount) continue
+      expect(width / chosen.whiteKeys).toBeGreaterThanOrEqual(20)
     }
   })
 })
 
 describe('windowForSpan', () => {
-  it('anchors the window on a C', () => {
-    const window = windowForSpan(span('2'), 65)
-    expect(noteName(window.low)).toMatch(/^C\d$/)
+  it('starts every size on the note that size really starts on', () => {
+    // A 61 starts on C, a 32 on F, a 76 on E. Anchoring anywhere else would
+    // show a slice of a piano rather than a keyboard anyone owns.
+    for (const entry of KEYBOARD_SPANS) {
+      const window = windowForSpan(entry, 60)
+      expect(pitchClass(window.low)).toBe(pitchClass(STANDARD_RANGES[entry.keyCount].low))
+    }
   })
 
-  it('returns the real 88-key range for the full span', () => {
-    expect(windowForSpan(span('full'), 60)).toEqual(FULL_PIANO)
+  it('gives each size its standard range when anchored at its own start', () => {
+    for (const entry of KEYBOARD_SPANS) {
+      const standard = STANDARD_RANGES[entry.keyCount]
+      expect(windowForSpan(entry, standard.low)).toEqual(standard)
+    }
   })
 
-  it('never runs off the top of the piano', () => {
-    const window = windowForSpan(span('4'), 120)
-    expect(window.high).toBeLessThanOrEqual(108)
+  it('returns the real 88-key range for the full size', () => {
+    expect(windowForSpan(span(88), 60)).toEqual(FULL_PIANO)
   })
 
-  it('never runs off the bottom', () => {
-    const window = windowForSpan(span('2'), 0)
-    expect(window.low).toBeGreaterThanOrEqual(21)
+  it('keeps every size inside the piano wherever it is anchored', () => {
+    for (const entry of KEYBOARD_SPANS) {
+      for (const anchor of [-40, 0, 21, 60, 108, 200]) {
+        const window = windowForSpan(entry, anchor)
+        expect(window.low).toBeGreaterThanOrEqual(21)
+        expect(window.high).toBeLessThanOrEqual(108)
+        expect(window.high - window.low).toBe(entry.semitones)
+      }
+    }
   })
 })
 

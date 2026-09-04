@@ -1,11 +1,14 @@
 import {
   countWhiteKeys,
   isBlackKey,
+  KEY_COUNTS,
   PIANO_HIGHEST_NOTE,
   PIANO_LOWEST_NOTE,
   pitchClass,
   snapRangeToWhiteKeys,
+  STANDARD_RANGES,
   whiteKeyIndex,
+  type KeyCount,
 } from '@sonara/shared'
 
 /**
@@ -71,39 +74,66 @@ const BLACK_KEY_WIDTH_RATIO = 0.58
 export const MIN_WHITE_KEY_WIDTH = { fine: 20, coarse: 22 } as const
 
 export interface KeyboardSpan {
+  /** The key count, as a string, so it can be a `<select>` value. */
   readonly id: string
+  readonly keyCount: KeyCount
+  /** How players name these: "61 key", not "5 octaves". */
   readonly label: string
   /** Semitones from the window's lowest note to its highest. */
   readonly semitones: number
+  readonly whiteKeys: number
 }
 
 /**
- * The spans the keyboard can show, smallest first. Whole octaves so the window
- * always starts on a C and the player's mental map of the keyboard survives a
- * resize — except the full span, which is a real 88-key piano, A0 to C8.
+ * The sizes the keyboard can show, built from the standard key counts the rest
+ * of the app already speaks in.
+ *
+ * Named the way keyboards are sold and the way players talk — "61 key", not
+ * "5 octaves". It is also the same vocabulary the device settings use for a
+ * connected controller, so "my keyboard is a 61" and "show me 61 keys" are
+ * visibly the same idea rather than two systems that happen to line up.
+ *
+ * Each size keeps its real range, which is why they are not all whole octaves:
+ * a 32-key controller starts on F and a 76 starts on E, exactly as the hardware
+ * does.
  */
-export const KEYBOARD_SPANS: readonly KeyboardSpan[] = [
-  { id: '1', label: '1 octave', semitones: 12 },
-  { id: '2', label: '2 octaves', semitones: 24 },
-  { id: '3', label: '3 octaves', semitones: 36 },
-  { id: '4', label: '4 octaves', semitones: 48 },
-  { id: '5', label: '5 octaves', semitones: 60 },
-  { id: '6', label: '6 octaves', semitones: 72 },
-  { id: 'full', label: 'Full 88', semitones: PIANO_HIGHEST_NOTE - PIANO_LOWEST_NOTE },
-]
+export const KEYBOARD_SPANS: readonly KeyboardSpan[] = KEY_COUNTS.map((keyCount) => {
+  const range = STANDARD_RANGES[keyCount]
+  return {
+    id: String(keyCount),
+    keyCount,
+    label: `${keyCount} key`,
+    semitones: range.high - range.low,
+    whiteKeys: countWhiteKeys(range.low, range.high),
+  }
+})
+
+/**
+ * What the keyboard shows unless the player says otherwise, and the ceiling on
+ * what auto will choose.
+ *
+ * 61 is the most common size sold and covers the large majority of teaching
+ * material. Auto never goes above it — a 4K monitor has room for all 88, but
+ * "there is space" is not a reason to hand someone a keyboard twice the size of
+ * the one they own. Picking 76 or 88 from the list is one click away.
+ */
+export const DEFAULT_KEY_COUNT: KeyCount = 61
+
+export const DEFAULT_SPAN: KeyboardSpan = KEYBOARD_SPANS.find(
+  (span) => span.keyCount === DEFAULT_KEY_COUNT,
+) as KeyboardSpan
 
 export const FULL_PIANO: KeyboardWindow = { low: PIANO_LOWEST_NOTE, high: PIANO_HIGHEST_NOTE }
 
-/** White keys in a window of this many semitones, anchored on a C. */
-function whiteKeysInSpan(span: KeyboardSpan): number {
-  if (span.id === 'full') return countWhiteKeys(PIANO_LOWEST_NOTE, PIANO_HIGHEST_NOTE)
-  return countWhiteKeys(60, 60 + span.semitones)
+export function spanForKeyCount(keyCount: KeyCount): KeyboardSpan {
+  return KEYBOARD_SPANS.find((span) => span.keyCount === keyCount) ?? DEFAULT_SPAN
 }
 
 /**
- * The largest span whose keys stay wide enough to play at this width.
+ * The largest size whose keys stay wide enough to play at this width, never
+ * larger than the default.
  *
- * Falls back to the smallest span rather than returning nothing: on a very
+ * Falls back to the smallest size rather than returning nothing: on a very
  * narrow screen the keys end up under the ideal width, which is a compromise —
  * showing no keyboard at all is not.
  */
@@ -111,27 +141,31 @@ export function chooseSpan(availableWidth: number, coarsePointer: boolean): Keyb
   const minWidth = coarsePointer ? MIN_WHITE_KEY_WIDTH.coarse : MIN_WHITE_KEY_WIDTH.fine
   let best: KeyboardSpan = KEYBOARD_SPANS[0] as KeyboardSpan
   for (const span of KEYBOARD_SPANS) {
-    if (whiteKeysInSpan(span) * minWidth <= availableWidth) best = span
+    if (span.keyCount > DEFAULT_KEY_COUNT) break
+    if (span.whiteKeys * minWidth <= availableWidth) best = span
   }
   return best
 }
 
-/** The lowest C on an 88-key piano. A0 and B0 sit below it. */
-const LOWEST_C = 24
-
 /**
- * Builds a window of `span` starting at or below `anchor`, snapped down to a C.
+ * Positions a window of `span` at or below `anchor`.
  *
- * Anchoring on a C is what keeps a resize from disorienting the player: the
- * window changes size, but the shape under their eyes is still the shape they
- * already read. A window starting on an F# is a piano nobody has seen.
+ * The window always starts on the same note name its size starts on in the real
+ * world — C for most, F for a 32, E for a 76, A for a full 88. That is what
+ * keeps a resize from disorienting the player: the window changes size, but the
+ * shape under their eyes is still the shape they already read, and it is the
+ * shape of an actual keyboard rather than an arbitrary slice of one.
  */
 export function windowForSpan(span: KeyboardSpan, anchor: number): KeyboardWindow {
-  if (span.id === 'full') return FULL_PIANO
-
+  const standard = STANDARD_RANGES[span.keyCount]
   const highestStart = PIANO_HIGHEST_NOTE - span.semitones
+  if (highestStart <= PIANO_LOWEST_NOTE) return FULL_PIANO
+
   const desired = Math.min(Math.max(anchor, PIANO_LOWEST_NOTE), highestStart)
-  let low = Math.max(LOWEST_C, desired - pitchClass(desired))
+  // Snap down to the pitch class this size starts on.
+  const offset = (pitchClass(desired) - pitchClass(standard.low) + 12) % 12
+  let low = desired - offset
+  if (low < PIANO_LOWEST_NOTE) low += 12
   if (low + span.semitones > PIANO_HIGHEST_NOTE) low -= 12
   return { low, high: low + span.semitones }
 }

@@ -43,6 +43,10 @@ export async function buildApp(config: Config): Promise<FastifyInstance> {
     // A MIDI device announcement is a few hundred bytes. Nothing this API
     // accepts is large, so the default 1MB body limit is an open door.
     bodyLimit: 64 * 1024,
+    // Destroy idle keep-alive sockets on close instead of waiting for them to
+    // time out. The browser and the dev proxy both hold connections open, and
+    // waiting on them is what turns a shutdown into a hang that keeps the port.
+    forceCloseConnections: 'idle',
   }).withTypeProvider<ZodTypeProvider>()
 
   // Zod is the single source of truth for validation, serialisation and the

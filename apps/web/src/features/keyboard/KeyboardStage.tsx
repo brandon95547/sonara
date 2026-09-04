@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { ChevronLeft, ChevronRight, Tag, Crosshair, Volume2, VolumeX } from 'lucide-react'
-import { noteName } from '@sonara/shared'
+import { noteName, STANDARD_RANGES } from '@sonara/shared'
 import { IconButton } from '@/ui/Button'
 import { Chip, StatusDot } from '@/ui/Display'
 import { Select } from '@/ui/Controls'
@@ -12,6 +12,7 @@ import { PianoKeyboard } from './PianoKeyboard'
 import {
   canShift,
   chooseSpan,
+  DEFAULT_SPAN,
   KEYBOARD_SPANS,
   shiftWindow,
   windowForSpan,
@@ -45,11 +46,14 @@ export function KeyboardStage({ instrumentName, statusSlot }: KeyboardStageProps
   const [showLabels, setShowLabels] = React.useState(true)
   const [follow, setFollow] = React.useState(true)
   const [window, setWindow] = React.useState<KeyboardWindow>(() =>
-    windowForSpan(KEYBOARD_SPANS[2]!, 48),
+    windowForSpan(DEFAULT_SPAN, STANDARD_RANGES[DEFAULT_SPAN.keyCount].low),
   )
 
+  // Auto is capped at the default size, so the fallback before the container
+  // has been measured is the same keyboard the player will end up with on any
+  // ordinary screen — no resize flash from 88 keys down to 61.
   const autoSpan = React.useMemo(
-    () => (width > 0 ? chooseSpan(width, coarse) : KEYBOARD_SPANS[2]!),
+    () => (width > 0 ? chooseSpan(width, coarse) : DEFAULT_SPAN),
     [width, coarse],
   )
   const span = React.useMemo(
