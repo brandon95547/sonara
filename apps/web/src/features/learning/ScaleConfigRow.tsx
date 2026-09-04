@@ -1,4 +1,4 @@
-import { Play, RotateCcw } from 'lucide-react'
+import { Pause, Play, RotateCcw } from 'lucide-react'
 import {
   LEARNING_MODE_DESCRIPTIONS,
   LEARNING_MODE_LABELS,
@@ -10,11 +10,12 @@ import {
   type LearningMode,
   type ScaleDirection,
 } from '@sonara/shared'
-import { Button } from '@/ui/Button'
+import { Button, IconButton } from '@/ui/Button'
 import { Chip } from '@/ui/Display'
 import { Select } from '@/ui/Controls'
 import { cn } from '@/lib/cn'
 import { useLearningStore } from '@/state/learning-store'
+import { useScaleDemo } from './use-scale-demo'
 
 /**
  * The scale you are working on, and how much help you want with it.
@@ -137,9 +138,46 @@ export function ScaleConfigRow() {
           </div>
         </Labelled>
 
+        <DemoButton runInProgress={running} />
+
         <StartButton mode={mode} running={running} onStart={start} onReset={reset} />
       </div>
     </div>
+  )
+}
+
+/**
+ * Hear the scale before you try to play it.
+ *
+ * Icon-only, and outlined next to a filled Start. The row already carries five
+ * dropdowns and a three-way toggle; a second worded button here takes the width
+ * their labels need, and this file's whole layout argument is that a player
+ * scanning for "Hand" should find the word over the control. It sits to the
+ * left of Start because listening to the scale comes before attempting it.
+ */
+function DemoButton({ runInProgress }: { runInProgress: boolean }) {
+  const demo = useScaleDemo()
+  const playing = demo.status === 'playing'
+
+  return (
+    <IconButton
+      size="md"
+      variant="outlined"
+      icon={playing ? <Pause /> : <Play />}
+      /* The label is the tooltip too, so a disabled button says why it is off
+         instead of leaving a dead control to be puzzled over. */
+      label={
+        runInProgress
+          ? 'Stop the run to hear the scale'
+          : playing
+            ? 'Pause'
+            : demo.status === 'paused'
+              ? 'Resume the scale'
+              : 'Hear the scale'
+      }
+      disabled={runInProgress || !demo.available}
+      onClick={demo.toggle}
+    />
   )
 }
 
