@@ -17,10 +17,12 @@ export function AppBar({
   instruments,
   selectedId,
   onSelectInstrument,
+  catalogueFailed,
 }: {
   instruments: readonly Instrument[]
   selectedId: string | null
   onSelectInstrument: (instrument: Instrument) => void
+  catalogueFailed?: boolean
 }) {
   return (
     <header className="sticky top-0 z-30 border-b border-[var(--ds-border-subtle)] bg-[var(--ds-canvas)]/85 backdrop-blur-md">
@@ -46,6 +48,7 @@ export function AppBar({
             instruments={instruments}
             selectedId={selectedId}
             onSelect={onSelectInstrument}
+            failed={catalogueFailed}
           />
         </div>
       </div>

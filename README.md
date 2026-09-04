@@ -48,6 +48,22 @@ CORS in development and no difference from production.
 Node 22.12 or newer (see `.nvmrc`). API docs are served at
 <http://localhost:5175/docs> from the OpenAPI document the routes generate.
 
+### If the app says "Loading pianos…" and stays there
+
+The API is not answering. Almost always that is **two `npm run dev` stacks at
+once**: the second one's API cannot bind port 5175, dies, and leaves the first
+one's socket in place — so requests are accepted and never answered.
+
+```bash
+ps aux | grep concurrently      # should show exactly one stack
+ss -tln | grep 517              # 5174 and 5175, one owner each
+curl --max-time 5 localhost:5175/api/v1/health
+```
+
+The app now says so rather than spinning: the client gives a request six
+seconds, the app bar switches to _Pianos unavailable_ on the first failure, and
+the page shows what went wrong with a Try again once the retry is spent.
+
 ### Checking that it actually makes a sound
 
 A silent app and a working one are identical in the DOM — the key lights up

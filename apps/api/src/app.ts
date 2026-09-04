@@ -43,6 +43,12 @@ export async function buildApp(config: Config): Promise<FastifyInstance> {
     // A MIDI device announcement is a few hundred bytes. Nothing this API
     // accepts is large, so the default 1MB body limit is an open door.
     bodyLimit: 64 * 1024,
+    // Fastify's built-in request logging serialises the whole request object
+    // and the whole reply object — about fifteen lines per request, which
+    // buries the messages actually worth reading (a boot failure, a new
+    // device, a migration) under a wall of routine traffic. One line is
+    // logged instead, from the hook below.
+    disableRequestLogging: true,
     // Destroy idle keep-alive sockets on close instead of waiting for them to
     // time out. The browser and the dev proxy both hold connections open, and
     // waiting on them is what turns a shutdown into a hang that keeps the port.
@@ -112,6 +118,13 @@ export async function buildApp(config: Config): Promise<FastifyInstance> {
       error: { code: 'not_found', message: `No route for ${request.method} ${request.url}.` },
     }),
   )
+
+  app.addHook('onResponse', (request, reply, done) => {
+    request.log.info(
+      `${request.method} ${request.url} ${reply.statusCode} ${Math.round(reply.elapsedTime)}ms`,
+    )
+    done()
+  })
 
   await app.register(helmet, {
     // The API serves JSON and the docs page; it never frames anything and is

@@ -19,11 +19,14 @@ export function InstrumentSelect({
   instruments,
   selectedId,
   onSelect,
+  failed,
   className,
 }: {
   instruments: readonly Instrument[]
   selectedId: string | null
   onSelect: (instrument: Instrument) => void
+  /** The catalogue request failed. An empty list alone cannot say that. */
+  failed?: boolean
   className?: string
 }) {
   const { status } = useAudio()
@@ -60,9 +63,12 @@ export function InstrumentSelect({
           if (instrument) onSelect(instrument)
         }}
         options={
-          instruments.length === 0
-            ? [{ value: '', label: 'Loading pianos…' }]
-            : instruments.map((instrument) => ({ value: instrument.id, label: instrument.name }))
+          instruments.length > 0
+            ? instruments.map((instrument) => ({ value: instrument.id, label: instrument.name }))
+            : // "Loading" and "this failed" look identical from an empty list,
+              // and only one of them is worth waiting for. Saying the wrong one
+              // is how a broken app looks like a slow one.
+              [{ value: '', label: failed ? 'Pianos unavailable' : 'Loading pianos…' }]
         }
       />
     </div>

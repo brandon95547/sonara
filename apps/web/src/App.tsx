@@ -21,9 +21,11 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       // A 4xx means this build asked for something wrong; retrying changes
-      // nothing except the size of the log.
+      // nothing except the size of the log. One retry for the transient case,
+      // not two: each attempt can burn the full request timeout, and three
+      // attempts is half a minute of a spinner before anyone is told anything.
       retry: (failureCount, error) =>
-        failureCount < 2 && (!(error instanceof ApiClientError) || error.isTransient),
+        failureCount < 1 && (!(error instanceof ApiClientError) || error.isTransient),
       refetchOnWindowFocus: false,
     },
   },
@@ -93,7 +95,16 @@ function Shell() {
 
   return (
     <div className="app-ambient relative min-h-dvh">
-      <AppBar instruments={instruments} selectedId={selectedId} onSelectInstrument={select} />
+      <AppBar
+        instruments={instruments}
+        selectedId={selectedId}
+        onSelectInstrument={select}
+        // The FIRST failure is enough to stop saying "loading". The retry
+        // carries on quietly behind it — but a player watching the app bar
+        // should not have to wait out the whole retry budget to learn that
+        // something is wrong.
+        catalogueFailed={catalogue.isError || catalogue.failureCount > 0}
+      />
 
       <main className="relative z-10 mx-auto flex max-w-[var(--ds-layout-container)] flex-col gap-4 px-[var(--ds-layout-gutter)] py-5 sm:px-[var(--ds-layout-gutter-lg)] sm:py-6">
         {catalogue.isError ? (
