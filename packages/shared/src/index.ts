@@ -13,7 +13,15 @@ export * from './music/staff.js'
 export * from './recording/performance.js'
 export * from './recording/midi-file.js'
 export * from './recording/musicxml.js'
-export { buildSong, inferHand, songDuration, type Song, type SongNote } from './songs/song.js'
+export {
+  buildSong,
+  inferHand,
+  songDuration,
+  songSteps,
+  type Song,
+  type SongNote,
+  type SongStep,
+} from './songs/song.js'
 export * from './songs/general-midi.js'
 export * from './learning/exercise.js'
 export * from './learning/scale-exercise.js'

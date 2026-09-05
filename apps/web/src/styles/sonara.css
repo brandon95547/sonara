@@ -716,3 +716,27 @@
   background: var(--ds-danger) !important;
   color: var(--ds-danger-fg, #fff) !important;
 }
+
+/* ---- Song progress -------------------------------------------------------
+   Above the staff and inside the instrument panel, so where you are in the
+   piece sits with the piece rather than with the controls that change it. */
+.song-progress {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 1rem 0;
+}
+@media (min-width: 40rem) {
+  .song-progress {
+    padding-inline: 1.5rem;
+  }
+}
+.song-progress__range {
+  flex: 1;
+  min-width: 0;
+}
+.song-progress__label {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--ds-fg-muted);
+}

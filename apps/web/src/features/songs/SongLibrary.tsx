@@ -23,15 +23,27 @@ export function SongLibrary({ open, onClose }: { open: boolean; onClose: () => v
   const remove = useSongStore((state) => state.remove)
   const [error, setError] = React.useState<string | null>(null)
 
-  const onFiles = async (files: FileList | null) => {
-    if (!files?.length) return
+  const onFiles = async (list: FileList | null) => {
+    // Copied out before the first await. A FileList is a live view of the
+    // input, and the input is cleared the moment this returns — so reading it
+    // again after an await finds it empty, and the drawer never closes.
+    const files = [...(list ?? [])]
+    if (files.length === 0) return
+
     setError(null)
+    let imported = 0
     for (const file of files) {
       const song = await readSong(file)
-      if (song) add(song)
-      else setError(`${file.name} is not a MIDI or MusicXML file we could read.`)
+      if (song) {
+        add(song)
+        imported++
+      } else {
+        setError(`${file.name} is not a MIDI or MusicXML file we could read.`)
+      }
     }
-    if (files.length) onClose()
+    // Out of the way once there is something to play. A file that could not be
+    // read keeps the drawer open, with the reason on screen.
+    if (imported > 0) onClose()
   }
 
   return (

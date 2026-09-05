@@ -14,11 +14,14 @@ import type { Hand, Song } from '@sonara/shared'
 
 export type SongPart = 'both' | Hand
 
-export interface LoopRange {
-  /** 1-based, inclusive. The numbers a player reads off a score. */
-  readonly from: number
-  readonly to: number
-}
+/**
+ * How the song is being worked on.
+ *
+ * Explore plays it to you; Learn waits for you. The same two words the scale
+ * screen uses, meaning the same two things, because a player who has learned
+ * what they mean there should not have to learn it twice.
+ */
+export type SongMode = 'explore' | 'learn'
 
 interface SongState {
   library: Song[]
@@ -29,8 +32,14 @@ interface SongState {
   part: SongPart
   /** 0.5, 0.75, 1 — or anything the custom field is set to. */
   tempoScale: number
-  loop: LoopRange | null
   metronome: boolean
+  mode: SongMode
+  /** Which step of the song the player is on, in Learn. */
+  stepIndex: number
+  /** True once Start has been pressed, until the song is finished or reset. */
+  learning: boolean
+  /** How many steps the song's keyboard part has, for the progress bar. */
+  stepCount: number
 
   add: (song: Song) => void
   open: (id: string) => void
@@ -39,11 +48,18 @@ interface SongState {
   seek: (positionMs: number) => void
   setPart: (part: SongPart) => void
   setTempoScale: (scale: number) => void
-  setLoop: (loop: LoopRange | null) => void
   setMetronome: (on: boolean) => void
+  setMode: (mode: SongMode) => void
+  startLearning: () => void
+  resetLearning: () => void
+  advance: (steps: number) => void
+  setStepCount: (count: number) => void
 }
 
 const STORAGE_KEY = 'sonara.songs.v1'
+
+/** Nothing in progress. */
+const IDLE = { stepIndex: 0, learning: false } as const
 
 /**
  * Brings a stored song up to the current shape.
@@ -106,18 +122,21 @@ export const useSongStore = create<SongState>((set) => ({
   positionMs: 0,
   part: 'both',
   tempoScale: 1,
-  loop: null,
   metronome: false,
+  mode: 'explore',
+  stepIndex: 0,
+  learning: false,
+  stepCount: 0,
 
   add: (song) =>
     set((state) => {
       const library = [song, ...state.library]
       save(library)
       // A freshly imported song is the one you want open.
-      return { library, currentId: song.id, positionMs: 0, playing: false, loop: null }
+      return { library, currentId: song.id, positionMs: 0, playing: false, ...IDLE }
     }),
 
-  open: (currentId) => set({ currentId, positionMs: 0, playing: false, loop: null }),
+  open: (currentId) => set({ currentId, positionMs: 0, playing: false, ...IDLE }),
 
   remove: (id) =>
     set((state) => {
@@ -133,8 +152,16 @@ export const useSongStore = create<SongState>((set) => ({
   seek: (positionMs) => set({ positionMs: Math.max(0, positionMs) }),
   setPart: (part) => set({ part }),
   setTempoScale: (tempoScale) => set({ tempoScale: Math.min(2, Math.max(0.25, tempoScale)) }),
-  setLoop: (loop) => set({ loop }),
   setMetronome: (metronome) => set({ metronome }),
+
+  // Switching how you are working on the piece stops whatever the other way
+  // was doing: playback should not carry on under a Start button.
+  setMode: (mode) => set({ mode, playing: false, ...IDLE }),
+
+  startLearning: () => set({ learning: true, stepIndex: 0, playing: false }),
+  resetLearning: () => set({ ...IDLE }),
+  advance: (steps) => set((state) => ({ stepIndex: Math.max(0, state.stepIndex + steps) })),
+  setStepCount: (stepCount) => set({ stepCount }),
 }))
 
 /** The open song, or null. */

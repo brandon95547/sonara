@@ -40,7 +40,9 @@ export const PianoKey = React.memo(function PianoKey({
   // One subscription per key, to that key's own entry. A note event rebuilds
   // the map but leaves every other entry referentially identical, so only the
   // keys that actually changed re-render.
-  const annotation = useLearningStore((state) => state.annotations[note])
+  const annotation = useLearningStore((state) =>
+    state.topic === 'songs' ? state.songAnnotations[note] : state.annotations[note],
+  )
   const label = noteName(note)
   // Middle C is the one landmark every player navigates from.
   const isAnchor = note === 60

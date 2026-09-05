@@ -103,6 +103,14 @@ interface LearningState {
   /** View settings. What is drawn on the keys, not what the keys mean. */
   keyLabels: KeyLabels
   showStructure: boolean
+  /**
+   * What the keyboard shows while a song is being learned.
+   *
+   * Held beside the scale annotations rather than replacing them, so switching
+   * tabs does not throw away either one. The keyboard reads whichever belongs
+   * to the topic it is on.
+   */
+  songAnnotations: Readonly<Record<number, KeyAnnotation>>
 
   setTopic: (topic: LearningTopic) => void
   setMode: (mode: LearningMode) => void
@@ -110,6 +118,7 @@ interface LearningState {
   start: () => void
   reset: () => void
   setDemoStep: (index: number | null) => void
+  setSongAnnotations: (annotations: Record<number, KeyAnnotation>) => void
   setKeyLabels: (labels: KeyLabels) => void
   setShowStructure: (show: boolean) => void
   setTargetBpm: (bpm: number) => void
@@ -255,6 +264,7 @@ export const useLearningStore = create<LearningState>((set, get) => {
     demoStepIndex: null,
     keyLabels: 'notes',
     showStructure: false,
+    songAnnotations: {},
 
     setTopic: (topic) =>
       set((state) => ({ topic, ...rebuild(topic, state.spec, state.mode, IDLE_SESSION) })),
@@ -299,6 +309,8 @@ export const useLearningStore = create<LearningState>((set, get) => {
         demoStepIndex: index,
         annotations: buildAnnotations(state.exercise, state.mode, state.session, index),
       })),
+
+    setSongAnnotations: (songAnnotations) => set({ songAnnotations }),
 
     setKeyLabels: (keyLabels) => set({ keyLabels }),
 

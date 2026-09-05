@@ -11,6 +11,7 @@ import { useCoarsePointer, useElementWidth } from '@/lib/hooks'
 import { cn } from '@/lib/cn'
 import { PianoKeyboard } from './PianoKeyboard'
 import { GrandStaff } from '@/features/staff/GrandStaff'
+import { SongProgress } from '@/features/songs/SongProgress'
 import {
   canShift,
   chooseSpan,
@@ -47,6 +48,7 @@ export function KeyboardStage() {
   const showStructure = useLearningStore((state) => state.showStructure)
   const setShowStructure = useLearningStore((state) => state.setShowStructure)
   const hasStructure = useLearningStore((state) => Boolean(state.exercise?.tetrachordGroups))
+  const topic = useLearningStore((state) => state.topic)
   // Owned here rather than passed in, like the label and follow toggles: it is
   // a question about this panel, and the keys take back the space when it is off.
   const [showStaff, setShowStaff] = React.useState(true)
@@ -116,6 +118,8 @@ export function KeyboardStage() {
   return (
     <section className="flex w-full flex-col gap-3" aria-label="Instrument">
       <div className="piano-body" ref={measureRef}>
+        {topic === 'songs' && <SongProgress />}
+
         {showStaff && (
           <div className="staff-panel">
             <GrandStaff />

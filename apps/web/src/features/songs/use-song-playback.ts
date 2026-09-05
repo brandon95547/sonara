@@ -26,7 +26,6 @@ export function useSongPlayback(song: Song | null) {
   const playing = useSongStore((state) => state.playing)
   const part = useSongStore((state) => state.part)
   const tempoScale = useSongStore((state) => state.tempoScale)
-  const loop = useSongStore((state) => state.loop)
   const metronome = useSongStore((state) => state.metronome)
   const setPlaying = useSongStore((state) => state.setPlaying)
   const seek = useSongStore((state) => state.seek)
@@ -36,8 +35,8 @@ export function useSongPlayback(song: Song | null) {
 
   // Everything the tick reads goes through a ref: it runs forty times a second
   // and must not be rebuilt every time a control moves.
-  const live = React.useRef({ song, part, tempoScale, loop, metronome })
-  live.current = { song, part, tempoScale, loop, metronome }
+  const live = React.useRef({ song, part, tempoScale, metronome })
+  live.current = { song, part, tempoScale, metronome }
 
   const sounding = React.useRef(new Set<number>())
 
@@ -57,38 +56,18 @@ export function useSongPlayback(song: Song | null) {
 
     // Where the playhead was when this run began, and the wall clock it began
     // at. Every position below is derived from those two and the tempo scale.
-    let originSong = useSongStore.getState().positionMs
-    let originWall = performance.now()
+    const originSong = useSongStore.getState().positionMs
+    const originWall = performance.now()
     let cursor = originSong
     let lastBeat = -1
-
-    const loopBounds = () => {
-      const { song: current, loop: range } = live.current
-      if (!current || !range) return null
-      return {
-        from: (range.from - 1) * current.measureMs,
-        to: Math.min(range.to * current.measureMs, current.durationMs),
-      }
-    }
 
     const timer = window.setInterval(() => {
       const { song: current, part: hands, tempoScale: scale, metronome: click } = live.current
       if (!current) return
 
-      const bounds = loopBounds()
-      let at = originSong + (performance.now() - originWall) * scale
+      const at = originSong + (performance.now() - originWall) * scale
 
-      if (bounds && at >= bounds.to) {
-        // Back to the top of the loop, and the clock restarts with it.
-        silence()
-        originSong = bounds.from
-        originWall = performance.now()
-        cursor = bounds.from
-        lastBeat = -1
-        at = bounds.from
-      }
-
-      if (!bounds && at >= current.durationMs) {
+      if (at >= current.durationMs) {
         silence()
         setPlaying(false)
         seek(0)

@@ -113,3 +113,38 @@ export function buildSong(input: {
 export function inferHand(note: number): Hand {
   return note >= 60 ? 'right' : 'left'
 }
+
+export interface SongStep {
+  /** Every note struck at this moment — one for a melody, several for a chord. */
+  readonly notes: readonly SongNote[]
+  readonly startMs: number
+}
+
+/**
+ * Groups a song's keyboard part into the things a player actually plays.
+ *
+ * Notes within a few milliseconds of each other are one chord, not a fast run:
+ * a MIDI file records a chord as several note-ons a millisecond or two apart,
+ * because that is how it was played, and asking someone to reproduce that
+ * spacing is asking the wrong thing.
+ *
+ * Only the part being learned is stepped. The band does not wait.
+ */
+export function songSteps(song: Song, hand: 'both' | Hand = 'both'): SongStep[] {
+  const CHORD_WINDOW_MS = 60
+
+  const playable = song.notes
+    .filter((note) => note.role === 'keyboard' && (hand === 'both' || note.hand === hand))
+    .sort((a, b) => a.startMs - b.startMs || a.note - b.note)
+
+  const steps: SongStep[] = []
+  for (const note of playable) {
+    const last = steps.at(-1)
+    if (last && note.startMs - last.startMs <= CHORD_WINDOW_MS) {
+      ;(last.notes as SongNote[]).push(note)
+    } else {
+      steps.push({ notes: [note], startMs: note.startMs })
+    }
+  }
+  return steps
+}
