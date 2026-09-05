@@ -52,6 +52,7 @@ export function PianoKeyboard({
 }: PianoKeyboardProps) {
   const audio = useAudio()
   const mode = useLearningStore((state) => state.mode)
+  const overlay = useLearningStore((state) => state.keyboardOverlay)
   const layout = React.useMemo(() => buildLayout(keyWindow), [keyWindow])
 
   const audioRef = React.useRef(audio)
@@ -189,6 +190,7 @@ export function PianoKeyboard({
       <div
         className="keybed"
         data-mode={mode}
+        data-overlay={overlay === 'none' ? undefined : overlay}
         role="group"
         aria-label={`Piano keyboard, ${layout.whiteCount} white keys`}
         style={{ height: 'var(--keybed-height)' }}

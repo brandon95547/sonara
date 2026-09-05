@@ -139,3 +139,79 @@ export function tetrachords(type: ScaleType): Tetrachords | null {
     join: name(steps[3]!),
   }
 }
+
+export interface TetrachordNotes {
+  readonly lower: readonly string[]
+  readonly upper: readonly string[]
+  /** Step names inside each group — identical, which is the whole point. */
+  readonly steps: string
+  /** The step that joins them. */
+  readonly join: string
+}
+
+/**
+ * The scale's own notes, split into its two four-note groups.
+ *
+ * The interval pattern alone ("W W H · W · W W H") is the fact; this is the
+ * fact with the player's actual notes in it, which is what makes it land.
+ */
+export function tetrachordNotes(
+  noteNames: readonly string[],
+  type: ScaleType,
+): TetrachordNotes | null {
+  const halves = tetrachords(type)
+  if (!halves || noteNames.length < 7) return null
+
+  return {
+    // Four notes each: the upper group ends on the octave, which is the tonic
+    // again — that shared note is why the two groups sound like one scale.
+    lower: noteNames.slice(0, 4),
+    upper: [...noteNames.slice(4, 7), noteNames[0]!],
+    steps: halves.lower,
+    join: halves.join,
+  }
+}
+
+export interface Crossing {
+  /** The note the moving hand leaves. */
+  readonly from: string
+  /** The note it arrives on. */
+  readonly to: string
+  readonly kind: 'thumb-under' | 'cross-over'
+}
+
+/**
+ * Where the hand has to move through itself, going up, in the first octave.
+ *
+ * A scale is only awkward at these points; everywhere else the fingers are
+ * already over the keys. Naming the one or two places it happens is more use
+ * than a row of eight digits, because it says what to *practise*.
+ */
+export function crossings(
+  fingers: readonly number[],
+  hand: Hand,
+  noteNames: readonly string[],
+): Crossing[] {
+  const found: Crossing[] = []
+  const limit = Math.min(fingers.length, 8)
+
+  for (let i = 1; i < limit; i++) {
+    const previous = fingers[i - 1]!
+    const finger = fingers[i]!
+    const from = noteNames[(i - 1) % 7]
+    const to = noteNames[i % 7]
+    if (from === undefined || to === undefined) continue
+
+    // Going up, the right thumb passes under the hand and the left hand
+    // crosses over the thumb. Coming down they swap, which is why the app
+    // cues them by direction rather than by hand.
+    if (hand === 'right' && finger === 1 && previous > 1) {
+      found.push({ from, to, kind: 'thumb-under' })
+    }
+    if (hand === 'left' && previous === 1 && finger > 1) {
+      found.push({ from, to, kind: 'cross-over' })
+    }
+  }
+
+  return found
+}

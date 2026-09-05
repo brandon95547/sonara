@@ -69,16 +69,15 @@ export interface Exercise {
   readonly pitchNames: Readonly<Record<number, string>>
   /** The exact notes the exercise walks, in order. */
   readonly notes: readonly number[]
+  /** Pitch class to scale degree — `1`, `2`, `♭3`. For the degrees overlay. */
+  readonly pitchDegrees?: Readonly<Record<number, string>>
+  /** The two four-note groups, as pitch classes, when the scale has them. */
+  readonly tetrachordGroups?: {
+    readonly lower: readonly number[]
+    readonly upper: readonly number[]
+  }
   /** Reference rows for the dashboard. Kind-specific content, generic shape. */
   readonly facts: readonly ExerciseFact[]
-  /**
-   * How the scale is built, for the player who wants to stop memorising it.
-   *
-   * Separate from `facts` because it is opened rather than read: `facts` states
-   * what the scale *is*, and this says why it is that, which is worth having
-   * but not worth pushing the keyboard down the page for.
-   */
-  readonly theory?: readonly ExerciseFact[]
   readonly fingering: {
     readonly hand: Hand
     readonly fingers: readonly number[]

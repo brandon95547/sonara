@@ -65,6 +65,7 @@ export const PianoKey = React.memo(function PianoKey({
       data-note={note}
       data-active={active ? 'true' : undefined}
       data-role={annotation?.role}
+      data-group={annotation?.group}
       className={black ? 'piano-key piano-key--black' : 'piano-key piano-key--white'}
       style={style}
       onPointerDown={(event) => onPress(note, event)}

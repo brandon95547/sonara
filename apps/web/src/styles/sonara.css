@@ -525,3 +525,36 @@
   color: rgb(0 0 0 / 0.55);
   box-shadow: none;
 }
+
+/* ---- Tetrachords ---------------------------------------------------------
+   Asked for from the theory dialog, and off again afterwards. The keybed
+   already says which notes are in the scale; this says how those notes divide
+   into the two four-note groups the scale is built from, for as long as the
+   question is being asked.
+
+   Two hues rather than two intensities, because the point is that the groups
+   are *equal* — the same shape twice. One washed darker than the other would
+   say one of them mattered more. */
+.keybed[data-overlay='tetrachords'] .piano-key--white[data-group='lower'] {
+  --key-wash: rgb(112 111 211 / 0.34);
+}
+.keybed[data-overlay='tetrachords'] .piano-key--black[data-group='lower'] {
+  --key-wash: rgb(150 149 240 / 0.5);
+}
+.keybed[data-overlay='tetrachords'] .piano-key--white[data-group='upper'] {
+  --key-wash: rgb(51 217 178 / 0.32);
+}
+.keybed[data-overlay='tetrachords'] .piano-key--black[data-group='upper'] {
+  --key-wash: rgb(51 217 178 / 0.46);
+}
+/* Anything outside the two groups steps back, so the split is the thing you
+   see rather than one more colour among several. */
+.keybed[data-overlay='tetrachords'] .piano-key:not([data-group]) {
+  --key-wash: transparent;
+}
+/* One kind of number at a time. A finger badge reading 3 above a key labelled
+   4 is two answers to a question nobody asked together, and while an overlay is
+   up the overlay is the question. */
+.keybed[data-overlay] .key-badges {
+  display: none;
+}

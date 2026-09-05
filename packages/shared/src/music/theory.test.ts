@@ -69,6 +69,25 @@ describe('fourth-finger anchor', () => {
   })
 })
 
+describe('anchors we decline to claim', () => {
+  it('has no standard fingering to anchor for a derived one', () => {
+    // The dialog only prints an anchor for `source: 'standard'`. An anchor is a
+    // rule; giving one to a fingering the app worked out for itself would dress
+    // a guess up as a rule.
+    for (const type of ['blues', 'whole-tone', 'major-pentatonic']) {
+      expect(
+        scaleFingering({
+          rootName: 'C',
+          scaleTypeId: type,
+          hand: 'right',
+          octaves: 1,
+          notes: [60, 63, 65, 66, 67, 70, 72],
+        }).source,
+      ).toBe('derived')
+    }
+  })
+})
+
 describe('relative keys', () => {
   it('takes the relative minor from the 6th degree', () => {
     const cases: [pitchClass: number, expected: string][] = [

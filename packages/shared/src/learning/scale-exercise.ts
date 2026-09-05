@@ -9,14 +9,8 @@ import {
   type SpelledScale,
 } from '../music/scales.js'
 import { scaleFingering, type Hand } from '../music/fingering.js'
-import {
-  degreeNames,
-  fourthFingerDegrees,
-  ordinal,
-  relativeKey,
-  tetrachords,
-} from '../music/theory.js'
-import type { Exercise, ExerciseFact, ExerciseStep } from './exercise.js'
+import { tetrachords } from '../music/theory.js'
+import type { Exercise, ExerciseStep } from './exercise.js'
 
 /**
  * Turns a scale request into a generic exercise.
@@ -92,13 +86,6 @@ function movementCue(
   const thumbUnder = hand === 'right' ? ascending : !ascending
   if (thumbUnder) return finger === 1 && previousFinger > 1 ? 'Thumb under' : undefined
   return previousFinger === 1 && finger > 1 ? 'Cross over' : undefined
-}
-
-/** `A`, or `B and F♯` — the book writes two anchors that way and so do we. */
-function listOut(parts: readonly string[]): string {
-  return parts.length <= 1
-    ? (parts[0] ?? '')
-    : `${parts.slice(0, -1).join(', ')} and ${parts.at(-1)}`
 }
 
 export function buildScaleExercise(spec: ScaleSpec): Exercise {
@@ -190,59 +177,15 @@ export function buildScaleExercise(spec: ScaleSpec): Exercise {
     }
   })
 
-  /**
-   * How this scale is built — derived, never tabulated.
-   *
-   * The 4th finger line is the one that earns its place: it is eight digits
-   * replaced by one fact, and it is the axis the source organises every scale
-   * around. It only appears for a fingering we can stand behind; a derived
-   * suggestion has no anchor to teach, and saying otherwise would dress a guess
-   * up as a rule.
-   */
-  const anchorDegrees = fourthFingerDegrees(fingering.fingers, spec.hand)
-  const names = degreeNames(type)
-  const relative = relativeKey(spec.rootPitchClass, type)
-  const halves = tetrachords(type)
-
-  const theory: ExerciseFact[] = []
-
-  if (fingering.source === 'standard' && anchorDegrees.length > 0) {
-    const notes = anchorDegrees.map((degree) => scale.notes[degree]!.name)
-    const ordinals = anchorDegrees.map((degree) => ordinal(degree + 1))
-    const named = anchorDegrees.length === 1 ? names[anchorDegrees[0]!] : undefined
-    theory.push({
-      label: '4th finger',
-      value:
-        `${listOut(notes)} — ${listOut(ordinals)} ` +
-        `${anchorDegrees.length === 1 ? 'degree' : 'degrees'}` +
-        `${named ? ` (the ${named.toLowerCase()})` : ''}`,
-    })
-  }
-
-  if (halves) {
-    theory.push({
-      label: 'Built from',
-      value:
-        `${halves.lower} · ${halves.join} · ${halves.upper} — one four-note shape, ` +
-        `a ${halves.join === 'W' ? 'whole' : 'half'} step, then the same shape again`,
-    })
-  }
-
-  if (relative) {
-    // Named for what it is rather than described as "the same notes": that is
-    // true of the natural minor and false of the harmonic and melodic ones,
-    // which raise a degree on the way past. The key signature is shared by all
-    // three, and the degree says where to start counting.
-    theory.push({
-      label: relative.typeName === 'Major' ? 'Relative major' : 'Relative minor',
-      value: `${relative.name} ${relative.typeName} — same key signature, from this scale's ${ordinal(relative.fromDegree)} degree`,
-    })
-  }
-
   /** Every note this exercise can name, across the forms it actually plays. */
   const playsDescending = spec.direction !== 'up'
   const sounding =
     differsDescending && playsDescending ? [...scale.notes, ...descendingScale.notes] : scale.notes
+
+  // Only the split is needed here — it decides whether the keyboard can show
+  // the two groups at all. Everything else about how a scale is built, the
+  // theory dialog derives for itself, so one place explains a scale, not two.
+  const halves = tetrachords(type)
 
   const directionLabel = SCALE_DIRECTION_LABELS[spec.direction]
   const octaveLabel = `${spec.octaves} ${spec.octaves === 1 ? 'octave' : 'octaves'}`
@@ -259,6 +202,20 @@ export function buildScaleExercise(spec: ScaleSpec): Exercise {
     rootPitchClass: scale.root.pitchClass,
     pitchNames: Object.fromEntries(sounding.map((note) => [note.pitchClass, note.name])),
     notes: steps.map((step) => step.notes[0]!),
+    pitchDegrees: Object.fromEntries(
+      scale.notes.map((note, index) => [note.pitchClass, type.degrees[index] ?? String(index + 1)]),
+    ),
+    ...(halves
+      ? {
+          tetrachordGroups: {
+            lower: scale.notes.slice(0, 4).map((note) => note.pitchClass),
+            // The upper group's fourth note is the octave — the tonic again,
+            // which is why the two groups join into one scale rather than
+            // sitting next to each other.
+            upper: [...scale.notes.slice(4, 7), scale.notes[0]!].map((note) => note.pitchClass),
+          },
+        }
+      : {}),
     facts: [
       { label: 'Notes', value: scale.notes.map((note) => note.name).join(' ') },
       ...(differsDescending
@@ -276,7 +233,6 @@ export function buildScaleExercise(spec: ScaleSpec): Exercise {
       { label: 'Formula', value: scaleFormula(type) },
       { label: 'Degrees', value: type.degrees.join(' ') },
     ],
-    ...(theory.length > 0 ? { theory } : {}),
     fingering: { hand: spec.hand, fingers: fingering.fingers, source: fingering.source },
     defaultBpm: 72,
   }

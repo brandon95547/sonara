@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { ChevronDown, ChevronRight, Info, Lightbulb, Minus, Plus, RotateCcw } from 'lucide-react'
+import { Info, Lightbulb, Minus, Plus, RotateCcw } from 'lucide-react'
 import {
   currentStep,
   accuracy,
@@ -19,6 +19,7 @@ import { Switch } from '@/ui/Controls'
 import { cn } from '@/lib/cn'
 import { useLearningStore } from '@/state/learning-store'
 import { HandDiagram } from './HandDiagram'
+import { ScaleTheoryDialog } from './ScaleTheoryDialog'
 
 /**
  * The dashboard under the keyboard.
@@ -59,18 +60,16 @@ export function LearningDashboard() {
    ======================================================================== */
 
 /**
- * What the scale is, and — if you ask — why it is that.
+ * What the scale is — with the why one click away rather than printed under it.
  *
- * The explanation is folded away rather than printed. Someone who has come to
- * practise wants the keyboard, not a paragraph above it; someone who has come
- * to stop memorising eight digits wants the paragraph, and one click is a fair
- * price. Collapsed is the default for that reason, and the section does not
- * exist at all for a scale we have nothing true to say about.
+ * The card states the scale; the dialog behind the ⓘ explains it. Keeping the
+ * explanation out of the card is what lets it be a real explanation: there is
+ * room in a dialog for the tetrachords, the degree names and the fingering
+ * principle, and no room for any of them above a keyboard someone came here to
+ * play.
  */
 function MaterialCard({ exercise }: { exercise: Exercise }) {
-  const [open, setOpen] = React.useState(false)
-  const theory = exercise.theory ?? []
-  const panelId = `material-theory-${exercise.id}`
+  const [explain, setExplain] = React.useState(false)
 
   return (
     <Card variant="elevated" className="flex flex-col gap-4">
@@ -79,18 +78,14 @@ function MaterialCard({ exercise }: { exercise: Exercise }) {
           <h3 className="text-h2 text-[var(--ds-fg)]">{exercise.title}</h3>
           <p className="text-caption text-[var(--ds-fg-muted)]">{exercise.subtitle}</p>
         </div>
-        {theory.length > 0 && (
-          <IconButton
-            size="sm"
-            variant="text"
-            className="-mr-1 shrink-0"
-            label={open ? 'Hide how this scale is built' : 'How this scale is built'}
-            aria-expanded={open}
-            aria-controls={panelId}
-            icon={open ? <ChevronDown /> : <ChevronRight />}
-            onClick={() => setOpen((current) => !current)}
-          />
-        )}
+        <IconButton
+          size="sm"
+          variant="text"
+          className="-mr-1 shrink-0"
+          label="Understand this scale"
+          icon={<Info />}
+          onClick={() => setExplain(true)}
+        />
       </div>
 
       <dl className="flex flex-col gap-2">
@@ -105,20 +100,6 @@ function MaterialCard({ exercise }: { exercise: Exercise }) {
           </div>
         ))}
       </dl>
-
-      {theory.length > 0 && open && (
-        <div id={panelId} className="flex flex-col gap-3">
-          <Divider />
-          <dl className="flex flex-col gap-2.5">
-            {theory.map((fact) => (
-              <div key={fact.label} className="flex flex-col gap-0.5">
-                <dt className="text-label-sm text-[var(--ds-accent-text)]">{fact.label}</dt>
-                <dd className="text-body-sm text-[var(--ds-fg-secondary)]">{fact.value}</dd>
-              </div>
-            ))}
-          </dl>
-        </div>
-      )}
 
       {exercise.fingering && (
         <>
@@ -150,6 +131,8 @@ function MaterialCard({ exercise }: { exercise: Exercise }) {
           </div>
         </>
       )}
+
+      <ScaleTheoryDialog open={explain} onClose={() => setExplain(false)} />
     </Card>
   )
 }
