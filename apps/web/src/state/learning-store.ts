@@ -33,7 +33,7 @@ import {
  */
 
 export const LEARNING_TOPICS = [
-  'free',
+  'songs',
   'scales',
   'chords',
   'arpeggios',
@@ -43,7 +43,7 @@ export const LEARNING_TOPICS = [
 export type LearningTopic = (typeof LEARNING_TOPICS)[number]
 
 export const LEARNING_TOPIC_LABELS: Record<LearningTopic, string> = {
-  free: 'Free Play',
+  songs: 'Songs',
   scales: 'Scales',
   chords: 'Chords',
   arpeggios: 'Arpeggios',
@@ -52,7 +52,7 @@ export const LEARNING_TOPIC_LABELS: Record<LearningTopic, string> = {
 }
 
 /** Topics with a builder. The rest are announced honestly rather than faked. */
-export const AVAILABLE_TOPICS: readonly LearningTopic[] = ['free', 'scales']
+export const AVAILABLE_TOPICS: readonly LearningTopic[] = ['songs', 'scales']
 
 export type KeyRole = 'scale' | 'root' | 'upcoming' | 'target' | 'wrong'
 

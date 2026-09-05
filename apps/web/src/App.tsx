@@ -9,6 +9,9 @@ import { AppBar } from '@/components/AppBar'
 import { KeyboardStage } from '@/features/keyboard/KeyboardStage'
 import { DeviceSettingsDrawer } from '@/features/devices/DeviceSettingsDrawer'
 import { RecordingOverlay, RecordingReview } from '@/features/recording/RecordControls'
+import { SongControlRow } from '@/features/songs/SongControlRow'
+import { SongLibrary } from '@/features/songs/SongLibrary'
+import { OverflowMenu } from '@/components/OverflowMenu'
 import { LearningBar } from '@/features/learning/LearningBar'
 import { ScaleConfigRow } from '@/features/learning/ScaleConfigRow'
 import { LearningDashboard } from '@/features/learning/LearningDashboard'
@@ -48,6 +51,7 @@ export default function App() {
 function Shell() {
   const audio = useAudio()
   const [settingsOpen, setSettingsOpen] = React.useState(false)
+  const [libraryOpen, setLibraryOpen] = React.useState(false)
   const [selectedId, setSelectedId] = React.useState<string | null>(null)
   const topic = useLearningStore((state) => state.topic)
 
@@ -102,8 +106,13 @@ function Shell() {
         // should not have to wait out the whole retry budget to learn that
         // something is wrong.
         catalogueFailed={catalogue.isError || catalogue.failureCount > 0}
-        onOpenDeviceSettings={() => setSettingsOpen(true)}
         statusSlot={<EngineChip />}
+        overflow={
+          <OverflowMenu
+            onKeyboardSetup={() => setSettingsOpen(true)}
+            onImport={() => setLibraryOpen(true)}
+          />
+        }
       />
 
       <main className="relative z-10 mx-auto flex max-w-[var(--ds-layout-container)] flex-col gap-4 px-[var(--ds-layout-gutter)] py-5 sm:px-[var(--ds-layout-gutter-lg)] sm:py-6">
@@ -115,44 +124,26 @@ function Shell() {
                 then how it is set up, then the instrument itself. Each row
                 changes what the row below it does.
 
-                The device strip belongs to that middle group on every topic,
-                not just Free Play. It used to drop to the foot of the page
-                everywhere else, which put the one control you need before you
-                can play at all below the fold on five of the six tabs — with
-                the header's status dot, which is not a button, as the only
-                visible hint that a keyboard is a thing you can connect. */}
+                One setup row per topic, never two: a scale and a song are not
+                practised in the same moment. There is no Free Play tab because
+                every tab is free play — the keyboard is always live, and
+                nothing here has ever required a run to be started first. */}
             <LearningBar />
             {topic === 'scales' && <ScaleConfigRow />}
+            {topic === 'songs' && <SongControlRow onBrowse={() => setLibraryOpen(true)} />}
 
             <KeyboardStage />
 
-            {topic === 'scales' ? (
-              <LearningDashboard />
-            ) : topic === 'free' ? (
-              <FreePlayNote />
-            ) : (
-              <ComingNext />
-            )}
+            {topic === 'scales' ? <LearningDashboard /> : topic === 'songs' ? null : <ComingNext />}
           </>
         )}
       </main>
 
       <DeviceSettingsDrawer open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <SongLibrary open={libraryOpen} onClose={() => setLibraryOpen(false)} />
       <RecordingOverlay />
       <RecordingReview />
     </div>
-  )
-}
-
-function FreePlayNote() {
-  return (
-    <Card className="flex flex-col gap-1.5">
-      <h2 className="text-h4 text-[var(--ds-fg)]">Free play</h2>
-      <p className="text-body-sm text-[var(--ds-fg-secondary)]">
-        No exercise, no scoring, nothing lit. Pick a topic above when you want the keyboard to teach
-        rather than just sound.
-      </p>
-    </Card>
   )
 }
 
