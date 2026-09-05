@@ -3,6 +3,7 @@ import {
   inferHand,
   tonicForFifths,
   type DetectedKey,
+  type PedalSpan,
   type Hand,
   type Song,
   type SongNote,
@@ -56,6 +57,11 @@ export function importMusicXml(text: string, fallbackTitle: string): Song | null
   let key: DetectedKey | null = null
 
   const notes: SongNote[] = []
+  const pedal: PedalSpan[] = []
+  // Both are in force until changed, so they are read as state rather than as
+  // a property of the note that happens to carry the marking.
+  let dynamic: string | undefined
+  let pedalFrom: number | null = null
   /** Open tied notes, so the continuation extends rather than restrikes. */
   const tied = new Map<number, SongNote[]>()
 
@@ -91,7 +97,22 @@ export function importMusicXml(text: string, fallbackTitle: string): Song | null
         continue
       }
 
-      if (tag === 'sound' || tag === 'direction') {
+      if (tag === 'direction' || tag === 'sound') {
+        // <dynamics><mf/> — the marking is the element name, not its text.
+        const marking = /<dynamics(?:\s[^>]*)?>\s*<([a-z]+)\s*\/>/.exec(content)?.[1]
+        if (marking) dynamic = marking
+
+        // Pedal is a spanner: one direction starts it, another stops it.
+        const pedalType = /<pedal\b[^>]*type="([a-z]+)"/.exec(content)?.[1]
+        if (pedalType) {
+          const at = measureStart + (cursor / divisions) * (60000 / (bpm || 100))
+          if (pedalType === 'start' && pedalFrom === null) pedalFrom = at
+          else if ((pedalType === 'stop' || pedalType === 'discontinue') && pedalFrom !== null) {
+            pedal.push({ startMs: pedalFrom, endMs: at })
+            pedalFrom = null
+          }
+        }
+
         const tempo =
           Number(/tempo="([\d.]+)"/.exec(attributes + content)?.[1] ?? '') ||
           num(content, 'per-minute')
@@ -175,6 +196,7 @@ export function importMusicXml(text: string, fallbackTitle: string): Song | null
         hand,
         role: unpitched ? 'percussion' : 'keyboard',
         ...(finger ? { finger } : {}),
+        ...(dynamic ? { dynamic } : {}),
       }
       notes.push(note)
       if (/<tie[^>]*type="start"/.test(content)) {
@@ -205,5 +227,7 @@ export function importMusicXml(text: string, fallbackTitle: string): Song | null
     handsInferred: !/<staff>/.test(text),
     parts: [...new Set(notes.map((note) => (note.role === 'percussion' ? 'Drums' : 'Piano')))],
     key,
+    pedal,
+    rhythmFromScore: true,
   })
 }

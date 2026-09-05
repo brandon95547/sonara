@@ -46,6 +46,32 @@ export interface SongNote {
    * and has to read differently on screen.
    */
   readonly finger?: number
+  /** The dynamic marking in force — `mf`, `ff` — when the score gives one. */
+  readonly dynamic?: string
+}
+
+/** A stretch of sustain pedal, as the score marks it. */
+export interface PedalSpan {
+  readonly startMs: number
+  readonly endMs: number
+}
+
+/**
+ * What the source file actually contained.
+ *
+ * Every format loses something different, and the player has no way to tell
+ * which. MIDI cannot record fingering at all; a MusicXML export may or may not
+ * carry dynamics; a hand-made file may have no pedal marks. Saying which is
+ * present is the difference between "this piece has no pedalling" and "this
+ * file did not say".
+ */
+export interface SongProvides {
+  readonly notes: boolean
+  readonly rhythm: boolean
+  readonly staves: boolean
+  readonly dynamics: boolean
+  readonly pedal: boolean
+  readonly fingering: boolean
 }
 
 export interface Song {
@@ -59,7 +85,7 @@ export interface Song {
   /** Bar lines, in milliseconds, so a loop can be set in measures. */
   readonly measureMs: number
   readonly measureCount: number
-  readonly source: 'midi' | 'musicxml'
+  readonly source: 'midi' | 'musicxml' | 'musescore'
   /** What is in the file — "Piano · Bass · Drums" — for saying so. */
   readonly parts: readonly string[]
   /**
@@ -77,6 +103,10 @@ export interface Song {
   readonly key: DetectedKey | null
   /** True when at least one note carries a fingering from the score. */
   readonly hasFingering: boolean
+  /** Sustain pedal, where the score marks it. */
+  readonly pedal: readonly PedalSpan[]
+  /** What the source gave us, so the UI can say what it did not. */
+  readonly provides: SongProvides
 }
 
 export function songDuration(notes: readonly SongNote[]): number {
@@ -101,6 +131,9 @@ export function buildSong(input: {
   parts?: readonly string[]
   partsKnown?: boolean
   key?: DetectedKey | null
+  pedal?: readonly PedalSpan[]
+  /** True when the file states rhythm and staves, rather than us inferring them. */
+  rhythmFromScore?: boolean
 }): Song {
   const bpm = input.bpm > 0 ? input.bpm : 100
   const beatsPerMeasure = input.beatsPerMeasure > 0 ? input.beatsPerMeasure : 4
@@ -126,6 +159,18 @@ export function buildSong(input: {
     // replace, and the song comes out with no key at all.
     key: input.key ?? estimateKey(notes),
     hasFingering: notes.some((note) => note.finger !== undefined),
+    pedal: input.pedal ?? [],
+    provides: {
+      notes: notes.length > 0,
+      // MIDI records when a note started, not what it is written as. That is
+      // enough to play and not enough to engrave, so it counts as rhythm only
+      // when a score said so.
+      rhythm: input.rhythmFromScore ?? false,
+      staves: !input.handsInferred,
+      dynamics: notes.some((note) => note.dynamic !== undefined),
+      pedal: (input.pedal?.length ?? 0) > 0,
+      fingering: notes.some((note) => note.finger !== undefined),
+    },
   }
 }
 

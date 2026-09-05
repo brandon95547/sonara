@@ -262,3 +262,125 @@ describe('what notation knows that MIDI cannot', () => {
     expect(song.key?.pitchClass).toBe(0)
   })
 })
+
+/**
+ * Four formats, one Song. Nothing downstream — playback, the keyboard, Learn —
+ * should be able to tell which file a piece came from, and each format has to
+ * report honestly what it could not carry.
+ */
+describe('every format normalises to one score model', () => {
+  const musicXml = `<?xml version="1.0"?>
+<score-partwise version="4.0">
+ <work><work-title>Marked Up</work-title></work>
+ <part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list>
+ <part id="P1"><measure number="1">
+  <attributes><divisions>4</divisions><key><fifths>0</fifths></key>
+   <time><beats>4</beats><beat-type>4</beat-type></time><staves>2</staves></attributes>
+  <direction><direction-type><dynamics><mf/></dynamics></direction-type></direction>
+  <direction><direction-type><pedal type="start"/></direction-type></direction>
+  <note><pitch><step>C</step><octave>4</octave></pitch><duration>8</duration><staff>1</staff>
+   <notations><technical><fingering>1</fingering></technical></notations></note>
+  <note><pitch><step>E</step><octave>4</octave></pitch><duration>8</duration><staff>1</staff></note>
+  <direction><direction-type><pedal type="stop"/></direction-type></direction>
+  <backup><duration>16</duration></backup>
+  <note><pitch><step>C</step><octave>2</octave></pitch><duration>16</duration><staff>2</staff></note>
+ </measure></part>
+</score-partwise>`
+
+  const museScore = `<?xml version="1.0"?>
+<museScore version="4.20"><Score>
+ <Division>480</Division>
+ <metaTag name="workTitle">From MuseScore</metaTag>
+ <Staff id="1"><Measure>
+   <voice>
+     <TimeSig><sigN>4</sigN><sigD>4</sigD></TimeSig>
+     <KeySig><accidental>-1</accidental></KeySig>
+     <Dynamic><subtype>ff</subtype></Dynamic>
+     <Chord><durationType>quarter</durationType>
+       <Note><pitch>60</pitch><Fingering><text>2</text></Fingering></Note>
+       <Note><pitch>64</pitch></Note></Chord>
+     <Rest><durationType>quarter</durationType></Rest>
+     <Chord><durationType>half</durationType><Note><pitch>67</pitch></Note></Chord>
+   </voice>
+ </Measure></Staff>
+ <Staff id="2"><Measure>
+   <voice><Chord><durationType>whole</durationType><Note><pitch>36</pitch></Note></Chord></voice>
+ </Measure></Staff>
+</Score></museScore>`
+
+  it('reads a MuseScore file, which is not MusicXML in a different box', async () => {
+    const { importMuseScore } = await import('@/features/songs/import-musescore')
+    const song = importMuseScore(museScore, 'fallback')!
+    expect(song.title).toBe('From MuseScore')
+    expect(song.source).toBe('musescore')
+    // Pitch is already a MIDI number in this format — nothing is spelled.
+    expect(song.notes.map((note) => note.note).sort((a, b) => a - b)).toEqual([36, 60, 64, 67])
+  })
+
+  it('takes the hand from the staff the note is written on', async () => {
+    const { importMuseScore } = await import('@/features/songs/import-musescore')
+    const song = importMuseScore(museScore, 'x')!
+    expect(song.notes.find((note) => note.note === 60)?.hand).toBe('right')
+    expect(song.notes.find((note) => note.note === 36)?.hand).toBe('left')
+    expect(song.provides.staves).toBe(true)
+  })
+
+  it('keeps a chord together and puts what follows after it', async () => {
+    const { importMuseScore } = await import('@/features/songs/import-musescore')
+    const song = importMuseScore(museScore, 'x')!
+    const c = song.notes.find((note) => note.note === 60)!
+    const e = song.notes.find((note) => note.note === 64)!
+    const g = song.notes.find((note) => note.note === 67)!
+    expect(e.startMs).toBe(c.startMs)
+    // A quarter chord, then a quarter rest, so G is two beats later.
+    expect(g.startMs).toBeGreaterThan(c.startMs)
+  })
+
+  it('carries dynamics and fingering through from either score format', async () => {
+    const { importMuseScore } = await import('@/features/songs/import-musescore')
+    const fromMuseScore = importMuseScore(museScore, 'x')!
+    expect(fromMuseScore.notes.find((note) => note.note === 60)?.finger).toBe(2)
+    expect(fromMuseScore.notes.find((note) => note.note === 60)?.dynamic).toBe('ff')
+    expect(fromMuseScore.provides.dynamics).toBe(true)
+
+    const fromXml = importMusicXml(musicXml, 'x')!
+    expect(fromXml.notes.find((note) => note.note === 60)?.finger).toBe(1)
+    expect(fromXml.notes.find((note) => note.note === 60)?.dynamic).toBe('mf')
+  })
+
+  it('records the pedal a score marks', () => {
+    const song = importMusicXml(musicXml, 'x')!
+    expect(song.pedal).toHaveLength(1)
+    expect(song.pedal[0]!.endMs).toBeGreaterThan(song.pedal[0]!.startMs)
+    expect(song.provides.pedal).toBe(true)
+  })
+
+  it('admits what MIDI could not carry', () => {
+    const song = importMidi(writeMidiFile([played(60, 0, 500)]), 'x')!
+    expect(song.provides).toMatchObject({
+      notes: true,
+      rhythm: false,
+      dynamics: false,
+      pedal: false,
+      fingering: false,
+    })
+  })
+
+  it('produces the same shape whatever it read', async () => {
+    const { importMuseScore } = await import('@/features/songs/import-musescore')
+    const songs = [
+      importMusicXml(musicXml, 'x')!,
+      importMuseScore(museScore, 'x')!,
+      importMidi(writeMidiFile([played(60, 0, 500)]), 'x')!,
+    ]
+    for (const song of songs) {
+      // Everything downstream indexes into these, whatever the source was.
+      expect(Array.isArray(song.notes)).toBe(true)
+      expect(Array.isArray(song.pedal)).toBe(true)
+      expect(song.provides).toBeTruthy()
+      expect(song.measureCount).toBeGreaterThan(0)
+      expect(song.bpm).toBeGreaterThan(0)
+      expect(song.notes.every((note) => typeof note.startMs === 'number')).toBe(true)
+    }
+  })
+})

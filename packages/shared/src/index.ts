@@ -18,8 +18,10 @@ export {
   inferHand,
   songDuration,
   songSteps,
+  type PedalSpan,
   type Song,
   type SongNote,
+  type SongProvides,
   type SongStep,
 } from './songs/song.js'
 export * from './songs/general-midi.js'
