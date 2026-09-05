@@ -90,8 +90,6 @@ function Shell() {
     if (instrument) select(instrument)
   }, [instruments, selectedId, catalogue.data?.defaultInstrumentId, select])
 
-  const selected = instruments.find((instrument) => instrument.id === selectedId) ?? null
-
   return (
     <div className="app-ambient relative min-h-dvh">
       <AppBar
@@ -104,6 +102,7 @@ function Shell() {
         // something is wrong.
         catalogueFailed={catalogue.isError || catalogue.failureCount > 0}
         onOpenDeviceSettings={() => setSettingsOpen(true)}
+        statusSlot={<EngineChip />}
       />
 
       <main className="relative z-10 mx-auto flex max-w-[var(--ds-layout-container)] flex-col gap-4 px-[var(--ds-layout-gutter)] py-5 sm:px-[var(--ds-layout-gutter-lg)] sm:py-6">
@@ -124,10 +123,7 @@ function Shell() {
             <LearningBar />
             {topic === 'scales' && <ScaleConfigRow />}
 
-            <KeyboardStage
-              instrumentName={selected?.name ?? 'Loading…'}
-              statusSlot={<EngineChip />}
-            />
+            <KeyboardStage />
 
             {topic === 'scales' ? (
               <LearningDashboard />

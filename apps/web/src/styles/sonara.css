@@ -611,6 +611,6 @@
    keys rather than a card of its own, so hiding it gives the space straight
    back to the keyboard. */
 .staff-panel {
-  height: 118px;
-  padding: 4px 0 8px;
+  height: 156px;
+  padding: 12px 0 8px;
 }

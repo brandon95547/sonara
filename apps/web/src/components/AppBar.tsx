@@ -20,12 +20,15 @@ export function AppBar({
   onSelectInstrument,
   catalogueFailed,
   onOpenDeviceSettings,
+  statusSlot,
 }: {
   instruments: readonly Instrument[]
   selectedId: string | null
   onSelectInstrument: (instrument: Instrument) => void
   catalogueFailed?: boolean
   onOpenDeviceSettings: () => void
+  /** The engine's state — loading, sampled, waiting for a gesture. */
+  statusSlot?: React.ReactNode
 }) {
   return (
     <header className="sticky top-0 z-30 border-b border-[var(--ds-border-subtle)] bg-[var(--ds-canvas)]/85 backdrop-blur-md">
@@ -46,6 +49,7 @@ export function AppBar({
         </div>
 
         <div className="ml-auto flex min-w-0 items-center gap-3">
+          {statusSlot}
           <MidiButton onOpen={onOpenDeviceSettings} />
           <InstrumentSelect
             instruments={instruments}

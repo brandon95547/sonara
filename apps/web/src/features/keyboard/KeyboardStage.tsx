@@ -32,14 +32,9 @@ import {
  * 27-inch monitor should not show two octaves.
  */
 
-export interface KeyboardStageProps {
-  instrumentName: string
-  statusSlot?: React.ReactNode
-}
-
 const AUTO = 'auto'
 
-export function KeyboardStage({ instrumentName, statusSlot }: KeyboardStageProps) {
+export function KeyboardStage() {
   const audio = useAudio()
   const coarse = useCoarsePointer()
   const [measureRef, width] = useElementWidth<HTMLDivElement>()
@@ -121,24 +116,6 @@ export function KeyboardStage({ instrumentName, statusSlot }: KeyboardStageProps
   return (
     <section className="flex w-full flex-col gap-3" aria-label="Instrument">
       <div className="piano-body" ref={measureRef}>
-        {/* The fallboard: the strip above the keys where a real piano carries
-            its maker's name. Here it carries what you are playing and whether
-            the pedal is down — the two things you glance up to check. */}
-        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3">
-          <div className="flex min-w-0 items-center gap-2.5">
-            <span className="truncate text-h4 text-[var(--ds-fg)]">{instrumentName}</span>
-            {statusSlot}
-          </div>
-          <div className="flex items-center gap-2 coarse:gap-3">
-            <Chip
-              tone={sustain ? 'accent' : 'neutral'}
-              icon={<StatusDot tone={sustain ? 'accent' : 'neutral'} />}
-            >
-              {sustain ? 'Sustain' : 'Pedal up'}
-            </Chip>
-          </div>
-        </div>
-
         {showStaff && (
           <div className="staff-panel">
             <GrandStaff />
@@ -236,6 +213,15 @@ export function KeyboardStage({ instrumentName, statusSlot }: KeyboardStageProps
         />
 
         <div className="ml-auto flex items-center gap-2">
+          {/* Not a control — the pedal is played, not set — but the toolbar is
+              already here and a row of its own for one chip was the thing we
+              just took away from the staff. */}
+          <Chip
+            tone={sustain ? 'accent' : 'neutral'}
+            icon={<StatusDot tone={sustain ? 'accent' : 'neutral'} />}
+          >
+            {sustain ? 'Sustain' : 'Pedal up'}
+          </Chip>
           <IconButton
             label={audio.volume === 0 ? 'Unmute' : 'Mute'}
             icon={audio.volume === 0 ? <VolumeX /> : <Volume2 />}

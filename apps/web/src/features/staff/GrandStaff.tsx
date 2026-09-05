@@ -28,7 +28,7 @@ const HALF_HEIGHT = 78
  * leave the staff as a small card in the corner of a wide panel, and would
  * shrink the noteheads on a narrow one.
  */
-const PANEL_HEIGHT = 118
+const PANEL_HEIGHT = 156
 const UNITS_PER_PX = (HALF_HEIGHT * 2) / PANEL_HEIGHT
 
 const STAFF_LINES = {
