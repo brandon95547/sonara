@@ -624,7 +624,7 @@
      read as a margin twice over rather than as content padding.
      Equal on both sides: the staff is a single block of content and has no
      reason to sit off-centre in its own surface. */
-  padding: 16px 1rem 12px;
+  padding: 8px 1rem 9px;
 }
 @media (min-width: 40rem) {
   .staff-panel {
