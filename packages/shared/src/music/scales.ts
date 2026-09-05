@@ -24,6 +24,17 @@ export interface ScaleType {
   /** Groups the picker; also decides which spelling of a root reads better. */
   readonly family: 'major' | 'minor' | 'mode' | 'pentatonic' | 'other'
   readonly description: string
+  /**
+   * The form this scale takes coming back down, when it is not the same one.
+   *
+   * Only the melodic minor has one. It raises the sixth and seventh on the way
+   * up to smooth the leap the harmonic minor leaves, and drops both again on
+   * the way down — so its descending form is the natural minor. A melodic
+   * minor that plays its ascending form in both directions is a different
+   * scale (the jazz minor), and teaching it as the melodic minor teaches two
+   * wrong notes every time the hand turns around.
+   */
+  readonly descendingTypeId?: string
 }
 
 export const SCALE_TYPES: readonly ScaleType[] = [
@@ -58,7 +69,9 @@ export const SCALE_TYPES: readonly ScaleType[] = [
     steps: [2, 1, 2, 2, 2, 2, 1],
     degrees: ['1', '2', '♭3', '4', '5', '6', '7'],
     family: 'minor',
-    description: 'Ascending form: sixth and seventh raised, smoothing the leap harmonic minor has.',
+    description:
+      'Sixth and seventh raised going up, smoothing the leap harmonic minor has; both drop back on the way down.',
+    descendingTypeId: 'natural-minor',
   },
   {
     id: 'dorian',

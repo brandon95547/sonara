@@ -1,4 +1,5 @@
-import { Info, Lightbulb, Minus, Plus, RotateCcw } from 'lucide-react'
+import * as React from 'react'
+import { ChevronDown, ChevronRight, Info, Lightbulb, Minus, Plus, RotateCcw } from 'lucide-react'
 import {
   currentStep,
   accuracy,
@@ -57,12 +58,39 @@ export function LearningDashboard() {
    MATERIAL — what you are playing
    ======================================================================== */
 
+/**
+ * What the scale is, and — if you ask — why it is that.
+ *
+ * The explanation is folded away rather than printed. Someone who has come to
+ * practise wants the keyboard, not a paragraph above it; someone who has come
+ * to stop memorising eight digits wants the paragraph, and one click is a fair
+ * price. Collapsed is the default for that reason, and the section does not
+ * exist at all for a scale we have nothing true to say about.
+ */
 function MaterialCard({ exercise }: { exercise: Exercise }) {
+  const [open, setOpen] = React.useState(false)
+  const theory = exercise.theory ?? []
+  const panelId = `material-theory-${exercise.id}`
+
   return (
     <Card variant="elevated" className="flex flex-col gap-4">
-      <div>
-        <h3 className="text-h2 text-[var(--ds-fg)]">{exercise.title}</h3>
-        <p className="text-caption text-[var(--ds-fg-muted)]">{exercise.subtitle}</p>
+      <div className="flex items-start gap-3">
+        <div className="min-w-0 flex-1">
+          <h3 className="text-h2 text-[var(--ds-fg)]">{exercise.title}</h3>
+          <p className="text-caption text-[var(--ds-fg-muted)]">{exercise.subtitle}</p>
+        </div>
+        {theory.length > 0 && (
+          <IconButton
+            size="sm"
+            variant="text"
+            className="-mr-1 shrink-0"
+            label={open ? 'Hide how this scale is built' : 'How this scale is built'}
+            aria-expanded={open}
+            aria-controls={panelId}
+            icon={open ? <ChevronDown /> : <ChevronRight />}
+            onClick={() => setOpen((current) => !current)}
+          />
+        )}
       </div>
 
       <dl className="flex flex-col gap-2">
@@ -77,6 +105,20 @@ function MaterialCard({ exercise }: { exercise: Exercise }) {
           </div>
         ))}
       </dl>
+
+      {theory.length > 0 && open && (
+        <div id={panelId} className="flex flex-col gap-3">
+          <Divider />
+          <dl className="flex flex-col gap-2.5">
+            {theory.map((fact) => (
+              <div key={fact.label} className="flex flex-col gap-0.5">
+                <dt className="text-label-sm text-[var(--ds-accent-text)]">{fact.label}</dt>
+                <dd className="text-body-sm text-[var(--ds-fg-secondary)]">{fact.value}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+      )}
 
       {exercise.fingering && (
         <>

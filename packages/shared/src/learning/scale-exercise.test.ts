@@ -138,3 +138,124 @@ describe('buildScaleExercise', () => {
     }
   })
 })
+
+/**
+ * The melodic minor is the one scale that is not the same coming back down: it
+ * raises the sixth and seventh going up to smooth the leap the harmonic minor
+ * leaves, and drops both again on the way down. Reversing the ascending notes
+ * for it plays two wrong notes on every turn — and, worse, teaches them.
+ */
+describe('melodic minor descending', () => {
+  const melodic = (direction: ScaleSpec['direction'], octaves = 1) =>
+    build({ scaleTypeId: 'melodic-minor', rootPitchClass: 9, octaves, direction })
+
+  const labels = (spec: Parameters<typeof melodic>[0]) =>
+    melodic(spec).steps.map((step) => step.label)
+
+  it('raises the sixth and seventh on the way up', () => {
+    expect(labels('up')).toEqual(['A', 'B', 'C', 'D', 'E', 'F♯', 'G♯', 'A'])
+  })
+
+  it('drops them again on the way down', () => {
+    expect(labels('down')).toEqual(['A', 'G', 'F', 'E', 'D', 'C', 'B', 'A'])
+  })
+
+  it('turns around onto the natural minor, without repeating the top note', () => {
+    expect(labels('up-down')).toEqual([
+      'A',
+      'B',
+      'C',
+      'D',
+      'E',
+      'F♯',
+      'G♯',
+      'A',
+      'G',
+      'F',
+      'E',
+      'D',
+      'C',
+      'B',
+      'A',
+    ])
+  })
+
+  it('lets the keyboard call the descending notes part of the scale', () => {
+    // F and G only belong to the way down; if the exercise does not claim them
+    // the keyboard greys out notes it is actively asking the player for.
+    const exercise = melodic('up-down')
+    for (const step of exercise.steps) {
+      expect(isInExercise(exercise, step.notes[0]!)).toBe(true)
+    }
+    expect(exercise.facts.find((f) => f.label === 'Coming down')?.value).toBe('A G F E D C B')
+  })
+
+  it('leaves scales that climb down the way they came alone', () => {
+    const natural = build({
+      scaleTypeId: 'natural-minor',
+      rootPitchClass: 9,
+      octaves: 1,
+      direction: 'up-down',
+    })
+    expect(natural.facts.some((f) => f.label === 'Coming down')).toBe(false)
+    const up = natural.steps.slice(0, 8).map((s) => s.label)
+    const down = natural.steps.slice(7).map((s) => s.label)
+    expect([...down].reverse()).toEqual(up)
+  })
+})
+
+describe('how this scale is built', () => {
+  const rowsFor = (spec: Partial<ScaleSpec>) =>
+    Object.fromEntries((build(spec).theory ?? []).map((fact) => [fact.label, fact.value]))
+
+  it('replaces the fingering digits with the one fact that generates them', () => {
+    expect(rowsFor({ rootPitchClass: 0, scaleTypeId: 'major' })['4th finger']).toBe(
+      'B — 7th degree (the leading tone)',
+    )
+  })
+
+  it('reports both anchors when the finger really does land twice', () => {
+    // B major's left hand, which the source writes as "B and F# (1st and 5th)".
+    expect(rowsFor({ rootPitchClass: 11, scaleTypeId: 'major', hand: 'left' })['4th finger']).toBe(
+      'B and F♯ — 1st and 5th degrees',
+    )
+  })
+
+  it('follows the exception rather than the pattern around it', () => {
+    // G♯ minor's left hand is the one natural minor that moves its anchor. No
+    // rule in the app says so — it falls out of the fingering itself.
+    expect(
+      rowsFor({ rootPitchClass: 8, scaleTypeId: 'natural-minor', hand: 'left' })['4th finger'],
+    ).toBe('F♯ — 7th degree (the subtonic)')
+  })
+
+  it('claims no anchor for a fingering it only guessed', () => {
+    // The card already labels these "Suggested". An anchor is a rule, and
+    // dressing a derived fingering up as one would be the card lying.
+    const blues = build({ rootPitchClass: 0, scaleTypeId: 'blues' })
+    expect(blues.fingering?.source).toBe('derived')
+    expect(blues.theory).toBeUndefined()
+  })
+
+  it('splits the majors into tetrachords and leaves the others whole', () => {
+    expect(rowsFor({ rootPitchClass: 0, scaleTypeId: 'major' })['Built from']).toContain(
+      'W W H · W · W W H',
+    )
+    expect(
+      rowsFor({ rootPitchClass: 9, scaleTypeId: 'natural-minor' })['Built from'],
+    ).toBeUndefined()
+  })
+
+  it('names the relative key both ways round', () => {
+    expect(rowsFor({ rootPitchClass: 0, scaleTypeId: 'major' })['Relative minor']).toContain(
+      'A Natural Minor',
+    )
+    expect(
+      rowsFor({ rootPitchClass: 9, scaleTypeId: 'natural-minor' })['Relative major'],
+    ).toContain('C Major')
+    // All three minor forms share a key signature, so all three share a relative major.
+    expect(
+      rowsFor({ rootPitchClass: 9, scaleTypeId: 'melodic-minor' })['Relative major'],
+    ).toContain('C Major')
+  })
+})
