@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { useAudio } from '@/audio/AudioProvider'
 import { keyboardActions } from '@/state/keyboard-store'
-import { useLearningStore } from '@/state/learning-store'
+import { learningActions, useLearningStore } from '@/state/learning-store'
 
 /**
  * Plays the current exercise back, so you can hear the scale before you try it.
@@ -13,11 +13,16 @@ import { useLearningStore } from '@/state/learning-store'
  * demonstration has to be is followable — so this runs at its own fixed,
  * unhurried tempo and never reads the target.
  *
- * ## Why it does not tell the learning store
+ * ## What it does and does not tell the learning store
  *
- * A note sounded here reaches the audio engine and the keyboard's visual model,
- * and stops there. Routing it through `learningActions.noteOn` as well would let
- * the app mark its own demonstration as a flawless run by the player.
+ * It reports where the playback head is, so the guidance can light the same
+ * target, finger and cue it would light if the player were there — watching a
+ * demonstration that does not say which finger is playing teaches the tune and
+ * not the hand.
+ *
+ * It does not report the notes as played. Routing them through
+ * `learningActions.noteOn` would let the app mark its own demonstration as a
+ * flawless run by the player.
  */
 
 /**
@@ -94,6 +99,7 @@ export function useScaleDemo(): ScaleDemo {
     statusRef.current = 'idle'
     setStepIndex(0)
     setStatus('idle')
+    learningActions.setDemoStep(null)
   }, [clearTimers, silence])
 
   // Held in a ref so each step can schedule the next without the callback
@@ -112,6 +118,7 @@ export function useScaleDemo(): ScaleDemo {
 
     indexRef.current = index
     setStepIndex(index)
+    learningActions.setDemoStep(index)
 
     const step = steps[index]!
     for (const note of step.notes) {
@@ -145,6 +152,14 @@ export function useScaleDemo(): ScaleDemo {
   // about the one that is no longer selected. `exercise` is rebuilt on every
   // spec and mode change, so this covers all of them.
   React.useEffect(() => stop, [exercise, stop])
+
+  // Start takes over. The button is disabled for the length of a run, but the
+  // run can begin while a demonstration is already playing, and two playback
+  // heads on one keyboard is one too many.
+  const running = useLearningStore((state) => state.session.status === 'running')
+  React.useEffect(() => {
+    if (running) stop()
+  }, [running, stop])
 
   return {
     status,

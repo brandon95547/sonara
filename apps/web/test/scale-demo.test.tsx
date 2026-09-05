@@ -118,3 +118,53 @@ describe('scale demo', () => {
     expect(litKeys()).toEqual([])
   })
 })
+
+describe('scale demo guidance', () => {
+  it('moves the guidance onto the note it is sounding', () => {
+    useLearningStore.getState().setMode('learn')
+    const { result } = mount()
+    const steps = useLearningStore.getState().exercise!.steps
+
+    act(() => result.current.toggle())
+    // The demonstration's head, not the player's, is what guidance follows.
+    expect(useLearningStore.getState().demoStepIndex).toBe(0)
+    expect(useLearningStore.getState().session.stepIndex).toBe(0)
+
+    act(() => void vi.advanceTimersByTime(2000))
+    const at = useLearningStore.getState().demoStepIndex!
+    expect(at).toBeGreaterThan(0)
+
+    // The key it is playing is the target, and carries that step's finger.
+    const note = steps[at]!.notes[0]!
+    const annotation = useLearningStore.getState().annotations[note]
+    expect(annotation?.role).toBe('target')
+    expect(annotation?.finger).toBe(steps[at]!.fingers[0]!.finger)
+  })
+
+  it('hands the guidance back when it stops', () => {
+    const { result } = mount()
+    act(() => result.current.toggle())
+    act(() => void vi.advanceTimersByTime(2000))
+    act(() => result.current.stop())
+
+    expect(useLearningStore.getState().demoStepIndex).toBeNull()
+    const first = useLearningStore.getState().exercise!.steps[0]!.notes[0]!
+    expect(useLearningStore.getState().annotations[first]?.role).toBe('target')
+  })
+
+  it('gives way when a real run starts', () => {
+    const { result } = mount()
+    act(() => result.current.toggle())
+    act(() => void vi.advanceTimersByTime(1500))
+    expect(result.current.status).toBe('playing')
+
+    act(() => useLearningStore.getState().start())
+    expect(useLearningStore.getState().demoStepIndex).toBeNull()
+    expect(result.current.status).toBe('idle')
+
+    // And nothing keeps sounding underneath the run.
+    const before = sounded().length
+    act(() => void vi.advanceTimersByTime(3000))
+    expect(sounded().length).toBe(before)
+  })
+})

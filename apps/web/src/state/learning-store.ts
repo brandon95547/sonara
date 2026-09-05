@@ -77,12 +77,23 @@ interface LearningState {
   targetBpm: number
   /** Let a clean run raise the target and a scrappy one lower it. */
   autoTempo: boolean
+  /**
+   * Which step the demonstration is sounding, or null when it is not playing.
+   *
+   * Separate from `session.stepIndex` because the two answer different
+   * questions: the session's index is how far the *player* has got and feeds
+   * the score, while this is only where the playback head is. Guidance reads
+   * whichever is live, so the finger that lights up during a demonstration is
+   * the same finger Start would light on that note.
+   */
+  demoStepIndex: number | null
 
   setTopic: (topic: LearningTopic) => void
   setMode: (mode: LearningMode) => void
   updateSpec: (patch: Partial<ScaleSpec>) => void
   start: () => void
   reset: () => void
+  setDemoStep: (index: number | null) => void
   setTargetBpm: (bpm: number) => void
   setAutoTempo: (enabled: boolean) => void
   noteOn: (note: number) => void
@@ -102,6 +113,7 @@ function buildAnnotations(
   exercise: Exercise | null,
   mode: LearningMode,
   session: SessionState,
+  demoStepIndex: number | null = null,
 ): Record<number, KeyAnnotation> {
   const annotations: Record<number, KeyAnnotation> = {}
   if (!exercise) return annotations
@@ -130,8 +142,11 @@ function buildAnnotations(
   }
 
   // Learn: the exercise's own notes, in the octaves it actually walks.
+  // The demonstration's playback head stands in for the player's position while
+  // it is running, so the same target, finger and cue appear on the same note.
+  const here = demoStepIndex ?? session.stepIndex
   exercise.steps.forEach((step, index) => {
-    const ahead = index - session.stepIndex
+    const ahead = index - here
     step.notes.forEach((note, i) => {
       const existing = annotations[note]
       // A note played twice in a scale keeps the annotation of its earliest
@@ -167,7 +182,14 @@ export const useLearningStore = create<LearningState>((set, get) => {
     session: SessionState,
   ) => {
     const exercise = buildExercise(topic, spec)
-    return { exercise, session, annotations: buildAnnotations(exercise, mode, session) }
+    // Any rebuild is a new exercise or a new mode, and the demonstration does
+    // not survive either — so the playback head resets with it.
+    return {
+      exercise,
+      session,
+      demoStepIndex: null,
+      annotations: buildAnnotations(exercise, mode, session),
+    }
   }
 
   return {
@@ -179,6 +201,7 @@ export const useLearningStore = create<LearningState>((set, get) => {
     annotations: buildAnnotations(initialExercise, 'learn', IDLE_SESSION),
     targetBpm: initialExercise.defaultBpm,
     autoTempo: false,
+    demoStepIndex: null,
 
     setTopic: (topic) =>
       set((state) => ({ topic, ...rebuild(topic, state.spec, state.mode, IDLE_SESSION) })),
@@ -202,13 +225,26 @@ export const useLearningStore = create<LearningState>((set, get) => {
           { type: 'start', at: Date.now() },
           state.exercise,
         )
-        return { session, annotations: buildAnnotations(state.exercise, state.mode, session) }
+        return {
+          session,
+          // Starting a run ends the demonstration: one head at a time, and from
+          // here the position that matters is the player's.
+          demoStepIndex: null,
+          annotations: buildAnnotations(state.exercise, state.mode, session),
+        }
       }),
 
     reset: () =>
       set((state) => ({
         session: IDLE_SESSION,
+        demoStepIndex: null,
         annotations: buildAnnotations(state.exercise, state.mode, IDLE_SESSION),
+      })),
+
+    setDemoStep: (index) =>
+      set((state) => ({
+        demoStepIndex: index,
+        annotations: buildAnnotations(state.exercise, state.mode, state.session, index),
       })),
 
     setTargetBpm: (bpm) => set({ targetBpm: clampBpm(bpm) }),
@@ -271,4 +307,5 @@ function nextTargetBpm(target: number, session: SessionState): number {
 /** For hot paths and event handlers — no subscription, no re-render. */
 export const learningActions = {
   noteOn: (note: number) => useLearningStore.getState().noteOn(note),
+  setDemoStep: (index: number | null) => useLearningStore.getState().setDemoStep(index),
 }

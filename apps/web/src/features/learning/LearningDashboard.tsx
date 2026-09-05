@@ -1,7 +1,7 @@
 import { Info, Lightbulb, Minus, Plus, RotateCcw } from 'lucide-react'
 import {
-  accuracy,
   currentStep,
+  accuracy,
   FINGER_NAMES,
   LEARNING_MODE_DESCRIPTIONS,
   progress,
@@ -28,7 +28,7 @@ import { HandDiagram } from './HandDiagram'
  * current step and the score are all part of the generic model.
  */
 export function LearningDashboard() {
-  const { exercise, mode, session } = useLearningStore()
+  const { exercise, mode, session, demoStepIndex } = useLearningStore()
 
   if (!exercise) return null
 
@@ -36,7 +36,12 @@ export function LearningDashboard() {
     <div className="flex flex-col gap-4">
       <div className="grid gap-4 lg:grid-cols-3">
         <MaterialCard exercise={exercise} />
-        <CurrentStepCard exercise={exercise} mode={mode} session={session} />
+        <CurrentStepCard
+          exercise={exercise}
+          mode={mode}
+          session={session}
+          demoStepIndex={demoStepIndex}
+        />
         <ProgressCard exercise={exercise} mode={mode} session={session} />
       </div>
       <div className="grid gap-4 lg:grid-cols-3">
@@ -115,18 +120,24 @@ function CurrentStepCard({
   exercise,
   mode,
   session,
+  demoStepIndex,
 }: {
   exercise: Exercise
   mode: LearningMode
   session: SessionState
+  demoStepIndex: number | null
 }) {
-  const step = currentStep(exercise, session)
+  const demoing = demoStepIndex !== null
+  // Whichever playback head is live — the player's, or the demonstration's.
+  const here = demoStepIndex ?? session.stepIndex
+  const step = exercise.steps[here] ?? null
   const finger = step?.fingers[0]?.finger ?? null
   const hand = step?.fingers[0]?.hand ?? exercise.fingering?.hand ?? 'right'
   const running = session.status === 'running'
   // Practice withholds the answer on purpose. Printing the note here would
-  // make it the same exercise as Learn with a different label on it.
-  const reveal = mode === 'learn' && running
+  // make it the same exercise as Learn with a different label on it — and a
+  // demonstration is not a way around that.
+  const reveal = mode === 'learn' && (running || demoing)
 
   return (
     <Card variant="elevated" className="flex flex-col gap-3">
@@ -138,7 +149,7 @@ function CurrentStepCard({
         <ExploreBody exercise={exercise} />
       ) : session.status === 'complete' ? (
         <CompleteBody session={session} exercise={exercise} />
-      ) : !running ? (
+      ) : !running && !demoing ? (
         <p className="py-6 text-body text-[var(--ds-fg-muted)]">
           Press <span className="text-[var(--ds-fg)]">Start</span> when you are ready.
         </p>
@@ -149,7 +160,7 @@ function CurrentStepCard({
               {reveal ? (step?.label ?? '—') : '?'}
             </span>
             <span className="text-body-sm text-[var(--ds-fg-muted)]" data-tabular>
-              {session.stepIndex + 1} of {exercise.steps.length}
+              {here + 1} of {exercise.steps.length}
               {reveal && step?.degree ? ` · degree ${step.degree}` : ''}
             </span>
             {reveal && finger && (
@@ -158,7 +169,11 @@ function CurrentStepCard({
               </span>
             )}
             <p className="mt-1 text-body-sm text-[var(--ds-fg-secondary)]">
-              {reveal ? `Play ${step?.label} to continue` : 'Play the next note from memory'}
+              {demoing
+                ? `Playing ${step?.label ?? ''}`
+                : reveal
+                  ? `Play ${step?.label} to continue`
+                  : 'Play the next note from memory'}
             </p>
             {reveal && step?.cue && (
               <Chip tone="accent" className="mt-1 w-fit">
