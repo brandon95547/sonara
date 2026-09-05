@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { recordingActions } from './recording-store'
 
 /**
  * What is being held down, right now.
@@ -43,19 +44,25 @@ export const useKeyboardStore = create<KeyboardState>((set) => ({
   sustain: false,
   lastNote: null,
 
-  noteOn: (note, velocity, source) =>
+  noteOn: (note, velocity, source) => {
+    // Every way of sounding a note reaches this store, so the recorder taps it
+    // here rather than at each of the callers and hoping none is ever added.
+    recordingActions.capture(note, velocity, true)
     set((state) => ({
       active: { ...state.active, [note]: { note, velocity, source } },
       lastNote: { note, velocity, source },
-    })),
+    }))
+  },
 
-  noteOff: (note) =>
+  noteOff: (note) => {
+    recordingActions.capture(note, 0, false)
     set((state) => {
       if (!state.active[note]) return state
       const next = { ...state.active }
       delete next[note]
       return { active: next }
-    }),
+    })
+  },
 
   setSustain: (down) => set({ sustain: down }),
 

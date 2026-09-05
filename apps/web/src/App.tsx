@@ -8,6 +8,7 @@ import { MidiProvider } from '@/midi/MidiProvider'
 import { AppBar } from '@/components/AppBar'
 import { KeyboardStage } from '@/features/keyboard/KeyboardStage'
 import { DeviceSettingsDrawer } from '@/features/devices/DeviceSettingsDrawer'
+import { RecordingOverlay, RecordingReview } from '@/features/recording/RecordControls'
 import { LearningBar } from '@/features/learning/LearningBar'
 import { ScaleConfigRow } from '@/features/learning/ScaleConfigRow'
 import { LearningDashboard } from '@/features/learning/LearningDashboard'
@@ -137,6 +138,8 @@ function Shell() {
       </main>
 
       <DeviceSettingsDrawer open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <RecordingOverlay />
+      <RecordingReview />
     </div>
   )
 }

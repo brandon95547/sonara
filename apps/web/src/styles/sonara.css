@@ -631,3 +631,88 @@
     padding-inline: 1.5rem;
   }
 }
+
+/* ---- Recording -----------------------------------------------------------
+   The count-in takes the whole screen because it is the one moment the player
+   should be looking at nothing else; the running indicator takes a corner,
+   because by then they should be looking at their hands. */
+.record-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  background: var(--ds-layer-scrim);
+  backdrop-filter: blur(2px);
+}
+.record-countdown {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+.record-countdown__number {
+  font-size: clamp(96px, 18vh, 176px);
+  font-weight: 600;
+  line-height: 1;
+  color: var(--ds-accent-text);
+  font-variant-numeric: tabular-nums;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .record-countdown__number {
+    animation: record-count 900ms cubic-bezier(0.2, 0, 0, 1) both;
+  }
+}
+@keyframes record-count {
+  from {
+    opacity: 0;
+    transform: scale(1.25);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.record-countdown__caption {
+  color: var(--ds-fg-secondary);
+  font-size: 14px;
+}
+.record-banner {
+  position: fixed;
+  z-index: 60;
+  right: 16px;
+  bottom: 16px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--ds-danger-border);
+  border-radius: var(--radius-md);
+  background: var(--ds-surface-overlay);
+  padding: 8px 12px;
+  font-size: 13px;
+  color: var(--ds-fg);
+  font-variant-numeric: tabular-nums;
+  box-shadow: var(--ds-shadow-4);
+}
+.record-banner__dot {
+  height: 8px;
+  width: 8px;
+  border-radius: 999px;
+  background: var(--ds-danger);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .record-banner__dot {
+    animation: record-pulse 1.4s ease-in-out infinite;
+  }
+}
+@keyframes record-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+/* Recording is the one state where the button should read as armed rather
+   than merely selected. */
+.is-recording {
+  background: var(--ds-danger) !important;
+  color: var(--ds-danger-fg, #fff) !important;
+}

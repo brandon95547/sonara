@@ -16,6 +16,7 @@ import { Select } from '@/ui/Controls'
 import { cn } from '@/lib/cn'
 import { useLearningStore } from '@/state/learning-store'
 import { useScaleDemo } from './use-scale-demo'
+import { RecordButton } from '@/features/recording/RecordControls'
 
 /**
  * The scale you are working on, and how much help you want with it.
@@ -48,7 +49,10 @@ export function ScaleConfigRow() {
 
   return (
     <div className="flex flex-col gap-3 rounded-[var(--radius-lg)] border border-[var(--ds-border-subtle)] bg-[var(--ds-surface)] p-3.5 lg:flex-row lg:items-end lg:gap-4">
-      <div className="grid flex-1 grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+      {/* Five equal columns gave Key and Octaves more width than a note name
+          and a digit can use, and left Direction truncating "Up (Ascending)".
+          Weighted to what each field actually has to show. */}
+      <div className="grid flex-1 grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-[0.75fr_1.35fr_1.1fr_0.5fr_1.3fr]">
         <Labelled label="Key">
           <Select
             size="sm"
@@ -88,9 +92,11 @@ export function ScaleConfigRow() {
             aria-label="Octaves"
             value={String(spec.octaves)}
             onChange={(event) => updateSpec({ octaves: Number(event.target.value) })}
+            // The word is already above the control. Repeating it in every
+            // option only buys the select enough width to crowd its neighbours.
             options={[1, 2, 3].map((count) => ({
               value: String(count),
-              label: `${count} ${count === 1 ? 'Octave' : 'Octaves'}`,
+              label: String(count),
             }))}
           />
         </Labelled>
@@ -141,6 +147,8 @@ export function ScaleConfigRow() {
         <DemoButton runInProgress={running} />
 
         <StartButton mode={mode} running={running} onStart={start} onReset={reset} />
+
+        <RecordButton />
       </div>
     </div>
   )
