@@ -74,12 +74,7 @@ export function SongLibrary({ open, onClose }: { open: boolean; onClose: () => v
                   {song.source === 'midi' ? 'MIDI' : 'MusicXML'} · {song.measureCount} bars ·{' '}
                   {Math.round(song.bpm)} BPM
                   {song.handsInferred ? ' · hands guessed from pitch' : ''}
-                  {song.parts.length > 1 && (
-                    <>
-                      {' · '}
-                      {song.parts.join(', ')}
-                    </>
-                  )}
+                  {(song.parts?.length ?? 0) > 1 && <>{` · ${song.parts.join(', ')}`}</>}
                 </span>
               </button>
               <IconButton

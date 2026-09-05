@@ -45,11 +45,39 @@ interface SongState {
 
 const STORAGE_KEY = 'sonara.songs.v1'
 
+/**
+ * Brings a stored song up to the current shape.
+ *
+ * The library outlives the code that wrote it. A song imported before parts
+ * and roles existed has neither, and the difference is not cosmetic: a note
+ * with no role is neither the part being learned nor percussion, so it would
+ * sound while lighting no keys at all — a song that plays and a keyboard that
+ * never moves, with nothing on screen to say why.
+ *
+ * Everything in those files came from the piano path, so that is what they are
+ * read as.
+ */
+function migrate(song: Song): Song {
+  const notes = song.notes?.map((note) =>
+    note.role ? note : { ...note, role: 'keyboard' as const },
+  )
+  return {
+    ...song,
+    notes: notes ?? [],
+    parts: song.parts ?? ['Piano'],
+  }
+}
+
 function load(): Song[] {
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY)
     const parsed: unknown = raw ? JSON.parse(raw) : []
-    return Array.isArray(parsed) ? (parsed as Song[]) : []
+    if (!Array.isArray(parsed)) return []
+    // A song missing the fields everything downstream indexes into is dropped
+    // rather than migrated into something half-real.
+    return (parsed as Song[])
+      .filter((song) => song && typeof song.id === 'string' && Array.isArray(song.notes))
+      .map(migrate)
   } catch {
     // A corrupt or unavailable store is an empty library, not a broken app.
     return []
