@@ -141,6 +141,28 @@ const VOICES: Record<DrumVoice, (kitRef: Kit, at: number, level: number) => void
     tone(k, at, { from: 520, to: 460, decay: 0.16, gain: level * 0.16, type: 'triangle' })
   },
   shaker: (k, at, level) => noiseBurst(k, at, { decay: 0.06, frequency: 9000, gain: level * 0.3 }),
+  // Hand drums: a short pitched skin with almost no sweep, which is what
+  // separates a conga from a tom. The slap on top is the hand, not the head.
+  'conga-low': (k, at, level) => {
+    tone(k, at, { from: 190, to: 165, decay: 0.3, gain: level * 0.8 })
+    noiseBurst(k, at, { decay: 0.03, frequency: 2400, gain: level * 0.18 })
+  },
+  'conga-high': (k, at, level) => {
+    tone(k, at, { from: 290, to: 255, decay: 0.24, gain: level * 0.75 })
+    noiseBurst(k, at, { decay: 0.03, frequency: 3000, gain: level * 0.18 })
+  },
+  'bongo-low': (k, at, level) => {
+    tone(k, at, { from: 340, to: 310, decay: 0.16, gain: level * 0.6 })
+    noiseBurst(k, at, { decay: 0.02, frequency: 3400, gain: level * 0.16 })
+  },
+  'bongo-high': (k, at, level) => {
+    tone(k, at, { from: 480, to: 440, decay: 0.13, gain: level * 0.55 })
+    noiseBurst(k, at, { decay: 0.02, frequency: 4000, gain: level * 0.16 })
+  },
+  timbale: (k, at, level) => {
+    tone(k, at, { from: 400, to: 360, decay: 0.18, gain: level * 0.6 })
+    noiseBurst(k, at, { decay: 0.09, frequency: 3600, gain: level * 0.3 })
+  },
   cowbell: (k, at, level) => {
     tone(k, at, { from: 835, to: 800, decay: 0.22, gain: level * 0.3, type: 'square' })
     tone(k, at, { from: 560, to: 540, decay: 0.22, gain: level * 0.3, type: 'square' })

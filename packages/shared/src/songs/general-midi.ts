@@ -71,6 +71,11 @@ export type DrumVoice =
   | 'ride'
   | 'shaker'
   | 'cowbell'
+  | 'conga-low'
+  | 'conga-high'
+  | 'bongo-low'
+  | 'bongo-high'
+  | 'timbale'
 
 const DRUM_MAP: Record<number, DrumVoice> = {
   35: 'kick',
@@ -97,9 +102,23 @@ const DRUM_MAP: Record<number, DrumVoice> = {
   56: 'cowbell',
   57: 'crash',
   59: 'ride',
+  // 60-67 are the hand drums, and they are not a rounding error: a soul or
+  // gospel arrangement can spend a third of its percussion here. Reading them
+  // by register turns a conga part into a shaker part.
+  60: 'bongo-high',
+  61: 'bongo-low',
+  62: 'conga-high',
+  63: 'conga-high',
+  64: 'conga-low',
+  65: 'timbale',
+  66: 'timbale',
+  67: 'cowbell',
+  68: 'cowbell',
   69: 'shaker',
   70: 'shaker',
   75: 'rimshot',
+  76: 'rimshot',
+  77: 'rimshot',
 }
 
 export function drumVoice(note: number): DrumVoice {
@@ -110,6 +129,7 @@ export function drumVoice(note: number): DrumVoice {
   if (note < 38) return 'kick'
   if (note < 48) return 'tom-low'
   if (note < 60) return 'hat-closed'
+  if (note < 68) return 'conga-low'
   return 'shaker'
 }
 
@@ -128,6 +148,11 @@ const DRUM_NAMES: Record<DrumVoice, string> = {
   ride: 'Ride',
   shaker: 'Shaker',
   cowbell: 'Cowbell',
+  'conga-low': 'Low conga',
+  'conga-high': 'High conga',
+  'bongo-low': 'Low bongo',
+  'bongo-high': 'High bongo',
+  timbale: 'Timbale',
 }
 
 export const drumName = (voice: DrumVoice): string => DRUM_NAMES[voice]
