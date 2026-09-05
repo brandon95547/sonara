@@ -101,3 +101,47 @@ function pitchClassOf(root: string): number {
 function isBlack(note: number): boolean {
   return [1, 3, 6, 8, 10].includes(((note % 12) + 12) % 12)
 }
+
+/**
+ * Checked against The Complete Book of Scales, Chords, Arpeggios & Cadences
+ * (Palmer, Manus & Lethco, Alfred, 1994) — its Guide to Fingering and its two
+ * fingering charts. The extracted tables live in sites/piano-content.
+ *
+ * These are pinned by the degree the 4th finger falls on, which is how that
+ * book indexes every scale, and it is the thing that was wrong: the two flat
+ * minor left hands had been given their parallel major's shape, which puts the
+ * 4th finger on the wrong note of the scale.
+ */
+describe('published fingerings', () => {
+  /** Which degree of the octave the 4th finger lands on, 1-based. */
+  const fourthOn = (root: string, type: string, hand: 'right' | 'left') =>
+    scale(root, type, hand).fingers.indexOf(4) + 1
+
+  it('places the left-hand 4th finger where the source does', () => {
+    // Exceptions to "a major scale and its parallel harmonic minor are
+    // fingered alike" — the source names exactly these two.
+    expect(digits(scale('E♭', 'natural-minor', 'left').fingers)).toBe('21432132')
+    expect(fourthOn('E♭', 'natural-minor', 'left')).toBe(3)
+
+    expect(digits(scale('B♭', 'natural-minor', 'left').fingers)).toBe('21321432')
+    expect(fourthOn('B♭', 'natural-minor', 'left')).toBe(6)
+  })
+
+  it('keeps G♯ minor on its own left hand', () => {
+    // The one scale whose natural-minor LH differs from its harmonic minor:
+    // the 4th finger sits on F♯, the 7th degree, not on C♯, the 4th.
+    expect(digits(scale('G♯', 'natural-minor', 'left').fingers)).toBe('32132143')
+    expect(fourthOn('G♯', 'natural-minor', 'left')).toBe(7)
+  })
+
+  it('agrees with the major chart', () => {
+    expect(digits(scale('C', 'major', 'right').fingers)).toBe('12312345')
+    expect(digits(scale('F', 'major', 'right').fingers)).toBe('12341234')
+    expect(digits(scale('B', 'major', 'left').fingers)).toBe('43214321')
+    expect(digits(scale('F♯', 'major', 'right').fingers)).toBe('23412312')
+    expect(digits(scale('F♯', 'major', 'left').fingers)).toBe('43213214')
+    expect(digits(scale('D♭', 'major', 'right').fingers)).toBe('23123412')
+    expect(digits(scale('A♭', 'major', 'right').fingers)).toBe('34123123')
+    expect(digits(scale('E♭', 'major', 'right').fingers)).toBe('31234123')
+  })
+})

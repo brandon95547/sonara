@@ -70,9 +70,18 @@ const STANDARD: Record<string, { right: OctavePattern; left: OctavePattern }> = 
   'natural-minor:B': { right: f('12312345'), left: f('43214321') },
   'natural-minor:F♯': { right: f('34123123'), left: f('43213214') },
   'natural-minor:C♯': { right: f('34123123'), left: f('32143213') },
+  // Not a typo for the C♯/A♭ shape above it: G♯ is the one scale whose LH
+  // natural-minor fingering differs from its harmonic minor, which the source
+  // flags on the page itself. Natural takes the 4th finger on F♯, the 7th
+  // degree; harmonic takes it on C♯, the 4th.
   'natural-minor:G♯': { right: f('34123123'), left: f('32132143') },
-  'natural-minor:E♭': { right: f('31234123'), left: f('32143213') },
-  'natural-minor:B♭': { right: f('41231234'), left: f('32143213') },
+  // The two flat minor left hands below do not follow their parallel major, and
+  // that is the point of them: Palmer/Manus/Lethco list both as the exceptions
+  // to "a major scale and its parallel harmonic minor are fingered alike".
+  // E♭ minor puts the 4th finger on G♭, the 3rd degree.
+  'natural-minor:E♭': { right: f('31234123'), left: f('21432132') },
+  // B♭ minor puts it on G♭, the 6th.
+  'natural-minor:B♭': { right: f('41231234'), left: f('21321432') },
   'natural-minor:F': { right: f('12341234'), left: f('54321321') },
   'natural-minor:C': { right: f('12312345'), left: f('54321321') },
   'natural-minor:G': { right: f('12312345'), left: f('54321321') },
