@@ -611,6 +611,23 @@
    keys rather than a card of its own, so hiding it gives the space straight
    back to the keyboard. */
 .staff-panel {
-  height: 156px;
-  padding: 12px 0 8px;
+  /* Tall enough that the two staves are read rather than decoded. The drawing
+     scales with this: the viewBox keeps a fixed vertical budget, so more pixels
+     of height means wider line spacing, bigger clefs and bigger noteheads —
+     not more empty air around the same small system. */
+  height: 208px;
+  /* The keyline the staff reads against.
+     Two things decide these numbers. They sit on the 8px grid the layout
+     tokens are built from (24 and 40 are both multiples of 8), and they are
+     one step *smaller* than the page gutter at each size — the panel is
+     already inset from the page by that gutter, so repeating it inside would
+     read as a margin twice over rather than as content padding.
+     Equal on both sides: the staff is a single block of content and has no
+     reason to sit off-centre in its own surface. */
+  padding: 16px 1rem 12px;
+}
+@media (min-width: 40rem) {
+  .staff-panel {
+    padding-inline: 1.5rem;
+  }
 }
