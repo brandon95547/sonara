@@ -1,8 +1,9 @@
-import { Music4 } from 'lucide-react'
+import { AudioWaveform, Music4 } from 'lucide-react'
 import type { Instrument } from '@sonara/shared'
 import { InstrumentSelect } from '@/features/instruments/InstrumentSelect'
-import { StatusDot } from '@/ui/Display'
+import { IconButton } from '@/ui/Button'
 import { useMidi } from '@/midi/MidiProvider'
+import { cn } from '@/lib/cn'
 
 /**
  * The app bar reads the layout tokens rather than carrying its own gutter, so
@@ -18,11 +19,13 @@ export function AppBar({
   selectedId,
   onSelectInstrument,
   catalogueFailed,
+  onOpenDeviceSettings,
 }: {
   instruments: readonly Instrument[]
   selectedId: string | null
   onSelectInstrument: (instrument: Instrument) => void
   catalogueFailed?: boolean
+  onOpenDeviceSettings: () => void
 }) {
   return (
     <header className="sticky top-0 z-30 border-b border-[var(--ds-border-subtle)] bg-[var(--ds-canvas)]/85 backdrop-blur-md">
@@ -43,7 +46,7 @@ export function AppBar({
         </div>
 
         <div className="ml-auto flex min-w-0 items-center gap-3">
-          <ConnectionPill />
+          <MidiButton onOpen={onOpenDeviceSettings} />
           <InstrumentSelect
             instruments={instruments}
             selectedId={selectedId}
@@ -56,21 +59,45 @@ export function AppBar({
   )
 }
 
-/** Connection at a glance. The detail, and the fix, live in the device bar. */
-function ConnectionPill() {
+/**
+ * The keyboard's connection, as one icon in the bar.
+ *
+ * It used to be a strip above the piano — a title, a sentence and a button,
+ * for a thing that is a single bit of state most of the time. The bit lives on
+ * the icon now, as a dot on its corner, and everything that was in the strip
+ * (the reason it is not connected, and the way to fix it) is behind the click.
+ * That is the whole trade: a connection control is worth a glance and not a
+ * row, and the row was coming out of the keyboard's height.
+ */
+function MidiButton({ onOpen }: { onOpen: () => void }) {
   const midi = useMidi()
   const connected = midi.connectedPorts.length
+  const name = connected === 1 ? (midi.connectedPorts[0]?.name ?? 'Keyboard') : null
 
   return (
-    <span className="hidden items-center gap-2 whitespace-nowrap md:inline-flex">
-      <StatusDot tone={connected > 0 ? 'success' : 'neutral'} />
-      <span className="text-label text-[var(--ds-fg-secondary)]">
-        {connected === 0
-          ? 'No keyboard'
-          : connected === 1
-            ? (midi.connectedPorts[0]!.name ?? 'Keyboard connected')
-            : `${connected} keyboards`}
-      </span>
+    <span className="relative inline-flex shrink-0">
+      <IconButton
+        size="sm"
+        variant="text"
+        icon={<AudioWaveform />}
+        onClick={onOpen}
+        label={
+          connected === 0
+            ? 'No keyboard connected — set up MIDI'
+            : connected === 1
+              ? `${name} connected — keyboard settings`
+              : `${connected} keyboards connected — keyboard settings`
+        }
+      />
+      {/* On the icon rather than beside it: the status belongs to the thing,
+          and a separate dot would be one more item competing for the bar. */}
+      <span
+        aria-hidden
+        className={cn(
+          'pointer-events-none absolute right-0.5 bottom-0.5 h-2 w-2 rounded-full ring-2 ring-[var(--ds-canvas)]',
+          connected > 0 ? 'bg-[var(--ds-success)]' : 'bg-[var(--ds-fg-muted)]',
+        )}
+      />
     </span>
   )
 }

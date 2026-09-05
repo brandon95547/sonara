@@ -1,15 +1,16 @@
 import * as React from 'react'
-import { ChevronLeft, ChevronRight, Tag, Crosshair, Volume2, VolumeX } from 'lucide-react'
+import { Blocks, ChevronLeft, ChevronRight, Crosshair, Music, Volume2, VolumeX } from 'lucide-react'
 import { noteName, STANDARD_RANGES } from '@sonara/shared'
 import { IconButton } from '@/ui/Button'
 import { Chip, StatusDot } from '@/ui/Display'
 import { Select } from '@/ui/Controls'
 import { useAudio } from '@/audio/AudioProvider'
 import { useKeyboardStore } from '@/state/keyboard-store'
-import { useLearningStore } from '@/state/learning-store'
+import { useLearningStore, type KeyLabels } from '@/state/learning-store'
 import { useCoarsePointer, useElementWidth } from '@/lib/hooks'
 import { cn } from '@/lib/cn'
 import { PianoKeyboard } from './PianoKeyboard'
+import { GrandStaff } from '@/features/staff/GrandStaff'
 import {
   canShift,
   chooseSpan,
@@ -44,7 +45,16 @@ export function KeyboardStage({ instrumentName, statusSlot }: KeyboardStageProps
   const [measureRef, width] = useElementWidth<HTMLDivElement>()
 
   const [spanId, setSpanId] = React.useState<string>(AUTO)
-  const [showLabels, setShowLabels] = React.useState(true)
+  // What the keys say and how the scale is broken up are shared with the rest
+  // of the app; how much keyboard you can see is this panel's own business.
+  const keyLabels = useLearningStore((state) => state.keyLabels)
+  const setKeyLabels = useLearningStore((state) => state.setKeyLabels)
+  const showStructure = useLearningStore((state) => state.showStructure)
+  const setShowStructure = useLearningStore((state) => state.setShowStructure)
+  const hasStructure = useLearningStore((state) => Boolean(state.exercise?.tetrachordGroups))
+  // Owned here rather than passed in, like the label and follow toggles: it is
+  // a question about this panel, and the keys take back the space when it is off.
+  const [showStaff, setShowStaff] = React.useState(true)
   const [follow, setFollow] = React.useState(true)
   const [window, setWindow] = React.useState<KeyboardWindow>(() =>
     windowForSpan(DEFAULT_SPAN, STANDARD_RANGES[DEFAULT_SPAN.keyCount].low),
@@ -129,8 +139,14 @@ export function KeyboardStage({ instrumentName, statusSlot }: KeyboardStageProps
           </div>
         </div>
 
+        {showStaff && (
+          <div className="staff-panel">
+            <GrandStaff />
+          </div>
+        )}
+
         <div className="piano-felt" aria-hidden />
-        <PianoKeyboard window={window} showLabels={showLabels} />
+        <PianoKeyboard window={window} />
       </div>
 
       {/* Toolbar. Below the instrument, not on it: these controls change how you
@@ -184,12 +200,39 @@ export function KeyboardStage({ instrumentName, statusSlot }: KeyboardStageProps
           label="Follow"
           description="Move the view to whatever you play"
         />
+        <label className="flex items-center gap-1.5">
+          <span className="text-label-sm text-[var(--ds-fg-muted)]">Key Labels</span>
+          <Select
+            size="sm"
+            aria-label="Key labels"
+            value={keyLabels}
+            onChange={(event) => setKeyLabels(event.target.value as KeyLabels)}
+            options={[
+              { value: 'off', label: 'Off' },
+              { value: 'notes', label: 'Notes' },
+              { value: 'degrees', label: 'Degrees' },
+              { value: 'fingers', label: 'Fingers' },
+            ]}
+          />
+        </label>
         <ToggleChip
-          active={showLabels}
-          onClick={() => setShowLabels((value) => !value)}
-          icon={<Tag size={13} />}
-          label="Labels"
-          description="Show note names on every C"
+          active={showStructure}
+          disabled={!hasStructure}
+          onClick={() => setShowStructure(!showStructure)}
+          icon={<Blocks size={13} />}
+          label="Structure"
+          description={
+            hasStructure
+              ? 'Separate the two four-note groups this scale is built from'
+              : 'This scale is not built from two matching halves'
+          }
+        />
+        <ToggleChip
+          active={showStaff}
+          onClick={() => setShowStaff((value) => !value)}
+          icon={<Music size={13} />}
+          label="Staff"
+          description="Write what you play on a grand staff"
         />
 
         <div className="ml-auto flex items-center gap-2">
@@ -226,22 +269,28 @@ function ToggleChip({
   icon,
   label,
   description,
+  disabled = false,
 }: {
   active: boolean
   onClick: () => void
   icon: React.ReactNode
   label: string
   description: string
+  disabled?: boolean
 }) {
   return (
     <button
       type="button"
       aria-pressed={active}
+      // The title carries the reason as well as the description, so a switch
+      // that cannot do anything says why rather than just refusing.
       title={description}
+      disabled={disabled}
       onClick={onClick}
       className={cn(
         'touch-target inline-flex h-8 items-center gap-1.5 rounded-[var(--radius-md)] border px-2.5 text-label-sm',
         'transition-colors duration-[120ms] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ds-focus-ring)]',
+        'disabled:cursor-not-allowed disabled:opacity-45',
         active
           ? 'border-[var(--ds-accent-border)] bg-[var(--ds-accent-subtle)] text-[var(--ds-accent-text)]'
           : 'border-[var(--ds-border-interactive)] text-[var(--ds-fg-secondary)] hover:bg-[var(--ds-layer-hover)] hover:text-[var(--ds-fg)]',

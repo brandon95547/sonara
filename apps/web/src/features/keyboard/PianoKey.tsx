@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { noteName, pitchClass } from '@sonara/shared'
 import { useKeyboardStore } from '@/state/keyboard-store'
-import { useLearningStore } from '@/state/learning-store'
+import { useLearningStore, type KeyLabels } from '@/state/learning-store'
 import type { KeyGeometry } from './keyboard-layout'
 
 /**
@@ -17,7 +17,7 @@ export interface PianoKeyProps {
   geometry: KeyGeometry
   /** Height of the black keys as a percentage of the keybed. */
   blackHeightPercent: number
-  showLabel: boolean
+  keyLabels: KeyLabels
   onPress: (note: number, event: React.PointerEvent<HTMLButtonElement>) => void
   onEnter: (note: number, event: React.PointerEvent<HTMLButtonElement>) => void
   onRelease: (note: number, event: React.PointerEvent<HTMLButtonElement>) => void
@@ -28,7 +28,7 @@ export interface PianoKeyProps {
 export const PianoKey = React.memo(function PianoKey({
   geometry,
   blackHeightPercent,
-  showLabel,
+  keyLabels,
   onPress,
   onEnter,
   onRelease,
@@ -44,6 +44,20 @@ export const PianoKey = React.memo(function PianoKey({
   const label = noteName(note)
   // Middle C is the one landmark every player navigates from.
   const isAnchor = note === 60
+
+  /**
+   * The one thing written on this key, if anything.
+   *
+   * Degrees exist only for keys the exercise knows about, and fingers are drawn
+   * in their own layer above the keys rather than written here. Otherwise the
+   * key carries its note name, or the octave marker that says where you are.
+   */
+  const keyText = ((): { text: string; anchor?: boolean } | null => {
+    if (keyLabels === 'off' || keyLabels === 'fingers') return null
+    if (keyLabels === 'degrees') return annotation?.degree ? { text: annotation.degree } : null
+    if (annotation?.label) return { text: annotation.label }
+    return pitchClass(note) === 0 ? { text: label, anchor: isAnchor } : null
+  })()
 
   const style: React.CSSProperties = black
     ? {
@@ -80,16 +94,10 @@ export const PianoKey = React.memo(function PianoKey({
       {/* An annotated key shows the note it IS — `E♭`, not `E♭4` — because in
           a scale you are reading letters, not octaves. Unannotated keys keep
           the octave marker on every C, which is how you find your place. */}
-      {annotation?.label && !black ? (
-        <span className="piano-key__label">{annotation.label}</span>
-      ) : (
-        showLabel &&
-        !black &&
-        pitchClass(note) === 0 && (
-          <span className={`piano-key__label${isAnchor ? ' piano-key__label--anchor' : ''}`}>
-            {label}
-          </span>
-        )
+      {keyText !== null && !black && (
+        <span className={`piano-key__label${keyText.anchor ? ' piano-key__label--anchor' : ''}`}>
+          {keyText.text}
+        </span>
       )}
     </button>
   )

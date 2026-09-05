@@ -64,18 +64,20 @@ export interface KeyAnnotation {
   readonly cue?: string
   /** The spelled note name, e.g. `E♭`. */
   readonly label?: string
-  /** Which four-note group of the scale this key belongs to, while that overlay is on. */
+  /** This note's scale degree — `1`, `♭3`. Shown when key labels are set to it. */
+  readonly degree?: string
+  /** Which of the scale's two four-note groups this key belongs to, if either. */
   readonly group?: 'lower' | 'upper'
 }
 
 /**
- * A temporary answer drawn on the keys themselves.
+ * What the keys say on them. One at a time, on purpose.
  *
- * Asked for from the theory dialog and turned off again — not a permanent
- * layer. The keyboard already says which notes are in the scale; these say
- * something extra for as long as the question is being asked, and then stop.
+ * Note names, degrees and fingers are three answers to three different
+ * questions, and printing two of them at once produces a key labelled 4 with a
+ * 3 above it — two answers to a question nobody asked together.
  */
-export type KeyboardOverlay = 'none' | 'degrees' | 'tetrachords'
+export type KeyLabels = 'off' | 'notes' | 'degrees' | 'fingers'
 
 interface LearningState {
   topic: LearningTopic
@@ -98,7 +100,9 @@ interface LearningState {
    * the same finger Start would light on that note.
    */
   demoStepIndex: number | null
-  keyboardOverlay: KeyboardOverlay
+  /** View settings. What is drawn on the keys, not what the keys mean. */
+  keyLabels: KeyLabels
+  showStructure: boolean
 
   setTopic: (topic: LearningTopic) => void
   setMode: (mode: LearningMode) => void
@@ -106,7 +110,8 @@ interface LearningState {
   start: () => void
   reset: () => void
   setDemoStep: (index: number | null) => void
-  setKeyboardOverlay: (overlay: KeyboardOverlay) => void
+  setKeyLabels: (labels: KeyLabels) => void
+  setShowStructure: (show: boolean) => void
   setTargetBpm: (bpm: number) => void
   setAutoTempo: (enabled: boolean) => void
   noteOn: (note: number) => void
@@ -127,7 +132,6 @@ function buildAnnotations(
   mode: LearningMode,
   session: SessionState,
   demoStepIndex: number | null = null,
-  overlay: KeyboardOverlay = 'none',
 ): Record<number, KeyAnnotation> {
   const annotations: Record<number, KeyAnnotation> = {}
   if (!exercise) return annotations
@@ -183,44 +187,35 @@ function buildAnnotations(
     annotations[Number(note)] = { role: 'wrong' }
   }
 
-  return applyOverlay(annotations, exercise, overlay)
+  return describe(annotations, exercise)
 }
 
 /**
- * The overlay runs last, over whatever the mode decided.
+ * Adds the facts a key can be labelled with, whatever the mode decided.
  *
- * Deliberately additive: it relabels or groups keys the mode has already
- * chosen to light, and never lights one the mode did not. Explore, Learn and
- * Practice keep meaning what they mean while a question is being answered.
+ * Always, rather than when a toolbar switch is on: these are properties of the
+ * note, not of the view, and computing them here keeps the toolbar a rendering
+ * decision instead of a reason to rebuild every annotation.
  */
-function applyOverlay(
+function describe(
   annotations: Record<number, KeyAnnotation>,
   exercise: Exercise,
-  overlay: KeyboardOverlay,
 ): Record<number, KeyAnnotation> {
-  if (overlay === 'none') return annotations
+  const groups = exercise.tetrachordGroups
 
-  if (overlay === 'degrees' && exercise.pitchDegrees) {
-    for (const [note, annotation] of Object.entries(annotations)) {
-      const degree = exercise.pitchDegrees[normalisePitchClass(Number(note))]
-      if (degree) annotations[Number(note)] = { ...annotation, label: degree }
-    }
-    return annotations
-  }
+  for (const [key, annotation] of Object.entries(annotations)) {
+    const note = Number(key)
+    const pitchClass = normalisePitchClass(note)
+    const degree = exercise.pitchDegrees?.[pitchClass]
+    // The tonic both opens the lower group and closes the upper one. It reads
+    // as the start of the scale, so the lower group keeps it.
+    const group = groups?.lower.includes(pitchClass)
+      ? ('lower' as const)
+      : groups?.upper.includes(pitchClass)
+        ? ('upper' as const)
+        : undefined
 
-  if (overlay === 'tetrachords' && exercise.tetrachordGroups) {
-    const { lower, upper } = exercise.tetrachordGroups
-    for (const [note, annotation] of Object.entries(annotations)) {
-      const pitchClass = normalisePitchClass(Number(note))
-      // The tonic closes the upper group as well as opening the lower one. It
-      // reads as the start of the scale, so ownership goes to the lower group.
-      const group = lower.includes(pitchClass)
-        ? 'lower'
-        : upper.includes(pitchClass)
-          ? 'upper'
-          : undefined
-      if (group) annotations[Number(note)] = { ...annotation, group }
-    }
+    if (degree || group) annotations[note] = { ...annotation, degree, group }
   }
 
   return annotations
@@ -244,7 +239,6 @@ export const useLearningStore = create<LearningState>((set, get) => {
       exercise,
       session,
       demoStepIndex: null,
-      keyboardOverlay: 'none' as KeyboardOverlay,
       annotations: buildAnnotations(exercise, mode, session),
     }
   }
@@ -259,7 +253,8 @@ export const useLearningStore = create<LearningState>((set, get) => {
     targetBpm: initialExercise.defaultBpm,
     autoTempo: false,
     demoStepIndex: null,
-    keyboardOverlay: 'none',
+    keyLabels: 'notes',
+    showStructure: false,
 
     setTopic: (topic) =>
       set((state) => ({ topic, ...rebuild(topic, state.spec, state.mode, IDLE_SESSION) })),
@@ -288,13 +283,7 @@ export const useLearningStore = create<LearningState>((set, get) => {
           // Starting a run ends the demonstration: one head at a time, and from
           // here the position that matters is the player's.
           demoStepIndex: null,
-          annotations: buildAnnotations(
-            state.exercise,
-            state.mode,
-            session,
-            null,
-            state.keyboardOverlay,
-          ),
+          annotations: buildAnnotations(state.exercise, state.mode, session, null),
         }
       }),
 
@@ -302,38 +291,18 @@ export const useLearningStore = create<LearningState>((set, get) => {
       set((state) => ({
         session: IDLE_SESSION,
         demoStepIndex: null,
-        annotations: buildAnnotations(
-          state.exercise,
-          state.mode,
-          IDLE_SESSION,
-          null,
-          state.keyboardOverlay,
-        ),
+        annotations: buildAnnotations(state.exercise, state.mode, IDLE_SESSION, null),
       })),
 
     setDemoStep: (index) =>
       set((state) => ({
         demoStepIndex: index,
-        annotations: buildAnnotations(
-          state.exercise,
-          state.mode,
-          state.session,
-          index,
-          state.keyboardOverlay,
-        ),
+        annotations: buildAnnotations(state.exercise, state.mode, state.session, index),
       })),
 
-    setKeyboardOverlay: (keyboardOverlay) =>
-      set((state) => ({
-        keyboardOverlay,
-        annotations: buildAnnotations(
-          state.exercise,
-          state.mode,
-          state.session,
-          state.demoStepIndex,
-          keyboardOverlay,
-        ),
-      })),
+    setKeyLabels: (keyLabels) => set({ keyLabels }),
+
+    setShowStructure: (showStructure) => set({ showStructure }),
 
     setTargetBpm: (bpm) => set({ targetBpm: clampBpm(bpm) }),
 
@@ -351,13 +320,7 @@ export const useLearningStore = create<LearningState>((set, get) => {
 
       set({
         session,
-        annotations: buildAnnotations(
-          state.exercise,
-          state.mode,
-          session,
-          state.demoStepIndex,
-          state.keyboardOverlay,
-        ),
+        annotations: buildAnnotations(state.exercise, state.mode, session, state.demoStepIndex),
         // Auto tempo moves the target only at the end of a run, and only on
         // evidence: a clean pass at or above the current target earns a nudge
         // up, a scrappy one earns a nudge down, and anything in between leaves
@@ -379,13 +342,7 @@ export const useLearningStore = create<LearningState>((set, get) => {
       if (session === state.session) return
       set({
         session,
-        annotations: buildAnnotations(
-          state.exercise,
-          state.mode,
-          session,
-          state.demoStepIndex,
-          state.keyboardOverlay,
-        ),
+        annotations: buildAnnotations(state.exercise, state.mode, session, state.demoStepIndex),
       })
     },
   }

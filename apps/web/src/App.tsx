@@ -1,13 +1,12 @@
 import * as React from 'react'
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
-import { AlertTriangle, X } from 'lucide-react'
+import { AlertTriangle } from 'lucide-react'
 import type { Instrument } from '@sonara/shared'
 import { api, ApiClientError } from '@/lib/api'
 import { AudioProvider, useAudio } from '@/audio/AudioProvider'
 import { MidiProvider } from '@/midi/MidiProvider'
 import { AppBar } from '@/components/AppBar'
 import { KeyboardStage } from '@/features/keyboard/KeyboardStage'
-import { DeviceBar } from '@/features/devices/DeviceBar'
 import { DeviceSettingsDrawer } from '@/features/devices/DeviceSettingsDrawer'
 import { LearningBar } from '@/features/learning/LearningBar'
 import { ScaleConfigRow } from '@/features/learning/ScaleConfigRow'
@@ -104,6 +103,7 @@ function Shell() {
         // should not have to wait out the whole retry budget to learn that
         // something is wrong.
         catalogueFailed={catalogue.isError || catalogue.failureCount > 0}
+        onOpenDeviceSettings={() => setSettingsOpen(true)}
       />
 
       <main className="relative z-10 mx-auto flex max-w-[var(--ds-layout-container)] flex-col gap-4 px-[var(--ds-layout-gutter)] py-5 sm:px-[var(--ds-layout-gutter-lg)] sm:py-6">
@@ -123,16 +123,10 @@ function Shell() {
                 visible hint that a keyboard is a thing you can connect. */}
             <LearningBar />
             {topic === 'scales' && <ScaleConfigRow />}
-            <DeviceBar onConfigure={() => setSettingsOpen(true)} />
 
             <KeyboardStage
               instrumentName={selected?.name ?? 'Loading…'}
-              statusSlot={
-                <>
-                  <EngineChip />
-                  <OverlayChip />
-                </>
-              }
+              statusSlot={<EngineChip />}
             />
 
             {topic === 'scales' ? (
@@ -190,31 +184,6 @@ function ComingNext() {
 }
 
 /** What is actually making the sound right now. */
-/**
- * What the keys are currently answering, and how to stop them.
- *
- * An overlay is a question someone asked, not a setting they chose, so it says
- * so and offers its own way out. Without this the keyboard would show degree
- * numbers instead of note names with nothing on screen explaining why.
- */
-function OverlayChip() {
-  const overlay = useLearningStore((state) => state.keyboardOverlay)
-  const setKeyboardOverlay = useLearningStore((state) => state.setKeyboardOverlay)
-  if (overlay === 'none') return null
-
-  return (
-    <button
-      type="button"
-      onClick={() => setKeyboardOverlay('none')}
-      className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--ds-accent-border)] bg-[var(--ds-accent-subtle)] px-2 py-0.5 text-label-sm text-[var(--ds-accent-text)] hover:bg-[var(--ds-accent-subtle-hover)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ds-focus-ring)]"
-    >
-      {overlay === 'degrees' ? 'Showing degrees' : 'Showing tetrachords'}
-      <X size={12} aria-hidden />
-      <span className="sr-only">— dismiss</span>
-    </button>
-  )
-}
-
 function EngineChip() {
   const { status } = useAudio()
   if (!status.instrumentId) return null

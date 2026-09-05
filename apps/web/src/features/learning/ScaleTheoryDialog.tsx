@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { ChevronDown, ChevronRight, Piano } from 'lucide-react'
+import { ChevronDown, ChevronRight } from 'lucide-react'
 import {
   crossings,
   degreeNames,
@@ -12,7 +12,6 @@ import {
   tetrachordNotes,
 } from '@sonara/shared'
 import { Drawer } from '@/ui/Drawer'
-import { Button } from '@/ui/Button'
 import { Divider } from '@/ui/Display'
 import { useLearningStore } from '@/state/learning-store'
 
@@ -30,7 +29,6 @@ import { useLearningStore } from '@/state/learning-store'
  */
 export function ScaleTheoryDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const spec = useLearningStore((state) => state.spec)
-  const setKeyboardOverlay = useLearningStore((state) => state.setKeyboardOverlay)
 
   const type = findScaleType(spec.scaleTypeId)
   const scale = type ? spellScale(spec.rootPitchClass, type) : null
@@ -51,11 +49,6 @@ export function ScaleTheoryDialog({ open, onClose }: { open: boolean; onClose: (
   const moves = crossings(fingering.fingers, spec.hand, noteNames)
   const handLabel = spec.hand === 'right' ? 'Right hand' : 'Left hand'
 
-  const showOnKeyboard = (overlay: 'degrees' | 'tetrachords') => {
-    setKeyboardOverlay(overlay)
-    onClose()
-  }
-
   return (
     <Drawer
       open={open}
@@ -65,7 +58,7 @@ export function ScaleTheoryDialog({ open, onClose }: { open: boolean; onClose: (
     >
       <div className="flex flex-col gap-6">
         {halves && (
-          <Section title="How the scale is built">
+          <Section title="Scale construction">
             <div className="flex flex-col gap-1.5 rounded-[var(--radius-md)] bg-[var(--ds-surface-inset)] px-3 py-2.5">
               <Row cells={[halves.lower.join(' – '), halves.upper.join(' – ')]} tone="fg" />
               <Row
@@ -83,7 +76,6 @@ export function ScaleTheoryDialog({ open, onClose }: { open: boolean; onClose: (
               The upper group is also the lower group of the next scale a fifth up, which is how the
               circle of fifths is built.
             </p>
-            <ShowOnKeyboard onClick={() => showOnKeyboard('tetrachords')} />
           </Section>
         )}
 
@@ -108,10 +100,6 @@ export function ScaleTheoryDialog({ open, onClose }: { open: boolean; onClose: (
               </dl>
             </Disclosure>
           )}
-          <ShowOnKeyboard
-            label="Show degrees on keyboard"
-            onClick={() => showOnKeyboard('degrees')}
-          />
         </Section>
 
         {relative && (
@@ -219,19 +207,5 @@ function Disclosure({ label, children }: { label: string; children: React.ReactN
       </button>
       {open && children}
     </div>
-  )
-}
-
-function ShowOnKeyboard({
-  label = 'Show on keyboard',
-  onClick,
-}: {
-  label?: string
-  onClick: () => void
-}) {
-  return (
-    <Button size="sm" variant="outlined" startIcon={<Piano />} onClick={onClick} className="w-fit">
-      {label}
-    </Button>
   )
 }

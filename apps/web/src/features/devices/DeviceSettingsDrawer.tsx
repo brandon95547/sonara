@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { RotateCcw } from 'lucide-react'
+import { Cable, RotateCcw } from 'lucide-react'
 import {
   KEY_COUNTS,
   noteName,
@@ -16,9 +16,10 @@ import {
 import { api } from '@/lib/api'
 import { Button } from '@/ui/Button'
 import { Drawer } from '@/ui/Drawer'
-import { Chip, Divider } from '@/ui/Display'
+import { Chip, Divider, StatusDot } from '@/ui/Display'
 import { Field, SegmentedControl, Select, Slider, Switch } from '@/ui/Controls'
 import { useMidi } from '@/midi/MidiProvider'
+import { MIDI_UNAVAILABLE_COPY } from '@/midi/midi-access'
 
 /**
  * Per-keyboard configuration.
@@ -56,8 +57,8 @@ export function DeviceSettingsDrawer({ open, onClose }: { open: boolean; onClose
     <Drawer
       open={open}
       onClose={onClose}
-      title="Keyboard settings"
-      description="Saved per keyboard, and restored the next time you plug it in."
+      title="Keyboard"
+      description="Connect a MIDI keyboard, and set it up. Settings are saved per keyboard and restored the next time you plug it in."
       footer={
         device && (
           <Button
@@ -72,6 +73,12 @@ export function DeviceSettingsDrawer({ open, onClose }: { open: boolean; onClose
         )
       }
     >
+      {/* Connecting used to live in a strip above the piano. It is here now,
+          because this is where someone looking for their keyboard will come —
+          and because every state of MIDI access needs a different sentence, and
+          a drawer has room for the sentence where a toolbar icon does not. */}
+      <ConnectionState />
+
       {midi.connectedPorts.length > 1 && (
         <Field label="Keyboard" className="mb-5">
           <Select
@@ -92,6 +99,92 @@ export function DeviceSettingsDrawer({ open, onClose }: { open: boolean; onClose
         <DeviceForm device={device} onPatch={patch} pending={updateConfig.isPending} />
       )}
     </Drawer>
+  )
+}
+
+/**
+ * Why there is no keyboard, and what to do about it.
+ *
+ * Each state of Web MIDI gets its own sentence, because each one has a
+ * different fix and "MIDI unavailable" helps with none of them.
+ */
+function ConnectionState() {
+  const midi = useMidi()
+
+  const body = (() => {
+    switch (midi.access.state) {
+      case 'idle':
+        return {
+          tone: 'neutral' as const,
+          title: 'No keyboard connected',
+          detail: 'Play with the mouse or your touchscreen, or connect a USB MIDI keyboard.',
+        }
+      case 'requesting':
+        return {
+          tone: 'info' as const,
+          title: 'Asking for MIDI access',
+          detail: 'Allow it in the browser prompt.',
+        }
+      case 'denied':
+        return {
+          tone: 'warning' as const,
+          title: 'MIDI access was blocked',
+          detail:
+            'Allow MIDI for this site from the padlock in the address bar, then connect again.',
+        }
+      case 'unavailable':
+        return { tone: 'warning' as const, ...MIDI_UNAVAILABLE_COPY[midi.access.reason] }
+      case 'error':
+        return {
+          tone: 'danger' as const,
+          title: 'MIDI could not start',
+          detail: midi.access.message,
+        }
+      case 'ready':
+        return midi.connectedPorts.length === 0
+          ? {
+              tone: 'warning' as const,
+              title: 'MIDI is on, but no keyboard is plugged in',
+              detail: 'Connect one over USB — it appears here as soon as the browser sees it.',
+            }
+          : {
+              tone: 'success' as const,
+              title:
+                midi.connectedPorts.length === 1
+                  ? 'Keyboard connected'
+                  : `${midi.connectedPorts.length} keyboards connected`,
+              detail: midi.connectedPorts
+                .map(
+                  (port) => `${port.name}${port.device ? ` · ${port.device.keyCount} keys` : ''}`,
+                )
+                .join(' · '),
+            }
+    }
+  })()
+
+  return (
+    <div className="mb-5 flex flex-col gap-3">
+      <div className="flex items-start gap-2.5">
+        <span className="mt-1.5 shrink-0">
+          <StatusDot tone={body.tone} pulse={midi.access.state === 'requesting'} />
+        </span>
+        <div className="flex min-w-0 flex-col">
+          <span className="text-ui text-[var(--ds-fg)]">{body.title}</span>
+          <span className="text-body-sm text-[var(--ds-fg-muted)]">{body.detail}</span>
+        </div>
+      </div>
+      {midi.canRequest && (
+        <Button
+          size="sm"
+          startIcon={<Cable />}
+          loading={midi.access.state === 'requesting'}
+          onClick={midi.connect}
+          className="w-fit"
+        >
+          Connect a keyboard
+        </Button>
+      )}
+    </div>
   )
 }
 

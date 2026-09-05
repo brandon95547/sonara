@@ -41,18 +41,14 @@ const POINTER_VELOCITY = { min: 42, max: 122 } as const
 
 export interface PianoKeyboardProps {
   window: KeyboardWindow
-  showLabels?: boolean
   className?: string
 }
 
-export function PianoKeyboard({
-  window: keyWindow,
-  showLabels = true,
-  className,
-}: PianoKeyboardProps) {
+export function PianoKeyboard({ window: keyWindow, className }: PianoKeyboardProps) {
   const audio = useAudio()
   const mode = useLearningStore((state) => state.mode)
-  const overlay = useLearningStore((state) => state.keyboardOverlay)
+  const keyLabels = useLearningStore((state) => state.keyLabels)
+  const showStructure = useLearningStore((state) => state.showStructure)
   const layout = React.useMemo(() => buildLayout(keyWindow), [keyWindow])
 
   const audioRef = React.useRef(audio)
@@ -190,7 +186,8 @@ export function PianoKeyboard({
       <div
         className="keybed"
         data-mode={mode}
-        data-overlay={overlay === 'none' ? undefined : overlay}
+        data-structure={showStructure ? 'on' : undefined}
+        data-labels={keyLabels}
         role="group"
         aria-label={`Piano keyboard, ${layout.whiteCount} white keys`}
         style={{ height: 'var(--keybed-height)' }}
@@ -200,7 +197,7 @@ export function PianoKeyboard({
             key={geometry.note}
             geometry={geometry}
             blackHeightPercent={BLACK_KEY_HEIGHT_PERCENT}
-            showLabel={showLabels}
+            keyLabels={keyLabels}
             onPress={onPress}
             onEnter={onEnter}
             onRelease={onRelease}
@@ -213,7 +210,7 @@ export function PianoKeyboard({
             key={geometry.note}
             geometry={geometry}
             blackHeightPercent={BLACK_KEY_HEIGHT_PERCENT}
-            showLabel={false}
+            keyLabels={keyLabels}
             onPress={onPress}
             onEnter={onEnter}
             onRelease={onRelease}
@@ -222,7 +219,7 @@ export function PianoKeyboard({
           />
         ))}
         <RangeEdges window={keyWindow} />
-        <FingerBadges layout={layout} />
+        {keyLabels === 'fingers' && <FingerBadges layout={layout} />}
       </div>
     </div>
   )
