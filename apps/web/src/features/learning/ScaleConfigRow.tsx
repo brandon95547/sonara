@@ -52,7 +52,7 @@ export function ScaleConfigRow() {
       {/* Five equal columns gave Key and Octaves more width than a note name
           and a digit can use, and left Direction truncating "Up (Ascending)".
           Weighted to what each field actually has to show. */}
-      <div className="grid flex-1 grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-[0.75fr_1.35fr_1.1fr_0.5fr_1.3fr]">
+      <div className="grid flex-1 grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-[0.8fr_1.5fr_0.65fr_0.5fr_1.45fr]">
         <Labelled label="Key">
           <Select
             size="sm"
@@ -79,9 +79,11 @@ export function ScaleConfigRow() {
             aria-label="Hand"
             value={spec.hand}
             onChange={(event) => updateSpec({ hand: event.target.value as 'right' | 'left' })}
+            // As with Octaves: the field is labelled Hand, so the options do
+            // not have to be. The exercise subtitle still spells it out.
             options={[
-              { value: 'right', label: 'Right Hand' },
-              { value: 'left', label: 'Left Hand' },
+              { value: 'right', label: 'Right' },
+              { value: 'left', label: 'Left' },
             ]}
           />
         </Labelled>
