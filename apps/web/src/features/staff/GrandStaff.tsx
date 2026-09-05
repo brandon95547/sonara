@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { ledgerSteps, staffNoteName, staffPlacement, type StaffPlacement } from '@sonara/shared'
 import { useKeyboardStore } from '@/state/keyboard-store'
-import { useElementWidth } from '@/lib/hooks'
+import { useElementSize } from '@/lib/hooks'
 
 /**
  * What you are playing, written down, as you play it.
@@ -19,17 +19,14 @@ import { useElementWidth } from '@/lib/hooks'
 /** Half the gap between two staff lines, in viewBox units. */
 const STEP = 5
 const NOTE_X = 116
-const HALF_HEIGHT = 78
 /**
- * Rendered height of the panel, in CSS pixels.
+ * Half the vertical budget, in viewBox units.
  *
- * The viewBox is sized from the measured width against this, so one unit is
- * one pixel at any width: scaling the drawing to fit a fixed box instead would
- * leave the staff as a small card in the corner of a wide panel, and would
- * shrink the noteheads on a narrow one.
+ * The staff itself spans ±50 (five lines each side of middle C at 5 units a
+ * step); the rest is headroom for ledger lines, so the drawing never has to be
+ * scaled down to fit an unusually high or low note.
  */
-const PANEL_HEIGHT = 156
-const UNITS_PER_PX = (HALF_HEIGHT * 2) / PANEL_HEIGHT
+const HALF_HEIGHT = 78
 
 const STAFF_LINES = {
   treble: [2, 4, 6, 8, 10],
@@ -42,8 +39,20 @@ export function GrandStaff() {
   // One subscription to the whole map: unlike a key, this draws every sounding
   // note at once, so there is nothing finer to subscribe to.
   const active = useKeyboardStore((state) => state.active)
-  const [measureRef, pixelWidth] = useElementWidth<HTMLDivElement>()
-  const width = Math.max(220, Math.round(pixelWidth * UNITS_PER_PX))
+  const [measureRef, size] = useElementSize<HTMLDivElement>()
+
+  /**
+   * The viewBox width that makes the box's aspect and the drawing's identical.
+   *
+   * `preserveAspectRatio` scales by whichever axis is more constrained, so a
+   * viewBox that is relatively wider than its element gets scaled down to fit
+   * the height and leaves the remaining width empty — the element is full
+   * width and the staff inside it is not. Deriving the width from the measured
+   * aspect leaves nothing to letterbox, at any panel height, with no constant
+   * to keep in step with the CSS.
+   */
+  const width =
+    size.height > 0 ? Math.round((HALF_HEIGHT * 2 * size.width) / size.height) : HALF_HEIGHT * 4
 
   const placements = React.useMemo(() => {
     const notes = Object.keys(active)

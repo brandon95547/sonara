@@ -1,6 +1,44 @@
 import * as React from 'react'
 
 /** Tracks an element's width. Used by the keyboard to choose how many keys fit. */
+export interface ElementSize {
+  readonly width: number
+  readonly height: number
+}
+
+/**
+ * Both dimensions of an element, as it is actually laid out.
+ *
+ * Needed wherever a drawing has to match its box rather than fit inside it: an
+ * SVG whose viewBox aspect differs from its element's aspect gets letterboxed
+ * by `preserveAspectRatio`, and the gap is invisible in the markup — the
+ * element is full width, the picture inside it is not.
+ */
+export function useElementSize<T extends HTMLElement>(): [React.RefObject<T | null>, ElementSize] {
+  const ref = React.useRef<T>(null)
+  const [size, setSize] = React.useState<ElementSize>({ width: 0, height: 0 })
+
+  React.useLayoutEffect(() => {
+    const element = ref.current
+    if (!element) return
+
+    const measure = (width: number, height: number) =>
+      setSize((current) =>
+        current.width === width && current.height === height ? current : { width, height },
+      )
+
+    const observer = new ResizeObserver(([entry]) => {
+      if (entry) measure(entry.contentRect.width, entry.contentRect.height)
+    })
+    observer.observe(element)
+    const box = element.getBoundingClientRect()
+    measure(box.width, box.height)
+    return () => observer.disconnect()
+  }, [])
+
+  return [ref, size]
+}
+
 export function useElementWidth<T extends HTMLElement>(): [React.RefObject<T | null>, number] {
   const ref = React.useRef<T>(null)
   const [width, setWidth] = React.useState(0)
