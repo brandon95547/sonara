@@ -1,4 +1,4 @@
-import { buildSong, inferHand, type Hand, type Song, type SongNote } from './song.js'
+import { buildSong, inferHand, type Hand, type Song, type SongNote } from '@sonara/shared'
 
 /**
  * Reads MusicXML into a song.

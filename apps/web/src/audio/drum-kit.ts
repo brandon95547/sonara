@@ -163,6 +163,34 @@ const VOICES: Record<DrumVoice, (kitRef: Kit, at: number, level: number) => void
     tone(k, at, { from: 400, to: 360, decay: 0.18, gain: level * 0.6 })
     noiseBurst(k, at, { decay: 0.09, frequency: 3600, gain: level * 0.3 })
   },
+  'ride-bell': (k, at, level) => {
+    tone(k, at, { from: 1180, to: 1150, decay: 0.42, gain: level * 0.22, type: 'square' })
+    noiseBurst(k, at, { decay: 0.28, frequency: 8000, gain: level * 0.14 })
+  },
+  agogo: (k, at, level) => {
+    tone(k, at, { from: 780, to: 760, decay: 0.2, gain: level * 0.26, type: 'square' })
+  },
+  woodblock: (k, at, level) => {
+    // Almost no body: a click with a pitch, which is the whole character.
+    tone(k, at, { from: 1000, to: 900, decay: 0.05, gain: level * 0.45, type: 'square' })
+  },
+  triangle: (k, at, level) => {
+    tone(k, at, { from: 5200, to: 5100, decay: 0.9, gain: level * 0.12, type: 'triangle' })
+    tone(k, at, { from: 7100, to: 7000, decay: 0.7, gain: level * 0.08, type: 'triangle' })
+  },
+  whistle: (k, at, level) => {
+    tone(k, at, { from: 2300, to: 2450, decay: 0.24, gain: level * 0.18, type: 'sine' })
+  },
+  scrape: (k, at, level) => {
+    // Guiro, cuica, vibraslap: a rasp rather than a strike.
+    noiseBurst(k, at, {
+      decay: 0.26,
+      frequency: 1800,
+      gain: level * 0.36,
+      type: 'bandpass',
+      q: 2.2,
+    })
+  },
   cowbell: (k, at, level) => {
     tone(k, at, { from: 835, to: 800, decay: 0.22, gain: level * 0.3, type: 'square' })
     tone(k, at, { from: 560, to: 540, decay: 0.22, gain: level * 0.3, type: 'square' })
