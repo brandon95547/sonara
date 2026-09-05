@@ -53,6 +53,15 @@ export interface Song {
   readonly source: 'midi' | 'musicxml'
   /** What is in the file — "Piano · Bass · Drums" — for saying so. */
   readonly parts: readonly string[]
+  /**
+   * Whether the parts were actually read from the file.
+   *
+   * False for a song stored before they were, where every note had to be taken
+   * as piano because nothing survives to say otherwise. It matters because the
+   * wrong answer is audible: a drum track read as piano plays a kick and a
+   * snare as two low notes on the keys.
+   */
+  readonly partsKnown: boolean
   /** True when the hands were inferred rather than read from the file. */
   readonly handsInferred: boolean
 }
@@ -77,6 +86,7 @@ export function buildSong(input: {
   source: Song['source']
   handsInferred: boolean
   parts?: readonly string[]
+  partsKnown?: boolean
 }): Song {
   const bpm = input.bpm > 0 ? input.bpm : 100
   const beatsPerMeasure = input.beatsPerMeasure > 0 ? input.beatsPerMeasure : 4
@@ -86,6 +96,9 @@ export function buildSong(input: {
 
   return {
     parts: input.parts ?? [],
+    // Anything built here came from a file we just read, so the parts are known
+    // unless a caller says otherwise.
+    partsKnown: input.partsKnown ?? true,
     ...input,
     bpm,
     beatsPerMeasure,

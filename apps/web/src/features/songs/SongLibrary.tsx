@@ -76,6 +76,12 @@ export function SongLibrary({ open, onClose }: { open: boolean; onClose: () => v
                   {song.handsInferred ? ' · hands guessed from pitch' : ''}
                   {(song.parts?.length ?? 0) > 1 && <>{` · ${song.parts.join(', ')}`}</>}
                 </span>
+                {song.partsKnown === false && (
+                  <span className="mt-1 text-caption text-[var(--ds-warning-text)]">
+                    Imported before drums were separated, so every part plays on the piano. Import
+                    the file again to split them.
+                  </span>
+                )}
               </button>
               <IconButton
                 size="sm"

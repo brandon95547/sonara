@@ -58,6 +58,7 @@ const STORAGE_KEY = 'sonara.songs.v1'
  * read as.
  */
 function migrate(song: Song): Song {
+  const known = (song.notes?.length ?? 0) > 0 && song.notes.every((note) => Boolean(note.role))
   const notes = song.notes?.map((note) =>
     note.role ? note : { ...note, role: 'keyboard' as const },
   )
@@ -65,6 +66,11 @@ function migrate(song: Song): Song {
     ...song,
     notes: notes ?? [],
     parts: song.parts ?? ['Piano'],
+    // Reading a drum track as piano is not a small inaccuracy — a kick and a
+    // snare become two low notes on the keys. Nothing in a stored note says
+    // which channel it came from, so it cannot be recovered here. It is
+    // flagged instead, and the library says to import the file again.
+    partsKnown: song.partsKnown ?? known,
   }
 }
 

@@ -53,6 +53,27 @@ describe('loading a library written by an older version', () => {
     expect(store.getState().library[0]!.parts).toEqual(['Piano'])
   })
 
+  it('admits it does not know the parts, rather than calling drums piano', async () => {
+    // Nothing in a stored note says which channel it came from, so a song
+    // saved before roles existed cannot have its drum track recovered. Taking
+    // it as piano is audible — a kick and a snare become two low notes on the
+    // keys — so the flag is what lets the library say to import it again.
+    window.localStorage.setItem(KEY, JSON.stringify([legacy]))
+    const store = await freshStore()
+    expect(store.getState().library[0]!.partsKnown).toBe(false)
+  })
+
+  it('trusts a song whose notes all carry a role', async () => {
+    const current = {
+      ...legacy,
+      parts: ['Piano', 'Drums'],
+      notes: legacy.notes.map((note) => ({ ...note, role: 'keyboard' })),
+    }
+    window.localStorage.setItem(KEY, JSON.stringify([current]))
+    const store = await freshStore()
+    expect(store.getState().library[0]!.partsKnown).toBe(true)
+  })
+
   it('leaves a song that already has roles alone', async () => {
     const current = {
       ...legacy,
