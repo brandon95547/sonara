@@ -465,31 +465,41 @@
 
 .key-badge {
   position: absolute;
-  top: 6px;
-  display: grid;
-  place-items: center;
-  height: 20px;
-  width: 20px;
-  margin-left: -10px;
-  border-radius: 99px;
-  font-size: 11px;
-  font-weight: 650;
+  /* Down on the part of the key a finger actually lands on, clear of the black
+     keys — which end at 62% — and above the note name. Up at the top the number
+     floated in the black-key band, reading as a label for the keyboard rather
+     than for one key. A percentage because the keybed's height follows its
+     width, so this holds its place on a phone and on a wide desktop.
+
+     Not flush under the black keys either: sitting right against their ends
+     made the number look attached to the black key above it. */
+  top: 70%;
+  transform: translate(-50%, -50%);
+  font-size: 13px;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
   line-height: 1;
-  border: 1px solid rgb(0 0 0 / 0.4);
-  background: var(--ds-surface-overlay);
-  color: var(--ds-fg);
-  box-shadow: var(--ds-shadow-2);
-  transition:
-    background-color var(--duration-fast) var(--ease-standard),
-    transform var(--duration-fast) var(--ease-standard);
+  /* A numeral on the key, not a pill on top of it. */
+  color: rgb(0 0 0 / 0.78);
+  transition: color var(--duration-fast) var(--ease-standard);
 }
 
-.key-badge[data-role='target'] {
-  background: var(--ds-accent);
-  color: var(--ds-accent-fg);
-  border-color: rgb(255 255 255 / 0.35);
-  transform: scale(1.15);
+/* A black key's number cannot follow the white ones down: at 70% it would have
+   left the bottom of its own key and be sitting in the gap between the two
+   white keys it divides, next to their numbers and claimed by neither. It goes
+   low on the black key instead — same idea, the key it has. */
+.key-badge[data-black='true'] {
+  top: 50%;
+  font-size: 11px;
+  color: rgb(255 255 255 / 0.88);
+}
+
+/* The key underneath is filled with the accent: as the current target, or
+   because it is being held down. A dark numeral on that fill measures 3.8:1,
+   under AA at this size; white clears it at 4.8:1. */
+.key-badge[data-role='target'],
+.key-badge[data-active='true'] {
+  color: var(--c-key-press-fg);
 }
 
 /* The cue that arrives with the note it applies to. Anchored to the key rather
@@ -497,15 +507,21 @@
    it three inches away at the wrong moment is no use. */
 .key-cue {
   position: absolute;
-  top: 30px;
-  transform: translateX(-50%);
-  white-space: nowrap;
-  padding: 2px 7px;
-  border-radius: var(--radius-sm);
-  font-size: 10px;
+  /* Between its number and the note name. Both cues are two words, so it wraps
+     to two lines inside the key's width rather than spilling over the
+     neighbours the way a nowrap pill did. */
+  top: 81.5%;
+  transform: translate(-50%, -50%);
+  width: 5ch;
+  text-align: center;
+  white-space: normal;
+  text-wrap: balance;
+  padding: 0;
+  font-size: 9px;
   font-weight: 600;
-  letter-spacing: 0.02em;
-  background: var(--ds-accent);
-  color: var(--ds-accent-fg);
-  box-shadow: var(--ds-shadow-2);
+  line-height: 1.15;
+  letter-spacing: 0.01em;
+  background: none;
+  color: rgb(0 0 0 / 0.55);
+  box-shadow: none;
 }

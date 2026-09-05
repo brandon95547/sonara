@@ -2,7 +2,7 @@ import * as React from 'react'
 import { clampVelocity, WRONG_NOTE_FLASH_MS } from '@sonara/shared'
 import { useAudio } from '@/audio/AudioProvider'
 import { keyboardActions, useKeyboardStore } from '@/state/keyboard-store'
-import { learningActions, useLearningStore } from '@/state/learning-store'
+import { learningActions, useLearningStore, type KeyRole } from '@/state/learning-store'
 import { PianoKey } from './PianoKey'
 import { buildLayout, type KeyboardLayout, type KeyboardWindow } from './keyboard-layout'
 
@@ -241,9 +241,12 @@ function FingerBadges({ layout }: { layout: KeyboardLayout }) {
   const annotations = useLearningStore((state) => state.annotations)
 
   const badges = React.useMemo(() => {
-    const all = [...layout.whiteKeys, ...layout.blackKeys]
+    const all = [
+      ...layout.whiteKeys.map((key) => ({ key, black: false })),
+      ...layout.blackKeys.map((key) => ({ key, black: true })),
+    ]
     return all
-      .map((key) => ({ key, annotation: annotations[key.note] }))
+      .map((entry) => ({ ...entry, annotation: annotations[entry.key.note] }))
       .filter((entry) => entry.annotation?.finger !== undefined)
   }, [layout, annotations])
 
@@ -251,15 +254,15 @@ function FingerBadges({ layout }: { layout: KeyboardLayout }) {
 
   return (
     <div className="key-badges" aria-hidden>
-      {badges.map(({ key, annotation }) => (
+      {badges.map(({ key, black, annotation }) => (
         <React.Fragment key={key.note}>
-          <span
-            className="key-badge"
-            data-role={annotation!.role}
-            style={{ left: `${key.leftPercent + key.widthPercent / 2}%` }}
-          >
-            {annotation!.finger}
-          </span>
+          <FingerBadge
+            note={key.note}
+            role={annotation!.role}
+            finger={annotation!.finger!}
+            black={black}
+            left={key.leftPercent + key.widthPercent / 2}
+          />
           {annotation!.cue && (
             <span
               className="key-cue"
@@ -273,6 +276,46 @@ function FingerBadges({ layout }: { layout: KeyboardLayout }) {
     </div>
   )
 }
+
+/**
+ * One number, subscribed to its own key's held state.
+ *
+ * Its own subscription rather than one read of the `active` map in the layer
+ * above, for the same reason each key has one: MIDI arrives faster than a
+ * render, and a trill would otherwise repaint every badge on the keyboard
+ * thirty times a second to recolour one of them.
+ *
+ * The colour has to change at all because the numbers carry no disc any more —
+ * on a key held down, the accent fill takes a dark numeral to 3.8:1, under AA
+ * at this size.
+ */
+const FingerBadge = React.memo(function FingerBadge({
+  note,
+  role,
+  finger,
+  black,
+  left,
+}: {
+  note: number
+  role: KeyRole
+  finger: number
+  black: boolean
+  left: number
+}) {
+  const active = useKeyboardStore((state) => state.active[note])
+
+  return (
+    <span
+      className="key-badge"
+      data-role={role}
+      data-black={black ? 'true' : undefined}
+      data-active={active ? 'true' : undefined}
+      style={{ left: `${left}%` }}
+    >
+      {finger}
+    </span>
+  )
+})
 
 /**
  * Lights the edge of the keybed when a note sounds outside the visible window.
