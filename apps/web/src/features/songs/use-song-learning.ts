@@ -28,6 +28,7 @@ export function useSongLearning(song: Song | null) {
   const resetLearning = useSongStore((state) => state.resetLearning)
   const setSongAnnotations = useLearningStore((state) => state.setSongAnnotations)
   const setStepCount = useSongStore((state) => state.setStepCount)
+  const setCurrent = useSongStore((state) => state.setCurrent)
 
   const steps = React.useMemo<SongStep[]>(
     () => (song && mode === 'learn' ? songSteps(song, part) : []),
@@ -35,6 +36,12 @@ export function useSongLearning(song: Song | null) {
   )
 
   React.useEffect(() => setStepCount(steps.length), [steps, setStepCount])
+
+  // Flatten the step to what the hand card needs, so it can live anywhere.
+  React.useEffect(() => {
+    const note = steps[stepIndex]?.notes[0]
+    setCurrent(note?.finger ?? null, note?.hand ?? 'right')
+  }, [steps, stepIndex, setCurrent])
 
   // What the keyboard shows. Rebuilt only when the step moves, not per frame.
   React.useEffect(() => {

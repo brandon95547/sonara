@@ -1,4 +1,12 @@
-import { buildSong, inferHand, type Hand, type Song, type SongNote } from '@sonara/shared'
+import {
+  buildSong,
+  inferHand,
+  tonicForFifths,
+  type DetectedKey,
+  type Hand,
+  type Song,
+  type SongNote,
+} from '@sonara/shared'
 
 /**
  * Reads MusicXML into a song.
@@ -45,6 +53,7 @@ export function importMusicXml(text: string, fallbackTitle: string): Song | null
   let divisions = 1
   let beatsPerMeasure = 4
   let bpm = 0
+  let key: DetectedKey | null = null
 
   const notes: SongNote[] = []
   /** Open tied notes, so the continuation extends rather than restrikes. */
@@ -69,6 +78,12 @@ export function importMusicXml(text: string, fallbackTitle: string): Song | null
       const content = block[3] ?? ''
 
       if (tag === 'attributes') {
+        // Notation always states its key. Nothing has to be guessed here.
+        const fifths = num(content, 'fifths')
+        if (fifths !== undefined && key === null) {
+          const mode = /<mode>\s*minor\s*<\/mode>/.test(content) ? 'minor' : 'major'
+          key = { fifths, mode, pitchClass: tonicForFifths(fifths, mode), declared: true }
+        }
         divisions = num(content, 'divisions') ?? divisions
         const beats = num(content, 'beats')
         const beatType = num(content, 'beat-type')
@@ -146,6 +161,12 @@ export function importMusicXml(text: string, fallbackTitle: string): Song | null
         }
       }
 
+      // <notations><technical><fingering> — the one place a file can tell us
+      // which finger to use. Worth reading precisely because it cannot be
+      // recovered from anywhere else.
+      const fingerText = inner(content, 'fingering')?.trim()
+      const finger = fingerText && /^[1-5]$/.test(fingerText) ? Number(fingerText) : undefined
+
       const note: SongNote = {
         note: midi,
         velocity: 80,
@@ -153,6 +174,7 @@ export function importMusicXml(text: string, fallbackTitle: string): Song | null
         durationMs,
         hand,
         role: unpitched ? 'percussion' : 'keyboard',
+        ...(finger ? { finger } : {}),
       }
       notes.push(note)
       if (/<tie[^>]*type="start"/.test(content)) {
@@ -182,5 +204,6 @@ export function importMusicXml(text: string, fallbackTitle: string): Song | null
     source: 'musicxml',
     handsInferred: !/<staff>/.test(text),
     parts: [...new Set(notes.map((note) => (note.role === 'percussion' ? 'Drums' : 'Piano')))],
+    key,
   })
 }

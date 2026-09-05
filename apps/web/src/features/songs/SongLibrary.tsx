@@ -21,7 +21,7 @@ export function SongLibrary({ open, onClose }: { open: boolean; onClose: () => v
   const add = useSongStore((state) => state.add)
   const choose = useSongStore((state) => state.open)
   const remove = useSongStore((state) => state.remove)
-  const [error, setError] = React.useState<string | null>(null)
+  const [error, setError] = React.useState<ImportResult | null>(null)
 
   const onFiles = async (list: FileList | null) => {
     // Copied out before the first await. A FileList is a live view of the
@@ -33,16 +33,16 @@ export function SongLibrary({ open, onClose }: { open: boolean; onClose: () => v
     setError(null)
     let imported = 0
     for (const file of files) {
-      const song = await readSong(file)
-      if (song) {
-        add(song)
+      const result = await readSong(file)
+      if ('song' in result) {
+        add(result.song)
         imported++
       } else {
-        setError(`${file.name} is not a MIDI or MusicXML file we could read.`)
+        setError(result)
       }
     }
-    // Out of the way once there is something to play. A file that could not be
-    // read keeps the drawer open, with the reason on screen.
+    // Out of the way once there is something to play. A file we could not read
+    // keeps the drawer open, with the reason on screen.
     if (imported > 0) onClose()
   }
 
@@ -51,11 +51,11 @@ export function SongLibrary({ open, onClose }: { open: boolean; onClose: () => v
       open={open}
       onClose={onClose}
       title="My songs"
-      description="Imported pieces. They stay on this device."
+      description="MIDI, MusicXML or a PDF score. Everything stays on this device."
       footer={<ImportButton onFiles={onFiles} />}
     >
       <div className="flex flex-col gap-3">
-        {error && <p className="text-body-sm text-[var(--ds-danger-text)]">{error}</p>}
+        {error && 'failure' in error && <ImportError result={error} />}
 
         {library.length === 0 ? (
           <p className="text-body-sm text-[var(--ds-fg-muted)]">
@@ -112,6 +112,40 @@ export function SongLibrary({ open, onClose }: { open: boolean; onClose: () => v
   )
 }
 
+/**
+ * What went wrong, and what to do about it.
+ *
+ * Each failure needs its own sentence. "Unsupported file" tells someone
+ * holding a PDF of the piece they want to learn nothing they can act on, and
+ * the three cases here have three genuinely different answers.
+ */
+function ImportError({ result }: { result: Extract<ImportResult, { failure: ImportFailure }> }) {
+  const body = {
+    pdf: {
+      title: 'A PDF is a picture of the music, not the music',
+      detail:
+        'There are no notes inside a PDF, only ink. Reading one takes optical music recognition, and the results always need checking by eye. MuseScore is free and can import a PDF and export MusicXML — bring that back here and everything works, fingering included.',
+    },
+    mxl: {
+      title: 'Compressed MusicXML is not readable yet',
+      detail:
+        'An .mxl file is a zipped MusicXML score, and MuseScore saves this way by default. Open it and export as uncompressed .musicxml for now.',
+    },
+    unknown: {
+      title: 'Not a file we could read',
+      detail: 'Sonara reads MIDI (.mid) and MusicXML (.musicxml). This is neither.',
+    },
+  }[result.failure]
+
+  return (
+    <div className="flex flex-col gap-1 rounded-[var(--radius-md)] border border-[var(--ds-warning-border)] bg-[var(--ds-warning-subtle)] p-3">
+      <span className="text-ui text-[var(--ds-fg)]">{body.title}</span>
+      <span className="text-body-sm text-[var(--ds-fg-secondary)]">{body.detail}</span>
+      <span className="text-caption text-[var(--ds-fg-muted)]">{result.name}</span>
+    </div>
+  )
+}
+
 export function ImportButton({
   onFiles,
   label = 'Import a song',
@@ -125,7 +159,7 @@ export function ImportButton({
       <input
         ref={input}
         type="file"
-        accept=".mid,.midi,.xml,.musicxml,audio/midi,application/vnd.recordare.musicxml+xml"
+        accept=".mid,.midi,.xml,.musicxml,.mxl,.pdf,audio/midi,application/pdf,application/vnd.recordare.musicxml+xml"
         multiple
         hidden
         onChange={(event) => {
@@ -141,23 +175,42 @@ export function ImportButton({
   )
 }
 
-/** Reads a file as whichever format it actually is. */
-export async function readSong(file: File): Promise<Song | null> {
+/** Why a file could not become a song, when it could not. */
+export type ImportFailure = 'pdf' | 'mxl' | 'unknown'
+
+export type ImportResult = { song: Song } | { failure: ImportFailure; name: string }
+
+/**
+ * Reads a file as whichever format it actually is.
+ *
+ * Sniffed rather than trusted by extension: a `.mid` that is really XML and a
+ * `.xml` that is really a MIDI file both happen when files come out of other
+ * programs, and the first bytes settle it where a filename cannot.
+ */
+export async function readSong(file: File): Promise<ImportResult> {
   const name = file.name.replace(/\.[^.]+$/, '')
   const buffer = new Uint8Array(await file.arrayBuffer())
+  const starts = (...bytes: number[]) => bytes.every((byte, index) => buffer[index] === byte)
 
-  // "MThd" is the only thing a Standard MIDI File can begin with.
-  const isMidi =
-    buffer[0] === 0x4d && buffer[1] === 0x54 && buffer[2] === 0x68 && buffer[3] === 0x64
-  if (isMidi) return importMidi(buffer, name)
+  // "MThd" — the only thing a Standard MIDI File can begin with.
+  if (starts(0x4d, 0x54, 0x68, 0x64)) {
+    const song = importMidi(buffer, name)
+    return song ? { song } : { failure: 'unknown', name: file.name }
+  }
+
+  // "%PDF"
+  if (starts(0x25, 0x50, 0x44, 0x46)) return { failure: 'pdf', name: file.name }
+
+  // "PK" — a zip, which for our purposes means compressed MusicXML.
+  if (starts(0x50, 0x4b)) return { failure: 'mxl', name: file.name }
 
   const text = new TextDecoder().decode(buffer)
-  if (/<score-partwise/.test(text)) return importMusicXml(text, name)
+  if (/<score-partwise/.test(text)) {
+    const song = importMusicXml(text, name)
+    return song ? { song } : { failure: 'unknown', name: file.name }
+  }
 
-  // A .mxl is zipped MusicXML: recognisable, and worth saying so rather than
-  // failing as "unreadable file".
-  if (buffer[0] === 0x50 && buffer[1] === 0x4b) return null
-  return null
+  return { failure: 'unknown', name: file.name }
 }
 
 export { FileMusic }

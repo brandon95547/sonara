@@ -12,6 +12,7 @@
 // which hand plays a note, wherever that idea came from.
 import type { Hand } from '../music/fingering.js'
 import type { PartRole } from './general-midi.js'
+import { estimateKey, type DetectedKey } from './key-of.js'
 export type { Hand }
 
 export interface SongNote {
@@ -37,6 +38,14 @@ export interface SongNote {
    * room, audible so the piece makes sense but not something to put fingers on.
    */
   readonly role: PartRole
+  /**
+   * The finger the score asks for, 1-5, when the score said.
+   *
+   * Only MusicXML carries this; MIDI has nowhere to put it. Absent means
+   * nobody has fingered the piece, which is a different thing from finger 1
+   * and has to read differently on screen.
+   */
+  readonly finger?: number
 }
 
 export interface Song {
@@ -64,6 +73,10 @@ export interface Song {
   readonly partsKnown: boolean
   /** True when the hands were inferred rather than read from the file. */
   readonly handsInferred: boolean
+  /** The key, read from the file or estimated from the notes. */
+  readonly key: DetectedKey | null
+  /** True when at least one note carries a fingering from the score. */
+  readonly hasFingering: boolean
 }
 
 export function songDuration(notes: readonly SongNote[]): number {
@@ -87,6 +100,7 @@ export function buildSong(input: {
   handsInferred: boolean
   parts?: readonly string[]
   partsKnown?: boolean
+  key?: DetectedKey | null
 }): Song {
   const bpm = input.bpm > 0 ? input.bpm : 100
   const beatsPerMeasure = input.beatsPerMeasure > 0 ? input.beatsPerMeasure : 4
@@ -95,10 +109,6 @@ export function buildSong(input: {
   const durationMs = songDuration(notes)
 
   return {
-    parts: input.parts ?? [],
-    // Anything built here came from a file we just read, so the parts are known
-    // unless a caller says otherwise.
-    partsKnown: input.partsKnown ?? true,
     ...input,
     bpm,
     beatsPerMeasure,
@@ -106,6 +116,16 @@ export function buildSong(input: {
     durationMs,
     measureMs,
     measureCount: Math.max(1, Math.ceil(durationMs / measureMs)),
+    parts: input.parts ?? [],
+    // Anything built here came from a file we just read, so the parts are known
+    // unless a caller says otherwise.
+    partsKnown: input.partsKnown ?? true,
+    // Every defaulted field goes *after* the spread. Before it, a caller
+    // passing an explicit null — which importMidi does when a file declares no
+    // key — overwrites the fallback with the very thing it was there to
+    // replace, and the song comes out with no key at all.
+    key: input.key ?? estimateKey(notes),
+    hasFingering: notes.some((note) => note.finger !== undefined),
   }
 }
 

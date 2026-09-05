@@ -4,6 +4,9 @@ import {
   inferHand,
   programFamily,
   roleForProgram,
+  tonicForFifths,
+  fifthsForTonic,
+  type DetectedKey,
   type Hand,
   type PartRole,
   type Song,
@@ -98,6 +101,27 @@ export function importMidi(bytes: Uint8Array, title: string): Song | null {
 
   const [beats = 4, beatType = 4] = midi.header.timeSignatures[0]?.timeSignature ?? []
 
+  // A MIDI file may declare a key. Most do not, and buildSong estimates one
+  // from the notes when this is null — marked as an estimate either way.
+  const declared = midi.header.keySignatures[0]
+  const key: DetectedKey | null = declared
+    ? {
+        mode: declared.scale === 'minor' ? 'minor' : 'major',
+        pitchClass: tonicForFifths(
+          fifthsForTonic(
+            ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'].indexOf(declared.key),
+            declared.scale === 'minor' ? 'minor' : 'major',
+          ),
+          declared.scale === 'minor' ? 'minor' : 'major',
+        ),
+        fifths: fifthsForTonic(
+          ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'].indexOf(declared.key),
+          declared.scale === 'minor' ? 'minor' : 'major',
+        ),
+        declared: true,
+      }
+    : null
+
   return buildSong({
     id: `midi:${title}:${Date.now()}`,
     title: midi.name?.trim() || title,
@@ -107,6 +131,7 @@ export function importMidi(bytes: Uint8Array, title: string): Song | null {
     notes,
     source: 'midi',
     handsInferred: !byTrack,
+    key,
     parts: [
       ...new Set(
         tracks.map((track) =>

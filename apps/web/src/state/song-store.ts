@@ -40,6 +40,14 @@ interface SongState {
   learning: boolean
   /** How many steps the song's keyboard part has, for the progress bar. */
   stepCount: number
+  /**
+   * The note the player is on, flattened to what the hand card needs.
+   *
+   * Kept here rather than threaded through props so the card can sit anywhere
+   * on the page without the control row having to hand it down.
+   */
+  currentFinger: number | null
+  currentHand: Hand
 
   add: (song: Song) => void
   open: (id: string) => void
@@ -54,6 +62,7 @@ interface SongState {
   resetLearning: () => void
   advance: (steps: number) => void
   setStepCount: (count: number) => void
+  setCurrent: (finger: number | null, hand: Hand) => void
 }
 
 const STORAGE_KEY = 'sonara.songs.v1'
@@ -127,6 +136,8 @@ export const useSongStore = create<SongState>((set) => ({
   stepIndex: 0,
   learning: false,
   stepCount: 0,
+  currentFinger: null,
+  currentHand: 'right',
 
   add: (song) =>
     set((state) => {
@@ -162,6 +173,7 @@ export const useSongStore = create<SongState>((set) => ({
   resetLearning: () => set({ ...IDLE }),
   advance: (steps) => set((state) => ({ stepIndex: Math.max(0, state.stepIndex + steps) })),
   setStepCount: (stepCount) => set({ stepCount }),
+  setCurrent: (currentFinger, currentHand) => set({ currentFinger, currentHand }),
 }))
 
 /** The open song, or null. */

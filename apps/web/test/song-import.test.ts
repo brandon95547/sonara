@@ -207,3 +207,58 @@ describe('parts in a full arrangement', () => {
     expect(piano.notes.find((note) => note.note === 36)?.role).toBe('percussion')
   })
 })
+
+/**
+ * Fingering and key are the two things notation carries that a performance
+ * cannot. Reading them is the whole reason to prefer MusicXML for learning.
+ */
+describe('what notation knows that MIDI cannot', () => {
+  const fingered = `<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise version="4.0">
+ <work><work-title>Fingered</work-title></work>
+ <part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list>
+ <part id="P1"><measure number="1">
+  <attributes><divisions>4</divisions><key><fifths>-1</fifths><mode>major</mode></key>
+   <time><beats>4</beats><beat-type>4</beat-type></time><staves>2</staves></attributes>
+  <note><pitch><step>F</step><octave>4</octave></pitch><duration>8</duration><staff>1</staff>
+   <notations><technical><fingering>1</fingering></technical></notations></note>
+  <note><pitch><step>A</step><octave>4</octave></pitch><duration>8</duration><staff>1</staff>
+   <notations><technical><fingering>3</fingering></technical></notations></note>
+  <backup><duration>16</duration></backup>
+  <note><pitch><step>F</step><octave>2</octave></pitch><duration>16</duration><staff>2</staff>
+   <notations><technical><fingering>5</fingering></technical></notations></note>
+ </measure></part>
+</score-partwise>`
+
+  it('reads the finger the score asks for', () => {
+    const song = importMusicXml(fingered, 'x')!
+    expect(song.hasFingering).toBe(true)
+    expect(song.notes.find((note) => note.note === 65)?.finger).toBe(1)
+    expect(song.notes.find((note) => note.note === 69)?.finger).toBe(3)
+    expect(song.notes.find((note) => note.note === 41)?.finger).toBe(5)
+  })
+
+  it('reads the key the score declares, rather than working it out', () => {
+    const song = importMusicXml(fingered, 'x')!
+    expect(song.key).toMatchObject({ fifths: -1, mode: 'major', declared: true })
+  })
+
+  it('says a score has no fingering when it has none', () => {
+    const plain = fingered.replace(/<notations>[\s\S]*?<\/notations>/g, '')
+    expect(importMusicXml(plain, 'x')!.hasFingering).toBe(false)
+  })
+
+  it('leaves MIDI without fingering, because the format has no field for it', () => {
+    const song = importMidi(writeMidiFile([played(60, 0, 500)]), 'x')!
+    expect(song.hasFingering).toBe(false)
+    expect(song.notes.every((note) => note.finger === undefined)).toBe(true)
+  })
+
+  it('still gives a MIDI file a key, marked as an estimate when undeclared', () => {
+    // Our own writer emits no key signature, so this exercises the fallback.
+    const cMajor = [0, 2, 4, 5, 7, 9, 11].map((step, index) => played(60 + step, index * 500, 480))
+    const song = importMidi(writeMidiFile(cMajor), 'x')!
+    expect(song.key?.declared).toBe(false)
+    expect(song.key?.pitchClass).toBe(0)
+  })
+})

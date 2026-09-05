@@ -11,6 +11,7 @@ import { DeviceSettingsDrawer } from '@/features/devices/DeviceSettingsDrawer'
 import { RecordingOverlay, RecordingReview } from '@/features/recording/RecordControls'
 import { SongControlRow } from '@/features/songs/SongControlRow'
 import { SongLibrary } from '@/features/songs/SongLibrary'
+import { SongHandCard } from '@/features/songs/SongHandCard'
 import { OverflowMenu } from '@/components/OverflowMenu'
 import { LearningBar } from '@/features/learning/LearningBar'
 import { ScaleConfigRow } from '@/features/learning/ScaleConfigRow'
@@ -134,7 +135,13 @@ function Shell() {
 
             <KeyboardStage />
 
-            {topic === 'scales' ? <LearningDashboard /> : topic === 'songs' ? null : <ComingNext />}
+            {topic === 'scales' ? (
+              <LearningDashboard />
+            ) : topic === 'songs' ? (
+              <SongHandCard />
+            ) : (
+              <ComingNext />
+            )}
           </>
         )}
       </main>
