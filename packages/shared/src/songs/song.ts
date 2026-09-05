@@ -11,6 +11,7 @@
 // The same Hand the fingering module uses: one piece of music has one idea of
 // which hand plays a note, wherever that idea came from.
 import type { Hand } from '../music/fingering.js'
+import type { PartRole } from './general-midi.js'
 export type { Hand }
 
 export interface SongNote {
@@ -27,6 +28,15 @@ export interface SongNote {
    * middle C is wrong exactly where a piece crosses hands.
    */
   readonly hand: Hand
+  /**
+   * What kind of part this note belongs to.
+   *
+   * `percussion` is not a pitch at all — on the drum channel a note number
+   * names a drum — so it must never reach the piano or the keys. `keyboard` is
+   * the part a player is learning; `accompaniment` is everyone else in the
+   * room, audible so the piece makes sense but not something to put fingers on.
+   */
+  readonly role: PartRole
 }
 
 export interface Song {
@@ -41,6 +51,8 @@ export interface Song {
   readonly measureMs: number
   readonly measureCount: number
   readonly source: 'midi' | 'musicxml'
+  /** What is in the file — "Piano · Bass · Drums" — for saying so. */
+  readonly parts: readonly string[]
   /** True when the hands were inferred rather than read from the file. */
   readonly handsInferred: boolean
 }
@@ -64,6 +76,7 @@ export function buildSong(input: {
   notes: SongNote[]
   source: Song['source']
   handsInferred: boolean
+  parts?: readonly string[]
 }): Song {
   const bpm = input.bpm > 0 ? input.bpm : 100
   const beatsPerMeasure = input.beatsPerMeasure > 0 ? input.beatsPerMeasure : 4
@@ -72,6 +85,7 @@ export function buildSong(input: {
   const durationMs = songDuration(notes)
 
   return {
+    parts: input.parts ?? [],
     ...input,
     bpm,
     beatsPerMeasure,

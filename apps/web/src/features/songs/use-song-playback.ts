@@ -1,6 +1,7 @@
 import * as React from 'react'
 import type { Song, SongNote } from '@sonara/shared'
 import { useAudio } from '@/audio/AudioProvider'
+import { hitDrum } from '@/audio/drum-kit'
 import { keyboardActions } from '@/state/keyboard-store'
 import { useSongStore, type SongPart } from '@/state/song-store'
 
@@ -96,8 +97,22 @@ export function useSongPlayback(song: Song | null) {
 
       for (const note of notesBetween(current, cursor, at, hands)) {
         const velocity = Math.min(127, Math.max(1, Math.round(note.velocity)))
+
+        // A drum is not a note. On the percussion channel the number names an
+        // instrument, so it goes to the kit and never near the piano or the
+        // keys — and it has no duration to release, only a decay of its own.
+        if (note.role === 'percussion') {
+          hitDrum(note.note, velocity)
+          continue
+        }
+
         audioRef.current.noteOn(note.note, velocity)
-        keyboardActions.noteOn(note.note, velocity, 'pointer')
+        // Only the part being learned lights up. Bass and strings sound so the
+        // piece makes sense, but they are not notes to put fingers on, and
+        // lighting them would say they were.
+        if (note.role === 'keyboard') {
+          keyboardActions.noteOn(note.note, velocity, 'pointer')
+        }
         sounding.current.add(note.note)
         // The release is stretched by the same scale the gaps are, so a slow
         // pass is slower playing rather than the same playing with long gaps.
@@ -132,10 +147,18 @@ export function useSongPlayback(song: Song | null) {
   }, [part, silence])
 }
 
-/** Notes beginning in (from, to], for the hands currently selected. */
+/**
+ * Notes beginning in (from, to], for the hands currently selected.
+ *
+ * The hand filter applies to the keyboard part only. Practising the left hand
+ * of a song does not mean silencing its drummer.
+ */
 function notesBetween(song: Song, from: number, to: number, part: SongPart): SongNote[] {
   return song.notes.filter(
-    (note) => note.startMs > from && note.startMs <= to && (part === 'both' || note.hand === part),
+    (note) =>
+      note.startMs > from &&
+      note.startMs <= to &&
+      (part === 'both' || note.role !== 'keyboard' || note.hand === part),
   )
 }
 

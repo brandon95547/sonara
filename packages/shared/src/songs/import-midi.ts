@@ -1,3 +1,4 @@
+import { PERCUSSION_CHANNEL, programFamily, roleForProgram, type PartRole } from './general-midi.js'
 import { buildSong, inferHand, type Hand, type Song, type SongNote } from './song.js'
 
 /**
@@ -51,6 +52,9 @@ interface RawNote {
   startTick: number
   endTick: number
   track: number
+  channel: number
+  /** The General MIDI program in force on that channel when the note struck. */
+  program: number
 }
 
 export function importMidi(bytes: Uint8Array, title: string): Song | null {
@@ -79,6 +83,9 @@ export function importMidi(bytes: Uint8Array, title: string): Song | null {
     let tick = 0
     let status = 0
     const open = new Map<number, RawNote[]>()
+    // Program changes are per channel and can happen at any point, so the
+    // instrument is read when a note starts rather than once per track.
+    const programs = new Map<number, number>()
 
     while (reader.at < end) {
       tick += reader.varLength()
@@ -115,12 +122,26 @@ export function importMidi(bytes: Uint8Array, title: string): Song | null {
       }
 
       const command = byte & 0xf0
+      const channel = byte & 0x0f
       const first = reader.u8()
       const second = command === 0xc0 || command === 0xd0 ? 0 : reader.u8()
 
+      if (command === 0xc0) {
+        programs.set(channel, first)
+        continue
+      }
+
       if (command === 0x90 && second > 0) {
         const queue = open.get(first) ?? []
-        queue.push({ note: first, velocity: second, startTick: tick, endTick: tick, track })
+        queue.push({
+          note: first,
+          velocity: second,
+          startTick: tick,
+          endTick: tick,
+          track,
+          channel,
+          program: programs.get(channel) ?? 0,
+        })
         open.set(first, queue)
       } else if (command === 0x80 || (command === 0x90 && second === 0)) {
         // Note-on at velocity zero is a note-off, and is what most files write.
@@ -145,13 +166,22 @@ export function importMidi(bytes: Uint8Array, title: string): Song | null {
   if (notes.length === 0) return null
 
   const msPerTick = microsecondsPerQuarter / 1000 / ppq
-  // Tracks that actually carry notes. A format 1 conductor track has none, and
-  // counting it would make a two-hand piece look like three parts.
-  const playing = [...new Set(notes.map((note) => note.track))].sort((a, b) => a - b)
+
+  const roleOf = (raw: RawNote): PartRole =>
+    // The drum channel is percussion whatever program is set on it — the
+    // channel wins, which is the one rule General MIDI is unambiguous about.
+    raw.channel === PERCUSSION_CHANNEL ? 'percussion' : roleForProgram(raw.program)
+
+  // Hands are a question about the part being learned, so only the keyboard
+  // tracks get a say. Counting a bass or a drum track as "the second track"
+  // would hand the left hand to the wrong instrument.
+  const keyboardTracks = [
+    ...new Set(notes.filter((note) => roleOf(note) === 'keyboard').map((note) => note.track)),
+  ].sort((a, b) => a - b)
   // Convention, near-universal for piano: the first track is the right hand.
-  const byTrack = playing.length >= 2
+  const byTrack = keyboardTracks.length >= 2
   const hands = new Map<number, Hand>(
-    playing.map((track, index) => [track, index === 0 ? 'right' : 'left']),
+    keyboardTracks.map((track, index) => [track, index === 0 ? 'right' : 'left']),
   )
 
   const songNotes: SongNote[] = notes.map((raw) => ({
@@ -160,7 +190,17 @@ export function importMidi(bytes: Uint8Array, title: string): Song | null {
     startMs: raw.startTick * msPerTick,
     durationMs: Math.max(30, (raw.endTick - raw.startTick) * msPerTick),
     hand: byTrack ? (hands.get(raw.track) ?? 'right') : inferHand(raw.note),
+    role: roleOf(raw),
   }))
+
+  // What is in the file, named once so the library can say so.
+  const parts = [
+    ...new Set(
+      notes.map((raw) =>
+        raw.channel === PERCUSSION_CHANNEL ? 'Drums' : programFamily(raw.program),
+      ),
+    ),
+  ]
 
   return buildSong({
     id: `midi:${title}:${Date.now()}`,
@@ -170,5 +210,6 @@ export function importMidi(bytes: Uint8Array, title: string): Song | null {
     notes: songNotes,
     source: 'midi',
     handsInferred: !byTrack,
+    parts,
   })
 }

@@ -104,15 +104,17 @@ export function importMusicXml(text: string, fallbackTitle: string): Song | null
         continue
       }
 
-      const pitch = inner(content, 'pitch')
+      // Notation writes drums as <unpitched>: a line on the staff, not a pitch.
+      const unpitched = inner(content, 'unpitched')
+      const pitch = inner(content, 'pitch') ?? unpitched
       if (!pitch) {
         if (!isChord) cursor = start + duration
         continue
       }
 
-      const step = inner(pitch, 'step')?.trim() ?? 'C'
+      const step = (inner(pitch, 'step') ?? inner(pitch, 'display-step'))?.trim() ?? 'C'
       const alter = num(pitch, 'alter') ?? 0
-      const octave = num(pitch, 'octave') ?? 4
+      const octave = num(pitch, 'octave') ?? num(pitch, 'display-octave') ?? 4
       const midi = (octave + 1) * 12 + (STEP_SEMITONES[step] ?? 0) + alter
 
       const staff = num(content, 'staff')
@@ -144,7 +146,14 @@ export function importMusicXml(text: string, fallbackTitle: string): Song | null
         }
       }
 
-      const note: SongNote = { note: midi, velocity: 80, startMs, durationMs, hand }
+      const note: SongNote = {
+        note: midi,
+        velocity: 80,
+        startMs,
+        durationMs,
+        hand,
+        role: unpitched ? 'percussion' : 'keyboard',
+      }
       notes.push(note)
       if (/<tie[^>]*type="start"/.test(content)) {
         const queue = tied.get(midi) ?? []
@@ -172,5 +181,6 @@ export function importMusicXml(text: string, fallbackTitle: string): Song | null
     notes,
     source: 'musicxml',
     handsInferred: !/<staff>/.test(text),
+    parts: [...new Set(notes.map((note) => (note.role === 'percussion' ? 'Drums' : 'Piano')))],
   })
 }

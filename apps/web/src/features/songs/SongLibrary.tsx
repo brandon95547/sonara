@@ -46,7 +46,9 @@ export function SongLibrary({ open, onClose }: { open: boolean; onClose: () => v
         {library.length === 0 ? (
           <p className="text-body-sm text-[var(--ds-fg-muted)]">
             Nothing imported yet. MIDI keeps a performance exactly as it was played; MusicXML comes
-            from notation programs and knows which hand plays what.
+            from notation programs and knows which hand plays what. A full arrangement works too —
+            its drums play on a kit and its other parts play behind you, so only the piano lands on
+            the keys.
           </p>
         ) : (
           library.map((song) => (
@@ -72,6 +74,12 @@ export function SongLibrary({ open, onClose }: { open: boolean; onClose: () => v
                   {song.source === 'midi' ? 'MIDI' : 'MusicXML'} · {song.measureCount} bars ·{' '}
                   {Math.round(song.bpm)} BPM
                   {song.handsInferred ? ' · hands guessed from pitch' : ''}
+                  {song.parts.length > 1 && (
+                    <>
+                      {' · '}
+                      {song.parts.join(', ')}
+                    </>
+                  )}
                 </span>
               </button>
               <IconButton

@@ -113,3 +113,99 @@ describe('MusicXML import', () => {
     expect(importMusicXml('<html><body>not music</body></html>', 'Nope')).toBeNull()
   })
 })
+
+/**
+ * A real arrangement is not a piano part. It has a drummer on channel 10, a
+ * bass on another channel, and a program change deciding what each one is.
+ * Playing any of that on a piano keyboard is not a poor sound — on the drum
+ * channel a note number names an instrument, not a pitch, so it is the wrong
+ * question entirely.
+ */
+describe('parts in a full arrangement', () => {
+  const vlq = (value: number) => {
+    const out = [value & 0x7f]
+    let rest = value >> 7
+    while (rest > 0) {
+      out.unshift((rest & 0x7f) | 0x80)
+      rest >>= 7
+    }
+    return out
+  }
+  const chunk = (id: string, body: number[]) => [
+    ...[...id].map((character) => character.charCodeAt(0)),
+    (body.length >> 24) & 255,
+    (body.length >> 16) & 255,
+    (body.length >> 8) & 255,
+    body.length & 255,
+    ...body,
+  ]
+
+  /** One track: a program change, then a note, on the given channel. */
+  const part = (channel: number, program: number, note: number) =>
+    chunk('MTrk', [
+      ...vlq(0),
+      0xc0 | channel,
+      program,
+      ...vlq(0),
+      0x90 | channel,
+      note,
+      100,
+      ...vlq(240),
+      0x80 | channel,
+      note,
+      0,
+      ...vlq(0),
+      0xff,
+      0x2f,
+      0x00,
+    ])
+
+  const file = Uint8Array.from([
+    ...chunk('MThd', [0, 1, 0, 4, 0x01, 0xe0]),
+    ...part(0, 0, 72), // channel 1, acoustic grand — the part to learn
+    ...part(1, 33, 40), // channel 2, fingered bass — accompaniment
+    ...part(9, 0, 38), // channel 10, drums — a snare, whatever the program says
+    ...part(2, 48, 64), // channel 3, strings — accompaniment
+  ])
+  const song = importMidi(file, 'Arrangement')!
+
+  it('sends the drum channel to percussion whatever program is set on it', () => {
+    // Program 0 is acoustic grand. On channel 10 it is still a drum kit, which
+    // is the one thing General MIDI is unambiguous about.
+    expect(song.notes.find((note) => note.note === 38)?.role).toBe('percussion')
+  })
+
+  it('keeps the piano as the part to learn and demotes the rest', () => {
+    expect(song.notes.find((note) => note.note === 72)?.role).toBe('keyboard')
+    expect(song.notes.find((note) => note.note === 40)?.role).toBe('accompaniment')
+    expect(song.notes.find((note) => note.note === 64)?.role).toBe('accompaniment')
+  })
+
+  it('does not hand the left hand to the bass player', () => {
+    // Only one keyboard track here, so hands come from pitch. Counting the
+    // bass or drum track as "the second track" would put the left hand on it.
+    expect(song.handsInferred).toBe(true)
+  })
+
+  it('names what is in the file', () => {
+    expect(song.parts).toContain('Piano')
+    expect(song.parts).toContain('Bass')
+    expect(song.parts).toContain('Drums')
+    expect(song.parts).toContain('Ensemble')
+  })
+
+  it('still splits hands across two piano tracks when that is what it has', () => {
+    const twoHands = Uint8Array.from([
+      ...chunk('MThd', [0, 1, 0, 3, 0x01, 0xe0]),
+      ...part(0, 0, 72),
+      ...part(1, 0, 48),
+      ...part(9, 0, 36),
+    ])
+    const piano = importMidi(twoHands, 'Two hands')!
+    expect(piano.handsInferred).toBe(false)
+    expect(piano.notes.find((note) => note.note === 72)?.hand).toBe('right')
+    expect(piano.notes.find((note) => note.note === 48)?.hand).toBe('left')
+    // The drum track must not have been counted as a third hand.
+    expect(piano.notes.find((note) => note.note === 36)?.role).toBe('percussion')
+  })
+})
