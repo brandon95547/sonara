@@ -300,6 +300,12 @@ A staff is only a hand when one `<Part>` owns two of them. Two single-staff
 parts are two instruments, and reading the lower one as a left hand puts a
 melody where no left hand plays — and, worse, claims the score said so.
 
+Where the file names no hands at all, which is most MIDI files, they are worked
+out from the music rather than from each note's pitch. A chord is decided as a
+chord, hands divide at a gap of an octave or more rather than at middle C, and a
+passage stays in the hand already playing it. Splitting by pitch tore the
+opening of every song whose chords sit across middle C — which is most of them.
+
 Fingering that the file did not carry is worked out on import by
 `songs/song-fingering.ts`, over the hand model in `music/hand-model.ts` and the
 search in `music/finger-passage.ts`. Runs break at chords and at rests long
