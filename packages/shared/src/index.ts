@@ -29,6 +29,7 @@ export {
 } from './songs/song.js'
 export * from './songs/general-midi.js'
 export * from './songs/key-of.js'
+export * from './songs/hand-assignment.js'
 export * from './songs/song-fingering.js'
 export * from './learning/exercise.js'
 export * from './learning/scale-exercise.js'

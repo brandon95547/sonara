@@ -54,11 +54,23 @@ describe('fingering a song the file did not finger', () => {
     expect(fingered.notes.map((n) => n.finger)).toEqual([1, 3, 5, 1, 3, 5, 1, 3, 5])
   })
 
-  it('declines what no hand can hold', () => {
-    // Four octaves apart is not a chord, it is two hands or a mistake. A blank
-    // is the honest answer, and the search carries on either side of it.
-    const impossible = [36, 84].map((pitch) => note(pitch, 0))
-    expect(fingerSong(song(impossible)).notes.every((n) => n.finger === undefined)).toBe(true)
+  it('gives four octaves apart to two hands rather than refusing it', () => {
+    // It was refusing this, which was right while a note's hand came from its
+    // own pitch and nothing else. Two notes four octaves apart are not a chord
+    // one hand fails to hold — they are one note in each hand, and now read
+    // that way.
+    const wide = [36, 84].map((pitch) => note(pitch, 0))
+    const fingered = fingerSong(song(wide))
+    expect(fingered.notes.map((n) => n.hand)).toEqual(['left', 'right'])
+    expect(fingered.notes.every((n) => n.finger !== undefined)).toBe(true)
+  })
+
+  it('still declines what neither hand can hold', () => {
+    // Six notes spread over five octaves cannot be divided into two grips, and
+    // a blank is the honest answer. The search carries on either side of it.
+    const impossible = [24, 40, 55, 72, 88, 103].map((pitch) => note(pitch, 0))
+    const fingered = fingerSong(song(impossible))
+    expect(fingered.notes.some((n) => n.finger === undefined)).toBe(true)
   })
 
   it('fingers a part that alternates between chords and single notes', () => {

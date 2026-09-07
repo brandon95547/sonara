@@ -386,3 +386,45 @@ export function moveCost(
 
   return points
 }
+
+/**
+ * Every way one hand could take a set of notes at once, cheapest first.
+ *
+ * The single place that answers "can this hand hold these, and how gladly".
+ * Everything that needs to know — the fingering search, and the decision about
+ * which hand plays what — asks here, because asking it two ways is how one of
+ * them ends up testing a single arbitrary assignment and concluding a plain
+ * triad is unplayable.
+ *
+ * Fingers run in the same direction as pitch: ascending in the right hand,
+ * descending in the left. A held chord cannot cross its own fingers, so the
+ * choice is *which* fingers, never their order.
+ */
+export function grips(
+  pitches: readonly number[],
+  hand: Hand,
+): { fingers: Finger[]; cost: number; rolled: boolean }[] {
+  if (pitches.length === 0 || pitches.length > 5) return []
+
+  const found: { fingers: Finger[]; cost: number; rolled: boolean }[] = []
+  const build = (sofar: Finger[], from: number) => {
+    if (sofar.length === pitches.length) {
+      const fingers = hand === 'right' ? sofar : [...sofar].reverse()
+      const held = reach(pitches, fingers, hand)
+      if (held !== 'no') {
+        found.push({ fingers, cost: chordCost(pitches, fingers, hand), rolled: held === 'rolled' })
+      }
+      return
+    }
+    for (let f = from; f <= 5; f++) build([...sofar, f as Finger], f + 1)
+  }
+  build([], 1)
+
+  return found.sort((a, b) => a.cost - b.cost)
+}
+
+/** What the easiest grip on these notes costs this hand, or null for none. */
+export function gripCost(pitches: readonly number[], hand: Hand): number | null {
+  if (pitches.length === 0) return 0
+  return grips(pitches, hand)[0]?.cost ?? null
+}

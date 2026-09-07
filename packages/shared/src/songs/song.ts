@@ -11,6 +11,7 @@
 // The same Hand the fingering module uses: one piece of music has one idea of
 // which hand plays a note, wherever that idea came from.
 import type { Hand } from '../music/fingering.js'
+import { withInferredHands } from './hand-assignment.js'
 import type { PartRole } from './general-midi.js'
 import { estimateKey, type DetectedKey } from './key-of.js'
 export type { Hand }
@@ -179,7 +180,12 @@ export function buildSong(input: {
   const bpm = input.bpm > 0 ? input.bpm : 100
   const beatsPerMeasure = input.beatsPerMeasure > 0 ? input.beatsPerMeasure : 4
   const measureMs = (60000 / bpm) * beatsPerMeasure
-  const notes = collapseUnisons(input.notes)
+  // Where the file named the staff or separated the tracks, its answer stands.
+  // Where it did not, the hands are worked out from the music rather than from
+  // each note's pitch on its own — see `hand-assignment.ts` for why that
+  // distinction is not a detail.
+  const collapsed = collapseUnisons(input.notes)
+  const notes = input.handsInferred ? withInferredHands(collapsed) : collapsed
   const durationMs = songDuration(notes)
 
   return {
