@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<museScore version="4.00">
+  <programVersion>4.0.1</programVersion>
+  <Score>
+    <Division>480</Division>
+    <metaTag name="workTitle">Two Grallas</metaTag>
+    <Part>
+      <Staff id="1"><StaffType group="pitched"><name>stdNormal</name></StaffType></Staff>
+      <trackName>Oboè</trackName>
+      <Instrument id="oboe">
+        <longName>Gralla1</longName>
+        <instrumentId>wind.reed.oboe</instrumentId>
+        </Instrument>
+      </Part>
+    <Part>
+      <Staff id="2"><StaffType group="pitched"><name>stdNormal</name></StaffType></Staff>
+      <trackName>Oboè</trackName>
+      <Instrument id="oboe">
+        <longName>Gralla2</longName>
+        <instrumentId>wind.reed.oboe</instrumentId>
+        </Instrument>
+      </Part>
+    <Staff id="1">
+      <Measure len="1/4">
+        <voice>
+          <TimeSig><sigN>3</sigN><sigD>4</sigD></TimeSig>
+          <Chord><durationType>quarter</durationType><Note><pitch>64</pitch></Note></Chord>
+          </voice>
+        </Measure>
+      <Measure>
+        <voice>
+          <Spanner type="Slur">
+            <Slur><up>up</up></Slur>
+            <next><location><measures>1</measures></location></next>
+            <prev><location><measures>-1</measures></location></prev>
+            </Spanner>
+          <Chord><durationType>quarter</durationType><Note><pitch>69</pitch></Note></Chord>
+          <Chord><durationType>quarter</durationType><Note><pitch>71</pitch></Note></Chord>
+          <Chord><durationType>quarter</durationType><Note><pitch>72</pitch></Note></Chord>
+          </voice>
+        </Measure>
+      </Staff>
+    <Staff id="2">
+      <Measure len="1/4">
+        <voice>
+          <Chord><durationType>quarter</durationType><Note><pitch>76</pitch></Note></Chord>
+          </voice>
+        </Measure>
+      <Measure>
+        <voice>
+          <Chord><durationType>quarter</durationType><Note><pitch>81</pitch></Note></Chord>
+          <Chord><durationType>quarter</durationType><Note><pitch>83</pitch></Note></Chord>
+          <Chord><durationType>quarter</durationType><Note><pitch>81</pitch></Note></Chord>
+          </voice>
+        </Measure>
+      </Staff>
+    </Score>
+  </museScore>

@@ -52,12 +52,67 @@ const num = (xml: string, tag: string): number | undefined => {
   return Number.isFinite(value) ? value : undefined
 }
 
-/** Top-level children of one element, in document order. */
+/**
+ * Top-level children of one element, in document order.
+ *
+ * Depth matters. A `<Spanner>` carries `<location>` elements describing how far
+ * it reaches, and a slur or tie sits inside the chord it belongs to — matching
+ * those as though they were the bar's own contents advances the cursor for
+ * music that is not there, and the error accumulates over the piece. So tags
+ * are counted in and out rather than matched wherever they appear.
+ */
 function* children(xml: string, tags: readonly string[]): Generator<{ tag: string; body: string }> {
-  const pattern = new RegExp(`<(${tags.join('|')})(?:\\s[^>]*)?(?:/>|>([\\s\\S]*?)</\\1>)`, 'g')
-  for (const match of xml.matchAll(pattern)) {
-    yield { tag: match[1]!, body: match[2] ?? '' }
+  const wanted = new Set(tags)
+  let depth = 0
+  let open: { tag: string; from: number } | null = null
+
+  for (const match of xml.matchAll(/<([/?!]?)([\w.:-]+)[^>]*?(\/?)>/g)) {
+    const [text = '', prefix = '', name = '', selfClosing = ''] = match
+    if (prefix === '?' || prefix === '!') continue
+
+    if (selfClosing) {
+      if (depth === 0 && wanted.has(name)) yield { tag: name, body: '' }
+      continue
+    }
+    if (prefix !== '/') {
+      if (depth === 0 && wanted.has(name)) open = { tag: name, from: match.index + text.length }
+      depth += 1
+      continue
+    }
+
+    depth -= 1
+    if (depth === 0 && open?.tag === name) {
+      yield { tag: name, body: xml.slice(open.from, match.index) }
+      open = null
+    }
   }
+}
+
+interface Part {
+  readonly staffIds: readonly number[]
+  readonly name: string
+}
+
+/**
+ * The instruments the score is written for, and which staves each one owns.
+ *
+ * This is what says whether two staves are two hands. A piano is one `<Part>`
+ * holding two `<Staff>` children, and there the upper staff really is the right
+ * hand. Two single-staff parts are two instruments — reading the second as a
+ * left hand puts a melody an octave above middle C into the hand that cannot
+ * play it, and, worse, claims the score said so.
+ */
+function readParts(text: string): Part[] {
+  const parts: Part[] = []
+  for (const [, body = ''] of text.matchAll(/<Part(?:\s[^>]*)?>([\s\S]*?)<\/Part>/g)) {
+    const staffIds = [...body.matchAll(/<Staff id="(\d+)"/g)].map(([, id]) => Number(id))
+    if (staffIds.length === 0) continue
+    const name = (inner(body, 'longName') ?? inner(body, 'trackName') ?? '')
+      .replace(/<[^>]*>/g, '')
+      .trim()
+    parts.push({ staffIds, name })
+  }
+  return parts
 }
 
 export function importMuseScore(text: string, fallbackTitle: string): Song | null {
@@ -75,23 +130,41 @@ export function importMuseScore(text: string, fallbackTitle: string): Song | nul
   const notes: SongNote[] = []
   const pedal: PedalSpan[] = []
 
-  // Each <Staff id="n"> at the top level carries that staff's measures. Staff 1
-  // is the right hand and staff 2 the left, which is how a piano part is
-  // written and how MuseScore stores it.
+  // Each <Staff id="n"> at the top level carries that staff's measures.
   const staves = [...text.matchAll(/<Staff id="(\d+)">([\s\S]*?)<\/Staff>/g)].filter(([, , body]) =>
     /<Measure/.test(body ?? ''),
   )
   if (staves.length === 0) return null
 
+  const parts = readParts(text)
+
+  /**
+   * The hand a staff is written for, or null when the file does not say.
+   *
+   * Only a part that owns two staves has hands to read: the upper is the right,
+   * the lower the left. One staff of its own is an instrument's single line and
+   * says nothing about hands, however low it sits. A file with no part
+   * information at all is read the old way, staff 1 then staff 2, because
+   * absent anything better that is what a two-staff score means.
+   */
+  const handForStaff = (id: number): Hand | null => {
+    if (parts.length === 0) return id === 1 ? 'right' : id === 2 ? 'left' : null
+    const owner = parts.find((part) => part.staffIds.includes(id))
+    if (!owner || owner.staffIds.length !== 2) return null
+    return owner.staffIds[0] === id ? 'right' : 'left'
+  }
+
   const beat = () => 60000 / (bpm || 100)
+  let guessedAHand = false
 
   for (const [, idText, staffBody = ''] of staves) {
     const staffIndex = Number(idText)
-    const hand: Hand | null = staffIndex === 1 ? 'right' : staffIndex === 2 ? 'left' : null
+    const hand = handForStaff(staffIndex)
+    if (hand === null) guessedAHand = true
     let measureStart = 0
 
-    for (const [, measureBody = ''] of staffBody.matchAll(
-      /<Measure(?:\s[^>]*)?>([\s\S]*?)<\/Measure>/g,
+    for (const [, attributes = '', measureBody = ''] of staffBody.matchAll(
+      /<Measure((?:\s[^>]*)?)>([\s\S]*?)<\/Measure>/g,
     )) {
       const sigN = num(measureBody, 'sigN')
       const sigD = num(measureBody, 'sigD')
@@ -125,6 +198,14 @@ export function importMuseScore(text: string, fallbackTitle: string): Song | nul
         ])) {
           if (element.tag === 'Dynamic') {
             dynamic = inner(element.body, 'subtype')?.trim() || dynamic
+            continue
+          }
+          if (element.tag === 'location') {
+            // MuseScore's cursor move, the equivalent of MusicXML's <backup>:
+            // a signed fraction of a whole note, written where a voice does
+            // not simply run from one bar line to the next.
+            const shift = /(-?\d+)\/(\d+)/.exec(inner(element.body, 'fractions') ?? '')
+            if (shift) cursor = Math.max(0, cursor + (Number(shift[1]) / Number(shift[2])) * 4)
             continue
           }
           if (element.tag === 'Pedal') {
@@ -180,11 +261,30 @@ export function importMuseScore(text: string, fallbackTitle: string): Song | nul
         }
       }
 
-      measureStart += Math.max(longestVoice, beatsPerMeasure) * beat()
+      // A pickup bar states its own length, shorter than the time signature.
+      // Padding it out to a full bar inserts silence and shifts every note
+      // after it — for a one-beat pickup in 3/4, by two beats, for the rest of
+      // the piece.
+      const declared = /\blen="(\d+)\/(\d+)"/.exec(attributes)
+      const measureBeats = declared
+        ? (Number(declared[1]) / Number(declared[2])) * 4
+        : beatsPerMeasure
+
+      measureStart += Math.max(longestVoice, measureBeats) * beat()
     }
   }
 
   if (notes.length === 0) return null
+
+  const sounding = new Set(staves.map(([, id]) => Number(id)))
+  const named = [
+    ...new Set(
+      parts
+        .filter((part) => part.staffIds.some((id) => sounding.has(id)))
+        .map((part) => part.name)
+        .filter((name) => name.length > 0),
+    ),
+  ]
 
   return buildSong({
     id: `musescore:${title}:${Date.now()}`,
@@ -193,12 +293,14 @@ export function importMuseScore(text: string, fallbackTitle: string): Song | nul
     beatsPerMeasure,
     notes,
     source: 'musescore',
-    // MuseScore names the staff a note is on, so hands are read, not guessed.
-    handsInferred: staves.length < 2,
+    // Read from the score only where one part owns two staves. Anywhere else
+    // the hand came from pitch, and the library has to say so rather than
+    // claim the score decided it.
+    handsInferred: guessedAHand || staves.length < 2,
     key,
     pedal,
     rhythmFromScore: true,
-    parts: ['Piano'],
+    parts: named.length > 0 ? named : ['Piano'],
   })
 }
 
