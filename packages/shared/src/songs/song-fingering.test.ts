@@ -47,13 +47,32 @@ describe('fingering a song the file did not finger', () => {
     expect(after.notes[1]!.finger).toBeUndefined()
   })
 
-  it('declines chords rather than guessing at them', () => {
-    // The model is for melodic fragments, and the method books finger a triad
-    // without regard for what follows it — which their own cadences disprove.
+  it('fingers chords with the fingering the method books print', () => {
     const chords = [0, 1, 2].flatMap((step) => [60, 64, 67].map((pitch) => note(pitch, step * 500)))
     const fingered = fingerSong(song(chords))
-    expect(fingered.notes.every((n) => n.finger === undefined)).toBe(true)
-    expect(fingered.fingeringSource).toBeUndefined()
+    // A root-position triad in the right hand: 1 3 5, on every repetition.
+    expect(fingered.notes.map((n) => n.finger)).toEqual([1, 3, 5, 1, 3, 5, 1, 3, 5])
+  })
+
+  it('declines what no hand can hold', () => {
+    // Four octaves apart is not a chord, it is two hands or a mistake. A blank
+    // is the honest answer, and the search carries on either side of it.
+    const impossible = [36, 84].map((pitch) => note(pitch, 0))
+    expect(fingerSong(song(impossible)).notes.every((n) => n.finger === undefined)).toBe(true)
+  })
+
+  it('fingers a part that alternates between chords and single notes', () => {
+    // Why this had to work over steps rather than runs of single notes: a chord
+    // used to end the run, so a melody threaded between chords came back in
+    // unfingered fragments.
+    const mixed: SongNote[] = [
+      ...[60, 64, 67].map((p) => note(p, 0)),
+      note(69, 500),
+      note(71, 1000),
+      ...[60, 64, 67].map((p) => note(p, 1500)),
+      note(72, 2000),
+    ]
+    expect(fingerSong(song(mixed)).notes.every((n) => n.finger !== undefined)).toBe(true)
   })
 
   it('fingers each hand as its own line', () => {

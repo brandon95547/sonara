@@ -222,3 +222,99 @@ export function tripleCost(
 
   return points
 }
+
+// --- Chords ------------------------------------------------------------------
+
+/**
+ * Whether a hand can hold these notes at once with these fingers.
+ *
+ * The span table is a table of how far apart two fingers can sit, which is the
+ * same question whether the notes are struck one after another or together — so
+ * the chord case needs no new numbers, only every pair checked rather than the
+ * consecutive ones. Checking every pair matters: 1-2 and 2-3 can each be
+ * comfortable while 1-3 is impossible.
+ */
+export function holdable(
+  pitches: readonly number[],
+  assignment: readonly Finger[],
+  hand: Hand,
+): boolean {
+  if (pitches.length !== assignment.length) return false
+  for (let i = 0; i < pitches.length; i++) {
+    for (let j = i + 1; j < pitches.length; j++) {
+      const f = assignment[i]!
+      const g = assignment[j]!
+      if (f === g) return false // one finger cannot be on two keys
+      const span = asRightHand(pitches[j]! - pitches[i]!, hand)
+      if (span < minPrac(f, g) || span > maxPrac(f, g)) return false
+    }
+  }
+  return true
+}
+
+/**
+ * How hard a chord is to hold.
+ *
+ * The span rules only — stretch, small and large — applied to every pair of
+ * fingers in the grip, plus what each finger costs on its own key. The
+ * transition rules have no meaning here: nothing passes under anything in a
+ * chord struck as one.
+ */
+export function chordCost(
+  pitches: readonly number[],
+  assignment: readonly Finger[],
+  hand: Hand,
+  tally?: RuleTally,
+): number {
+  let points = 0
+  for (const [i, finger] of assignment.entries()) points += noteCost(pitches[i]!, finger, tally)
+
+  for (let i = 0; i < pitches.length; i++) {
+    for (let j = i + 1; j < pitches.length; j++) {
+      const f = assignment[i]!
+      const g = assignment[j]!
+      const span = asRightHand(pitches[j]! - pitches[i]!, hand)
+      const thumb = f === 1 || g === 1
+      if (span > maxComf(f, g)) points += add(tally, 'stretch', 2 * (span - maxComf(f, g)))
+      if (span < minComf(f, g)) points += add(tally, 'stretch', 2 * (minComf(f, g) - span))
+      const weight = thumb ? 1 : 2
+      if (span > maxRel(f, g)) points += add(tally, 'large-span', weight * (span - maxRel(f, g)))
+      if (span < minRel(f, g)) points += add(tally, 'small-span', weight * (minRel(f, g) - span))
+    }
+  }
+  return points
+}
+
+/**
+ * What it costs to get from one grip to the next.
+ *
+ * The published model stops at melodic fragments and says nothing about moving
+ * between chords, so this does not pretend to be it: it is a measure of hand
+ * movement, which is what Section 7 of the fingering reference shows the method
+ * books' own cadences are choosing between. A finger used in both grips pays
+ * for the distance it travels; a finger that has to be found or let go pays a
+ * flat point for re-forming the hand.
+ */
+export function moveCost(
+  from: readonly number[],
+  fromFingers: readonly Finger[],
+  to: readonly number[],
+  toFingers: readonly Finger[],
+): number {
+  const place = (notes: readonly number[], fingers: readonly Finger[]) => {
+    const map = new Map<Finger, number>()
+    fingers.forEach((finger, i) => map.set(finger, notes[i]!))
+    return map
+  }
+  const before = place(from, fromFingers)
+  const after = place(to, toFingers)
+
+  let points = 0
+  for (const [finger, note] of after) {
+    const was = before.get(finger)
+    if (was === undefined) points += 1
+    else points += Math.abs(note - was) / 2
+  }
+  for (const finger of before.keys()) if (!after.has(finger)) points += 1
+  return points
+}

@@ -1,6 +1,6 @@
-import { fingerPassage } from '../music/finger-passage.js'
+import { fingerSteps } from '../music/finger-steps.js'
 import type { Hand } from '../music/fingering.js'
-import { songSteps, type Song, type SongNote } from './song.js'
+import { songSteps, type Song, type SongNote, type SongStep } from './song.js'
 
 /**
  * Working out the fingering for a song that arrived without any.
@@ -12,69 +12,59 @@ import { songSteps, type Song, type SongNote } from './song.js'
  *
  * ## What it fingers, and what it leaves alone
  *
- * Single notes, in runs. Each hand's part is cut into stretches of one note at
- * a time and each stretch is fingered by `fingerPassage`, which searches every
- * possibility against a published model of what a hand finds difficult.
+ * A hand's part is cut into stretches and each stretch is fingered by
+ * `fingerSteps`, which searches every way the hand could take it against a
+ * published model of what a hand finds difficult. Single notes, intervals and
+ * chords are all steps; the search does not care which is which, so a part that
+ * alternates between them is fingered end to end rather than in the fragments
+ * between its chords.
  *
- * Chords are left alone. The ergonomic model is for melodic fragments, and the
- * method books finger triads without regard for what follows them, which the
- * books' own cadences disprove. An empty finger on a chord is a gap you can
- * see; a confident wrong one is not.
+ * A step nothing can hold — more notes than fingers, or a span no hand covers —
+ * is left blank, and so is the fingering either side of it, because what
+ * follows a jump like that is a fresh hand position with nothing to inherit.
  *
- * A run also ends at a rest long enough for the hand to reposition, because
- * after that the fingering before it constrains nothing.
+ * A stretch also ends at a rest long enough for the hand to reposition, after
+ * which the fingering before it constrains nothing.
  */
 
 /** Long enough that the hand can lift, move and land somewhere new. */
 const REPOSITION_MS = 700
 
-interface Run {
-  readonly hand: Hand
-  readonly notes: SongNote[]
-}
-
-function runsFor(song: Song, hand: Hand): Run[] {
-  const runs: Run[] = []
-  let current: SongNote[] = []
-
-  const end = () => {
-    if (current.length > 0) runs.push({ hand, notes: current })
-    current = []
-  }
+function runsFor(song: Song, hand: Hand): SongStep[][] {
+  const runs: SongStep[][] = []
+  let current: SongStep[] = []
 
   for (const step of songSteps(song, hand)) {
-    // A chord is not a melodic fragment; it ends the run rather than joining it.
-    if (step.notes.length !== 1) {
-      end()
-      continue
-    }
-    const note = step.notes[0]!
     const previous = current.at(-1)
-    if (previous && note.startMs - (previous.startMs + previous.durationMs) > REPOSITION_MS) end()
-    current.push(note)
+    const gap = previous
+      ? step.startMs - Math.max(...previous.notes.map((n) => n.startMs + n.durationMs))
+      : 0
+    if (previous && gap > REPOSITION_MS) {
+      runs.push(current)
+      current = []
+    }
+    current.push(step)
   }
-  end()
-  return runs.filter((run) => run.notes.length > 1)
+  if (current.length > 0) runs.push(current)
+  return runs
 }
 
-/**
- * Returns the song with a finger on every note it could work one out for.
- *
- * A song that already carries fingering from its score is returned untouched:
- * whoever edited it knew more than this does.
- */
 export function fingerSong(song: Song): Song {
   if (song.hasFingering) return song
 
   const chosen = new Map<SongNote, number>()
   for (const hand of ['right', 'left'] as const) {
     for (const run of runsFor(song, hand)) {
-      const result = fingerPassage(
-        run.notes.map((note) => note.note),
-        hand,
+      // Each step's notes in pitch order, which is the order a grip is held in.
+      const pitches = run.map((step) =>
+        [...step.notes].sort((a, b) => a.note - b.note).map((note) => note.note),
       )
-      if (result.fingers.length !== run.notes.length) continue // nothing playable
-      run.notes.forEach((note, index) => chosen.set(note, result.fingers[index]!))
+      const fingered = fingerSteps(pitches, hand)
+      fingered.forEach((fingers, index) => {
+        if (!fingers) return
+        const ordered = [...run[index]!.notes].sort((a, b) => a.note - b.note)
+        ordered.forEach((note, i) => chosen.set(note, fingers[i]!))
+      })
     }
   }
   if (chosen.size === 0) return song

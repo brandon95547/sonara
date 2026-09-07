@@ -128,6 +128,39 @@ export function songDuration(notes: readonly SongNote[]): number {
  * beats at a tempo, and every loop, count-in and bar number in the app reads it
  * from here so they cannot disagree.
  */
+/**
+ * One key, one press.
+ *
+ * A file can hold the same pitch twice at the same instant — two voices written
+ * on one staff, an arranger doubling a line, a sequencer exporting a part
+ * twice. It is not playable as written: a hand cannot strike one key twice at
+ * once, and read literally every doubled note turns a melody into a two-note
+ * chord. Which is exactly what it did — 441 of one file's 1,178 piano notes
+ * were duplicates, and the fingering that followed declined most of the song as
+ * chords that were not there.
+ *
+ * The survivor keeps the longest duration and the strongest velocity, so
+ * nothing about how it sounds is lost.
+ */
+function collapseUnisons(notes: readonly SongNote[]): SongNote[] {
+  const kept = new Map<string, SongNote>()
+  for (const note of notes) {
+    const key = `${note.note}@${Math.round(note.startMs)}@${note.hand}@${note.role}`
+    const existing = kept.get(key)
+    if (!existing) {
+      kept.set(key, note)
+      continue
+    }
+    kept.set(key, {
+      ...existing,
+      durationMs: Math.max(existing.durationMs, note.durationMs),
+      velocity: Math.max(existing.velocity, note.velocity),
+      finger: existing.finger ?? note.finger,
+    })
+  }
+  return [...kept.values()].sort((a, b) => a.startMs - b.startMs || a.note - b.note)
+}
+
 export function buildSong(input: {
   id: string
   title: string
@@ -146,7 +179,7 @@ export function buildSong(input: {
   const bpm = input.bpm > 0 ? input.bpm : 100
   const beatsPerMeasure = input.beatsPerMeasure > 0 ? input.beatsPerMeasure : 4
   const measureMs = (60000 / bpm) * beatsPerMeasure
-  const notes = [...input.notes].sort((a, b) => a.startMs - b.startMs || a.note - b.note)
+  const notes = collapseUnisons(input.notes)
   const durationMs = songDuration(notes)
 
   return {
