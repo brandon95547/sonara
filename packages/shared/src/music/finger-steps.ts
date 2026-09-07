@@ -2,7 +2,7 @@ import type { Hand } from './fingering.js'
 import {
   FINGERS,
   chordCost,
-  holdable,
+  reach,
   moveCost,
   pairCost,
   reachable,
@@ -28,50 +28,80 @@ import {
 const CANDIDATE_LIMIT = 6
 
 /**
- * The triad fingerings the method books print, by inversion.
+ * The chord fingerings the method books print, keyed by shape.
  *
- * From The Complete Book of Scales, Chords, Arpeggios & Cadences, pages 8, 9,
- * 88 and 89 — consistent on every page that states them, and unchanged by
- * chord quality: page 88 runs major, minor, diminished and augmented triads on
- * the same root and fingers all four alike.
+ * A chord's shape is the intervals between its notes, low to high — nothing
+ * else is needed. `(4, 3)` is a major triad in root position, `(3, 5)` a minor
+ * triad in first inversion, `(6, 2)` the three-note dominant seventh a cadence
+ * uses. The key does not appear, the root does not appear, and neither is
+ * missed: page 88 runs major, minor, diminished and augmented triads on one
+ * root and fingers all four alike.
  *
- * These are needed because the hand model cannot separate them. `1 3 5` and
- * `1 2 4` cost a C major triad exactly the same — both are relaxed at every
- * pair, both use one weak finger — so without the published answer the choice
- * comes down to whichever was enumerated first. The point of consulting a book
- * is precisely the questions physics does not settle.
+ * These exist because the hand model cannot reach them. `1 3 5` and `1 2 4`
+ * cost a C major triad exactly the same — relaxed at every pair, one weak
+ * finger each — so the spans leave the choice open and only a book settles it.
+ *
+ * Sources: pages 8, 9, 88 and 89 for the block triads, and the three cadence
+ * positions of pages 21, 45 and 51 for the seventh voicings. Every entry here
+ * is a shape the source fingers the *same way* every time it prints it. Shapes
+ * it fingers differently in different places are deliberately absent — those
+ * are decided by what surrounds them, which is the search's job and not a
+ * table's.
  */
-const TRIADS: Record<string, { right: readonly Finger[]; left: readonly Finger[] }> = {
-  // Keyed by the two intervals of a close-position triad, low to high.
-  root: { right: [1, 3, 5], left: [5, 3, 1] },
-  first: { right: [1, 2, 5], left: [5, 3, 1] },
-  second: { right: [1, 3, 5], left: [5, 2, 1] },
+interface Shape {
+  readonly right?: readonly Finger[]
+  readonly left?: readonly Finger[]
+  /**
+   * Whether the source prints this shape the same way everywhere it appears.
+   *
+   * A firm shape settles the matter: the book's answer is taken even where the
+   * hand model would rather have something else, which happens — the three-note
+   * dominant seventh is fingered 1 2 4, and by span alone 1 2 5 is easier. The
+   * book is fingering it for the chord it resolves to. That is the knowledge
+   * being borrowed, and overruling it with a span table defeats the point.
+   *
+   * A soft shape is a default that context may move, and every left-hand shape
+   * read from the cadences is one: not a single one is fingered the same way in
+   * all three positions.
+   */
+  readonly firm?: boolean
 }
 
-/**
- * Which inversion a close-position triad is in, from its shape alone.
- *
- * A root position triad is a third then a third; a first inversion a third then
- * a fourth; a second inversion a fourth then a third. Nothing here needs to
- * know the key, or which note is the root — which is as well, because a MIDI
- * file does not say.
- */
-function publishedTriad(pitches: readonly number[], hand: Hand): readonly Finger[] | null {
-  if (pitches.length !== 3) return null
-  const lower = pitches[1]! - pitches[0]!
-  const upper = pitches[2]! - pitches[1]!
-  const third = (n: number) => n === 3 || n === 4
-  const fourth = (n: number) => n === 5
+const SHAPES: Record<string, Shape> = {
+  // Triads, root position: a third then a third.
+  '3,4': { right: [1, 3, 5], left: [5, 3, 1] },
+  '4,3': { right: [1, 3, 5], left: [5, 3, 1] },
+  '3,3': { right: [1, 3, 5], left: [5, 3, 1] },
+  '4,4': { right: [1, 3, 5], left: [5, 3, 1] },
+  // First inversion: a third then a fourth.
+  '3,5': { right: [1, 2, 5], left: [5, 3, 1], firm: true },
+  '4,5': { right: [1, 2, 5], left: [5, 3, 1], firm: true },
+  // Second inversion: a fourth then a third.
+  '5,3': { right: [1, 3, 5], left: [5, 2, 1] },
+  '5,4': { right: [1, 3, 5], left: [5, 2, 1] },
+  // Three-note dominant sevenths, from the cadences. The right hand is the
+  // same in all three keys read; the left is not, so it is left to the search.
+  '3,6': { right: [1, 2, 4], firm: true },
+  '6,2': { right: [1, 4, 5], firm: true },
+  '2,3': { right: [1, 2, 4], firm: true },
+}
 
-  const shape =
-    third(lower) && third(upper)
-      ? 'root'
-      : third(lower) && fourth(upper)
-        ? 'first'
-        : fourth(lower) && third(upper)
-          ? 'second'
-          : null
-  return shape ? TRIADS[shape]![hand] : null
+/** How far a published shape outweighs what the spans alone would choose. */
+const FIRM_SHAPE = 10
+/** A chord too wide to put down at once, played from the outside in. */
+const ROLL = 3
+const DEFAULT_SHAPE = 2
+
+function publishedShape(
+  pitches: readonly number[],
+  hand: Hand,
+): { fingers: readonly Finger[]; firm: boolean } | null {
+  if (pitches.length < 2) return null
+  const intervals: number[] = []
+  for (let i = 1; i < pitches.length; i++) intervals.push(pitches[i]! - pitches[i - 1]!)
+  const shape = SHAPES[intervals.join(',')]
+  const fingers = shape?.[hand]
+  return fingers ? { fingers, firm: shape!.firm ?? false } : null
 }
 
 interface Candidate {
@@ -93,16 +123,21 @@ function candidatesFor(pitches: readonly number[], hand: Hand): Candidate[] {
   const build = (sofar: Finger[], from: number) => {
     if (sofar.length === pitches.length) {
       const fingers = hand === 'right' ? sofar : [...sofar].reverse()
-      if (holdable(pitches, fingers, hand)) {
-        const published = publishedTriad(pitches, hand)
-        // Enough to settle what the spans leave open, and to carry a triad the
+      const held = reach(pitches, fingers, hand)
+      if (held !== 'no') {
+        const published = publishedShape(pitches, hand)
+        // Enough to settle what the spans leave open, and to carry a grip the
         // hand finds slightly tight — a diminished triad spans six semitones,
         // which costs 1 3 5 a small-span point the book pays without comment.
         // Not enough to override the passage: transition costs are added after
         // this, so a progression that wants a different grip still gets one,
-        // which is what the book's own cadences do.
-        const matches = published?.every((finger, i) => finger === fingers[i]) ?? false
-        chosen.push({ fingers, cost: chordCost(pitches, fingers, hand) - (matches ? 2 : 0) })
+        // which is what the source's own cadences do.
+        const matches = published?.fingers?.every((finger, i) => finger === fingers[i]) ?? false
+        const bonus = matches ? (published!.firm ? FIRM_SHAPE : DEFAULT_SHAPE) : 0
+        // Rolling costs something — it is a chord you cannot simply put down —
+        // but far less than not fingering it at all.
+        const roll = held === 'rolled' ? ROLL : 0
+        chosen.push({ fingers, cost: chordCost(pitches, fingers, hand) - bonus + roll })
       }
       return
     }

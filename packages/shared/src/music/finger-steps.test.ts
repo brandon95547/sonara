@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { fingerSteps } from './finger-steps.js'
-import { chordCost, holdable } from './hand-model.js'
+import { chordCost, holdable, reach } from './hand-model.js'
 
 const grip = (steps: number[][], hand: 'right' | 'left' = 'right') =>
   fingerSteps(steps, hand).map((f) => (f ? f.join('') : null))
@@ -101,5 +101,44 @@ describe('a part that is not all chords or all melody', () => {
       expect(fingers).not.toBeNull()
       expect(new Set(fingers!).size).toBe(fingers!.length)
     }
+  })
+})
+
+describe('chords wider than the hand', () => {
+  it('rolls from the outer note rather than refusing', () => {
+    // G2 G3 B3 — a bass note a tenth under a grip the hand holds easily. It is
+    // ordinary piano writing, a printed edition fingers it without comment, and
+    // leaving it blank was the single largest gap in a real import.
+    expect(reach([43, 55, 59], [5, 2, 1], 'left')).toBe('rolled')
+    expect(grip([[43, 55, 59]], 'left')).toEqual(['521'])
+  })
+
+  it('holds what it can hold, and says which is which', () => {
+    expect(reach([48, 52, 55], [5, 3, 1], 'left')).toBe('held')
+    expect(reach([43, 50, 53, 55, 59], [5, 4, 3, 2, 1], 'left')).toBe('rolled')
+  })
+
+  it('will not call an unplayable chord a roll', () => {
+    // A roll is one note struck away from a grip. If the grip itself is out of
+    // reach it is two hands, not a roll, and no fingering is the right answer.
+    expect(reach([36, 60, 84], [5, 3, 1], 'left')).toBe('no')
+    expect(grip([[36, 60, 84]], 'left')).toEqual([null])
+  })
+
+  it('does not roll a bare interval', () => {
+    // Two notes have no grip to roll into, so a span nothing reaches is simply
+    // out of reach — one hand is not playing a nineteenth.
+    expect(grip([[36, 55]], 'left')).toEqual([null])
+  })
+})
+
+describe('the seventh chords a cadence uses', () => {
+  it('fingers the three-note dominant sevenths the way the source does', () => {
+    // Both come out of the cadence pages, and both are fingerings the span
+    // table would not have chosen: 1 2 5 is easier than 1 2 4 by every measure
+    // in the model, and the source prints 1 2 4 because of where the chord is
+    // going.
+    expect(grip([[62, 65, 71]])).toEqual(['124']) // D F B — V7 in second position
+    expect(grip([[59, 65, 67]])).toEqual(['145']) // B F G — V7 in first position
   })
 })

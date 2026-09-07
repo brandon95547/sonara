@@ -239,17 +239,54 @@ export function holdable(
   assignment: readonly Finger[],
   hand: Hand,
 ): boolean {
-  if (pitches.length !== assignment.length) return false
+  return reach(pitches, assignment, hand) === 'held'
+}
+
+/**
+ * Whether a grip is held, rolled, or out of the question.
+ *
+ * A chord wider than the hand is not unfingerable — it is rolled, and a printed
+ * edition fingers it exactly as if it were held, because the fingers still go
+ * where they go. What separates a rollable chord from an impossible one is
+ * where the excess sits: a bass note a tenth below a grip the hand *can* hold
+ * is ordinary piano writing, while a chord whose inner notes are themselves
+ * out of reach is not playable by one hand at all.
+ *
+ * So every pair is checked except the outermost, and the outermost only has to
+ * be in the same direction rather than within reach.
+ */
+export function reach(
+  pitches: readonly number[],
+  assignment: readonly Finger[],
+  hand: Hand,
+): 'held' | 'rolled' | 'no' {
+  if (pitches.length !== assignment.length) return 'no'
+
+  // The note the little finger takes: the lowest in the left hand, the highest
+  // in the right. It is the one a wide chord is rolled from.
+  const outer = hand === 'left' ? 0 : pitches.length - 1
+  let rolled = false
+
   for (let i = 0; i < pitches.length; i++) {
     for (let j = i + 1; j < pitches.length; j++) {
       const f = assignment[i]!
       const g = assignment[j]!
-      if (f === g) return false // one finger cannot be on two keys
+      if (f === g) return 'no' // one finger cannot be on two keys
       const span = asRightHand(pitches[j]! - pitches[i]!, hand)
-      if (span < minPrac(f, g) || span > maxPrac(f, g)) return false
+      if (span >= minPrac(f, g) && span <= maxPrac(f, g)) continue
+      // A pair involving the outer note may be rolled: the hand strikes it and
+      // travels to the rest, which is ordinary piano writing and what a printed
+      // edition fingers without comment. The rest of the grip has to hold on
+      // its own — a chord whose *inner* notes are out of reach is not a roll,
+      // it is two hands.
+      if ((i === outer || j === outer) && pitches.length > 2) {
+        rolled = true
+        continue
+      }
+      return 'no'
     }
   }
-  return true
+  return rolled ? 'rolled' : 'held'
 }
 
 /**
@@ -295,26 +332,57 @@ export function chordCost(
  * for the distance it travels; a finger that has to be found or let go pays a
  * flat point for re-forming the hand.
  */
+/**
+ * Changing a finger on a note that is in both grips.
+ *
+ * Small, and measured rather than assumed. The obvious reasoning says this
+ * should be expensive — the note is already down and the hand has to swap under
+ * it — but checked against the cadences the source prints, a heavy penalty
+ * makes the match markedly worse: 39 chords of 68 at four points against 44 at
+ * one. The books re-grip a held note freely and deliberately, moving the whole
+ * hand down a finger between chords, which is a thing a penalty here fights.
+ */
+const SUBSTITUTION = 1
+
 export function moveCost(
   from: readonly number[],
   fromFingers: readonly Finger[],
   to: readonly number[],
   toFingers: readonly Finger[],
 ): number {
-  const place = (notes: readonly number[], fingers: readonly Finger[]) => {
+  const byFinger = (notes: readonly number[], fingers: readonly Finger[]) => {
     const map = new Map<Finger, number>()
     fingers.forEach((finger, i) => map.set(finger, notes[i]!))
     return map
   }
-  const before = place(from, fromFingers)
-  const after = place(to, toFingers)
+  const byNote = (notes: readonly number[], fingers: readonly Finger[]) => {
+    const map = new Map<number, Finger>()
+    fingers.forEach((finger, i) => map.set(notes[i]!, finger))
+    return map
+  }
+  const before = byFinger(from, fromFingers)
+  const after = byFinger(to, toFingers)
 
   let points = 0
+
+  // A note common to both grips should keep its finger. This is what makes a
+  // progression hold together rather than being re-gripped chord by chord, and
+  // it is the thing the method books' cadences are visibly doing: the tonic
+  // stays under one finger while everything around it moves.
+  const heldBefore = byNote(from, fromFingers)
+  for (const [note, finger] of byNote(to, toFingers)) {
+    const was = heldBefore.get(note)
+    if (was !== undefined && was !== finger) points += SUBSTITUTION
+  }
+
+  // What each finger that survives the change has to travel, and the cost of
+  // finding or letting go of the ones that do not.
   for (const [finger, note] of after) {
     const was = before.get(finger)
     if (was === undefined) points += 1
     else points += Math.abs(note - was) / 2
   }
   for (const finger of before.keys()) if (!after.has(finger)) points += 1
+
   return points
 }
