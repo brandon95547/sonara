@@ -1,4 +1,4 @@
-import { renderHook } from '@testing-library/react'
+import { render, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildSong, type SongNote } from '@sonara/shared'
 import { useLearningStore } from '@/state/learning-store'
@@ -180,5 +180,62 @@ describe('a chord in Learn', () => {
 
     const used = new Set(useSongStore.getState().currentFingers.map((entry) => entry.hand))
     expect([...used].sort()).toEqual(['left', 'right'])
+  })
+})
+
+/**
+ * The card renders before anything is playing.
+ *
+ * Which is most of the time: on open, before Start, and on any step whose
+ * fingering could not be worked out. Reading the first hand out of an empty
+ * list threw, and threw where a user would meet it first.
+ */
+describe('the hand card with nothing playing', () => {
+  const song = buildSong({
+    id: 'q',
+    title: 'q',
+    bpm: 120,
+    beatsPerMeasure: 4,
+    notes: [
+      {
+        note: 60,
+        velocity: 90,
+        startMs: 0,
+        durationMs: 400,
+        hand: 'right' as const,
+        role: 'keyboard' as const,
+        finger: 1,
+      },
+    ],
+    source: 'midi',
+    handsInferred: false,
+  })
+
+  it('renders with no current fingers', async () => {
+    useSongStore.setState({
+      library: [song],
+      currentId: song.id,
+      mode: 'learn',
+      part: 'both',
+      stepIndex: 0,
+      currentFingers: [],
+    })
+    const { SongHandCard } = await import('@/features/songs/SongHandCard')
+    expect(() => render(<SongHandCard />)).not.toThrow()
+  })
+
+  it('renders with one hand playing, and with both', async () => {
+    const { SongHandCard } = await import('@/features/songs/SongHandCard')
+    for (const fingers of [
+      [{ finger: 3, hand: 'right' as const }],
+      [
+        { finger: 5, hand: 'left' as const },
+        { finger: 3, hand: 'left' as const },
+        { finger: 1, hand: 'right' as const },
+      ],
+    ]) {
+      useSongStore.setState({ library: [song], currentId: song.id, currentFingers: fingers })
+      expect(() => render(<SongHandCard />)).not.toThrow()
+    }
   })
 })

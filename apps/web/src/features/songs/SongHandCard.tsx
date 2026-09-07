@@ -33,14 +33,20 @@ export function SongHandCard() {
   // "Finger 3 · Middle" for one note, because there is room to name it. For a
   // chord, the digits alone — and where both hands are in it, say which is
   // which, or "5 3 1 · 1" is a puzzle rather than a reading.
+  //
+  // Nothing playing is the ordinary case, not an edge one: it is what the card
+  // shows before Start, and on any step whose fingering could not be worked
+  // out. Reaching into an empty list for it threw.
   const summary =
-    current.length === 1
-      ? `Finger ${current[0]!.finger} · ${FINGER_NAMES[current[0]!.finger]}`
-      : hands.length > 1
-        ? hands
-            .map((side) => `${side.hand === 'left' ? 'Left' : 'Right'} ${side.fingers.join(' ')}`)
-            .join(' · ')
-        : `Fingers ${hands[0]!.fingers.join(' ')}`
+    hands.length === 0
+      ? null
+      : current.length === 1
+        ? `Finger ${current[0]!.finger} · ${FINGER_NAMES[current[0]!.finger]}`
+        : hands.length > 1
+          ? hands
+              .map((side) => `${side.hand === 'left' ? 'Left' : 'Right'} ${side.fingers.join(' ')}`)
+              .join(' · ')
+          : `Fingers ${hands[0]!.fingers.join(' ')}`
   if (!song) return null
 
   return (
