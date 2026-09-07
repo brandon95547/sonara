@@ -1,12 +1,19 @@
-import { render, renderHook } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { act, cleanup, render, renderHook } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildSong, type SongNote } from '@sonara/shared'
 import { useLearningStore } from '@/state/learning-store'
 import { useSongStore } from '@/state/song-store'
+import { useKeyboardStore } from '@/state/keyboard-store'
 
 vi.mock('@/audio/AudioProvider', () => ({
   useAudio: () => ({ noteOn: vi.fn(), noteOff: vi.fn() }),
 }))
+
+// This project runs vitest with `globals: false`, so testing-library never gets
+// to register its own cleanup and every rendered hook stays subscribed to the
+// stores after its test ends. One stale subscription is enough to make a later
+// test see key events meant for it — which is exactly what happened.
+afterEach(cleanup)
 
 /**
  * A song's fingering has to survive the whole way to the key.
@@ -237,5 +244,80 @@ describe('the hand card with nothing playing', () => {
       useSongStore.setState({ library: [song], currentId: song.id, currentFingers: fingers })
       expect(() => render(<SongHandCard />)).not.toThrow()
     }
+  })
+})
+
+/**
+ * Learn should behave the same in both tabs.
+ *
+ * A wrong note goes red in Scales and did nothing at all in Songs, so the same
+ * mode taught two different things depending on which tab you were in.
+ */
+describe('a wrong note in a song', () => {
+  const song = buildSong({
+    id: 'w',
+    title: 'w',
+    bpm: 120,
+    beatsPerMeasure: 4,
+    notes: [60, 64].map((note, i) => ({
+      note,
+      velocity: 90,
+      startMs: i * 500,
+      durationMs: 400,
+      hand: 'right' as const,
+      role: 'keyboard' as const,
+      finger: 1,
+    })),
+    source: 'midi',
+    handsInferred: false,
+  })
+
+  const press = (...notes: number[]) =>
+    useKeyboardStore.setState({
+      active: Object.fromEntries(notes.map((note) => [note, { velocity: 90, source: 'pointer' }])),
+    } as never)
+
+  beforeEach(() => {
+    press()
+    useLearningStore.setState({ topic: 'songs', songAnnotations: {} })
+    useSongStore.setState({
+      library: [song],
+      currentId: song.id,
+      mode: 'learn',
+      part: 'both',
+      stepIndex: 0,
+      learning: true,
+      wrongNotes: [],
+      currentFingers: [],
+    })
+  })
+
+  it('marks a key the step did not ask for', async () => {
+    const { useSongLearning } = await import('@/features/songs/use-song-learning')
+    renderHook(() => useSongLearning(song))
+
+    act(() => press(62)) // the step wants 60
+    expect(useSongStore.getState().wrongNotes).toEqual([62])
+    expect(useLearningStore.getState().songAnnotations[62]?.role).toBe('wrong')
+  })
+
+  it('takes the mark off when the key is released', async () => {
+    const { useSongLearning } = await import('@/features/songs/use-song-learning')
+    renderHook(() => useSongLearning(song))
+
+    act(() => press(62))
+    act(() => press())
+    expect(useSongStore.getState().wrongNotes).toEqual([])
+  })
+
+  it('does not blame a note held over from the step just finished', async () => {
+    const { useSongLearning } = await import('@/features/songs/use-song-learning')
+    renderHook(() => useSongLearning(song))
+
+    // Play the first step's note and keep holding it. The step advances, and
+    // 60 is not part of the next one — but it was right when it was pressed.
+    act(() => press(60))
+    expect(useSongStore.getState().stepIndex).toBe(1)
+    expect(useSongStore.getState().wrongNotes).toEqual([])
   })
 })

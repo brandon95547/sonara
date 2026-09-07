@@ -29,6 +29,8 @@ export function useSongLearning(song: Song | null) {
   const setSongAnnotations = useLearningStore((state) => state.setSongAnnotations)
   const setStepCount = useSongStore((state) => state.setStepCount)
   const setCurrent = useSongStore((state) => state.setCurrent)
+  const setWrongNotes = useSongStore((state) => state.setWrongNotes)
+  const wrongNotes = useSongStore((state) => state.wrongNotes)
 
   const steps = React.useMemo<SongStep[]>(
     () => (song && mode === 'learn' ? songSteps(song, part) : []),
@@ -81,8 +83,13 @@ export function useSongLearning(song: Song | null) {
         }
       }
     })
+    // A wrong note outranks whatever the step wanted that key for. It is the
+    // one thing on the keybed that is about what you did rather than what to
+    // do next, and it has to be visible over the top of the instruction.
+    for (const note of wrongNotes) annotations[note] = { role: 'wrong' }
+
     setSongAnnotations(annotations)
-  }, [song, mode, steps, stepIndex, setSongAnnotations])
+  }, [song, mode, steps, stepIndex, wrongNotes, setSongAnnotations])
 
   /**
    * Advancing.
@@ -93,19 +100,40 @@ export function useSongLearning(song: Song | null) {
    * playing a chord means.
    */
   React.useEffect(() => {
-    if (!learning || mode !== 'learn' || steps.length === 0) return
+    if (!learning || mode !== 'learn' || steps.length === 0) {
+      setWrongNotes([])
+      return
+    }
+
+    // What was already down last time, so a wrong note is one that is *pressed*
+    // while the step is current rather than one merely still held. Without the
+    // distinction, a note carried over from the step just finished lights up
+    // red for having been right a moment ago.
+    let held = new Set(Object.keys(useKeyboardStore.getState().active).map(Number))
+    let wrong = new Set<number>()
 
     return useKeyboardStore.subscribe((state) => {
       const current = useSongStore.getState().stepIndex
       const step = steps[current]
       if (!step) return
+
       const down = new Set(Object.keys(state.active).map(Number))
+      const wanted = new Set(step.notes.map((note) => note.note))
+      for (const note of down) if (!held.has(note) && !wanted.has(note)) wrong.add(note)
+      // Letting go of a wrong note takes the mark off it.
+      wrong = new Set([...wrong].filter((note) => down.has(note)))
+      held = down
+      setWrongNotes([...wrong].sort((a, b) => a - b))
+
       if (step.notes.every((note) => down.has(note.note))) {
+        // A finished step clears the slate: the next one is a new question.
+        wrong = new Set()
+        setWrongNotes([])
         if (current + 1 >= steps.length) resetLearning()
         else advance(1)
       }
     })
-  }, [learning, mode, steps, advance, resetLearning])
+  }, [learning, mode, steps, advance, resetLearning, setWrongNotes])
 
   return {
     steps,

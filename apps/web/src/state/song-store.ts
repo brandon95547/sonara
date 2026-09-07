@@ -54,6 +54,13 @@ interface SongState {
    * question for every chord in a song.
    */
   currentFingers: readonly { finger: number; hand: Hand }[]
+  /**
+   * Notes pressed that the step did not ask for, so the keyboard can say so.
+   *
+   * Scales have always shown a wrong note in red and songs have not, which
+   * made the same mode behave two ways depending on which tab you were in.
+   */
+  wrongNotes: readonly number[]
 
   add: (song: Song) => void
   open: (id: string) => void
@@ -69,6 +76,7 @@ interface SongState {
   advance: (steps: number) => void
   setStepCount: (count: number) => void
   setCurrent: (fingers: readonly { finger: number; hand: Hand }[]) => void
+  setWrongNotes: (notes: readonly number[]) => void
 }
 
 const STORAGE_KEY = 'sonara.songs.v1'
@@ -143,6 +151,7 @@ export const useSongStore = create<SongState>((set) => ({
   learning: false,
   stepCount: 0,
   currentFingers: [],
+  wrongNotes: [],
 
   add: (song) =>
     set((state) => {
@@ -179,6 +188,15 @@ export const useSongStore = create<SongState>((set) => ({
   advance: (steps) => set((state) => ({ stepIndex: Math.max(0, state.stepIndex + steps) })),
   setStepCount: (stepCount) => set({ stepCount }),
   setCurrent: (currentFingers) => set({ currentFingers }),
+  setWrongNotes: (wrongNotes) =>
+    set((state) =>
+      // Same notes, same array — this runs on every key event, and a fresh
+      // array each time would re-render the whole keybed for nothing.
+      state.wrongNotes.length === wrongNotes.length &&
+      state.wrongNotes.every((note, i) => note === wrongNotes[i])
+        ? state
+        : { wrongNotes },
+    ),
 }))
 
 /** The open song, or null. */
