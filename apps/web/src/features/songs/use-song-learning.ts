@@ -66,7 +66,13 @@ export function useSongLearning(song: Song | null) {
         // "upcoming", and nothing on the keyboard says where you are.
         const existing = annotations[note.note]
         if (existing && existing.role !== 'scale') continue
-        annotations[note.note] = { role: ahead === 0 ? 'target' : 'upcoming' }
+        annotations[note.note] = {
+          role: ahead === 0 ? 'target' : 'upcoming',
+          // Carry the finger through. Without it the keyboard has nothing to
+          // draw when Key Labels is set to Fingers, however well the song is
+          // fingered — which is exactly how it behaved.
+          ...(note.finger !== undefined ? { finger: note.finger } : {}),
+        }
       }
     })
     setSongAnnotations(annotations)

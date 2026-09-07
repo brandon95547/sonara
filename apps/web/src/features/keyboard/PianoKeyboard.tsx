@@ -237,7 +237,11 @@ export function PianoKeyboard({ window: keyWindow, className }: PianoKeyboardPro
  * not report which finger played it, and Sonara does not pretend otherwise.
  */
 function FingerBadges({ layout }: { layout: KeyboardLayout }) {
-  const annotations = useLearningStore((state) => state.annotations)
+  // The same switch every key makes. Reading only the scale annotations left
+  // the badges empty for songs no matter what the song knew.
+  const annotations = useLearningStore((state) =>
+    state.topic === 'songs' ? state.songAnnotations : state.annotations,
+  )
 
   const badges = React.useMemo(() => {
     const all = [
