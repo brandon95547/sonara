@@ -5,6 +5,7 @@ import {
   degreeNames,
   findScaleType,
   fourthFingerDegrees,
+  octaveNotes,
   ordinal,
   relativeKey,
   scaleFingering,
@@ -43,7 +44,10 @@ export function ScaleTheoryDialog({ open, onClose }: { open: boolean; onClose: (
     scaleTypeId: type.id,
     hand: spec.hand,
     octaves: 1,
-    notes: [],
+    // The notes matter for every scale with no published fingering — which is
+    // most of them, the modes and pentatonics included. Passing none left this
+    // dialog showing an empty hand for all of them.
+    notes: octaveNotes(spec.rootPitchClass, type),
   })
   const anchors = fourthFingerDegrees(fingering.fingers, spec.hand)
   const moves = crossings(fingering.fingers, spec.hand, noteNames)

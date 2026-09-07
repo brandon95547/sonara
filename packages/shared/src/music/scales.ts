@@ -173,6 +173,19 @@ export function scaleOffsets(type: ScaleType): number[] {
  * The W/H formula a method book prints: whole step, half step, and the
  * augmented second that harmonic minor is known for.
  */
+/**
+ * One octave of a scale as MIDI notes, root to octave inclusive.
+ *
+ * Which octave it starts in does not matter to anything that reads this — what
+ * matters is which notes are black, and that follows the pitch class. It exists
+ * so a caller that only wants to know how a scale is fingered does not have to
+ * build the note list itself and get it subtly wrong.
+ */
+export function octaveNotes(pitchClass: number, type: ScaleType, start = 60): number[] {
+  const root = start + normalisePitchClass(pitchClass)
+  return [...scaleOffsets(type).map((offset) => root + offset), root + 12]
+}
+
 export function scaleFormula(type: ScaleType): string {
   return type.steps
     .map((step) => (step === 2 ? 'W' : step === 1 ? 'H' : step === 3 ? 'W+H' : `${step}`))

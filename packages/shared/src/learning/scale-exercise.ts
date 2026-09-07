@@ -129,13 +129,26 @@ export function buildScaleExercise(spec: ScaleSpec): Exercise {
     notes: ascending.map((entry) => entry.note),
   })
 
-  // Descending is the same shape read backwards, fingers included — which is
-  // exactly how it is taught, and why only one pattern has to be stored. When
-  // the scale has a separate descending form, the shape read backwards is that
-  // form's; the fingering still mirrors, because the book prints one fingering
-  // for a minor scale and uses it for all three of its forms.
+  // Descending is the ascending shape read backwards, fingers included — which
+  // is how it is taught, and why one stored pattern per scale is enough.
+  //
+  // Unless the way down is a different scale. A melodic minor descends as a
+  // natural minor, and in F♯ and C♯ the two forms are fingered differently: the
+  // source moves the right hand's 4th finger onto the raised sixth going up and
+  // puts it back going down, saying so on the page. Mirroring the ascending
+  // fingering would carry the ascending hand into the descent and contradict
+  // that, so the descending form is fingered as itself.
   const descending = [...climb(descendingOffsets)].reverse()
-  const descendingFingers = [...fingering.fingers].reverse()
+  const descendingFingering = differsDescending
+    ? scaleFingering({
+        rootName: descendingScale.root.name,
+        scaleTypeId: descendingType.id,
+        hand: spec.hand,
+        octaves: spec.octaves,
+        notes: climb(descendingOffsets).map((entry) => entry.note),
+      })
+    : fingering
+  const descendingFingers = [...descendingFingering.fingers].reverse()
 
   const sequence =
     spec.direction === 'up'
