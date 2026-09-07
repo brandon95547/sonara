@@ -22,8 +22,25 @@ const FINGER_NAMES = ['', 'Thumb', 'Index', 'Middle', 'Ring', 'Little'] as const
 export function SongHandCard() {
   const song = useCurrentSong()
   const mode = useSongStore((state) => state.mode)
-  const finger = useSongStore((state) => state.currentFinger)
-  const hand = useSongStore((state) => state.currentHand)
+  const current = useSongStore((state) => state.currentFingers)
+
+  // Grouped by hand, left first — the order they sit in on the keyboard.
+  const hands = (['left', 'right'] as const).flatMap((hand) => {
+    const fingers = current.filter((entry) => entry.hand === hand).map((entry) => entry.finger)
+    return fingers.length > 0 ? [{ hand, fingers }] : []
+  })
+
+  // "Finger 3 · Middle" for one note, because there is room to name it. For a
+  // chord, the digits alone — and where both hands are in it, say which is
+  // which, or "5 3 1 · 1" is a puzzle rather than a reading.
+  const summary =
+    current.length === 1
+      ? `Finger ${current[0]!.finger} · ${FINGER_NAMES[current[0]!.finger]}`
+      : hands.length > 1
+        ? hands
+            .map((side) => `${side.hand === 'left' ? 'Left' : 'Right'} ${side.fingers.join(' ')}`)
+            .join(' · ')
+        : `Fingers ${hands[0]!.fingers.join(' ')}`
   if (!song) return null
 
   return (
@@ -47,18 +64,24 @@ export function SongHandCard() {
       </div>
 
       <div className="flex items-center gap-3">
-        <div className="h-24 w-20 shrink-0">
-          <HandDiagram hand={hand} finger={finger ?? null} />
-        </div>
+        {/* One diagram per hand the step actually uses, left first, so a chord
+            split across both reads the way the keyboard does. */}
+        {(hands.length > 0 ? hands : [{ hand: 'right' as const, fingers: [] }]).map((side) => (
+          <div key={side.hand} className="h-24 w-20 shrink-0">
+            <HandDiagram hand={side.hand} fingers={side.fingers} />
+          </div>
+        ))}
         <div className="flex min-w-0 flex-col gap-1">
           {song.hasFingering ? (
-            finger ? (
+            current.length > 0 ? (
               <>
-                <span className="text-ui text-[var(--ds-fg)]">
-                  Finger {finger} · {FINGER_NAMES[finger]}
-                </span>
+                <span className="text-ui text-[var(--ds-fg)]">{summary}</span>
                 <span className="text-body-sm text-[var(--ds-fg-secondary)]">
-                  {hand === 'right' ? 'Right hand' : 'Left hand'}, from the score.
+                  {hands.length > 1
+                    ? 'Both hands together.'
+                    : hands[0]!.hand === 'right'
+                      ? 'Right hand.'
+                      : 'Left hand.'}
                 </span>
               </>
             ) : (
@@ -85,8 +108,8 @@ export function SongHandCard() {
       {song.fingeringSource === 'derived' && (
         <p className="flex items-start gap-2 text-caption text-[var(--ds-fg-muted)]">
           <Info size={13} className="mt-0.5 shrink-0" aria-hidden />
-          Worked out, not read. Single notes only — chords are left blank rather than guessed, and a
-          fingered score always overrides this.
+          Worked out, not read — from the shapes the method books print and a published model of
+          what a hand can reach. A fingered score always overrides it.
         </p>
       )}
 

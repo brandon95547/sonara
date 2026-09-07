@@ -46,8 +46,14 @@ interface SongState {
    * Kept here rather than threaded through props so the card can sit anywhere
    * on the page without the control row having to hand it down.
    */
-  currentFinger: number | null
-  currentHand: Hand
+  /**
+   * What the step under the player's hands is, flattened for the hand card.
+   *
+   * A list, not one finger: a chord is played with several, and a step can
+   * reach across both hands. Showing the first of them answers the wrong
+   * question for every chord in a song.
+   */
+  currentFingers: readonly { finger: number; hand: Hand }[]
 
   add: (song: Song) => void
   open: (id: string) => void
@@ -62,7 +68,7 @@ interface SongState {
   resetLearning: () => void
   advance: (steps: number) => void
   setStepCount: (count: number) => void
-  setCurrent: (finger: number | null, hand: Hand) => void
+  setCurrent: (fingers: readonly { finger: number; hand: Hand }[]) => void
 }
 
 const STORAGE_KEY = 'sonara.songs.v1'
@@ -136,8 +142,7 @@ export const useSongStore = create<SongState>((set) => ({
   stepIndex: 0,
   learning: false,
   stepCount: 0,
-  currentFinger: null,
-  currentHand: 'right',
+  currentFingers: [],
 
   add: (song) =>
     set((state) => {
@@ -173,7 +178,7 @@ export const useSongStore = create<SongState>((set) => ({
   resetLearning: () => set({ ...IDLE }),
   advance: (steps) => set((state) => ({ stepIndex: Math.max(0, state.stepIndex + steps) })),
   setStepCount: (stepCount) => set({ stepCount }),
-  setCurrent: (currentFinger, currentHand) => set({ currentFinger, currentHand }),
+  setCurrent: (currentFingers) => set({ currentFingers }),
 }))
 
 /** The open song, or null. */

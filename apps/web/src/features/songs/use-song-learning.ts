@@ -38,9 +38,15 @@ export function useSongLearning(song: Song | null) {
   React.useEffect(() => setStepCount(steps.length), [steps, setStepCount])
 
   // Flatten the step to what the hand card needs, so it can live anywhere.
+  // Every note of it, low to high: a chord is a hand shape, and one finger out
+  // of three is not one.
   React.useEffect(() => {
-    const note = steps[stepIndex]?.notes[0]
-    setCurrent(note?.finger ?? null, note?.hand ?? 'right')
+    const notes = [...(steps[stepIndex]?.notes ?? [])].sort((a, b) => a.note - b.note)
+    setCurrent(
+      notes.flatMap((note) =>
+        note.finger === undefined ? [] : [{ finger: note.finger, hand: note.hand }],
+      ),
+    )
   }, [steps, stepIndex, setCurrent])
 
   // What the keyboard shows. Rebuilt only when the step moves, not per frame.

@@ -2,11 +2,16 @@ import { cn } from '@/lib/cn'
 import type { Hand } from '@sonara/shared'
 
 /**
- * A hand with one finger lit.
+ * A hand with its fingers lit.
  *
  * Deliberately schematic. The job is to answer "which finger is 4?" at a
  * glance while the other hand is on the keys — an anatomically careful drawing
  * would be slower to read, not faster.
+ *
+ * More than one finger at a time, because a chord is played with more than one
+ * finger. Showing only the first — which is what this did — answers the wrong
+ * question for every chord in a song: the player needs the shape of the hand,
+ * not one number out of three.
  *
  * It shows a RECOMMENDATION. MIDI carries the note and the velocity and
  * nothing about the hand that produced them, so this can never be a readout of
@@ -29,21 +34,25 @@ const FINGERS: readonly FingerShape[] = [
 
 export function HandDiagram({
   hand,
-  finger,
+  fingers,
   className,
 }: {
   hand: Hand
-  /** The recommended finger, 1-5, or null when nothing is due. */
-  finger: number | null
+  /** The recommended fingers, 1-5, low note first. Empty when nothing is due. */
+  fingers: readonly number[]
   className?: string
 }) {
+  const lit = new Set(fingers)
+  const side = hand === 'right' ? 'Right' : 'Left'
   return (
     <svg
       viewBox="0 0 104 108"
       className={cn('h-full w-full', className)}
       role="img"
       aria-label={
-        finger ? `${hand === 'right' ? 'Right' : 'Left'} hand, finger ${finger}` : `${hand} hand`
+        fingers.length > 0
+          ? `${side} hand, ${fingers.length === 1 ? 'finger' : 'fingers'} ${fingers.join(', ')}`
+          : `${side} hand`
       }
       // The left hand is the right hand seen in a mirror. Drawing it twice
       // would be two things to keep in step for no gain.
@@ -55,25 +64,28 @@ export function HandDiagram({
           <path
             key={shape.finger}
             d={shape.d}
-            fill={shape.finger === finger ? 'var(--ds-accent)' : 'transparent'}
-            stroke={shape.finger === finger ? 'var(--ds-accent)' : 'var(--ds-border-strong)'}
+            fill={lit.has(shape.finger) ? 'var(--ds-accent)' : 'transparent'}
+            stroke={lit.has(shape.finger) ? 'var(--ds-accent)' : 'var(--ds-border-strong)'}
           />
         ))}
       </g>
-      {finger !== null && (
+      {fingers.length > 0 && (
         <text
           x="52"
           y="92"
           textAnchor="middle"
-          fontSize="20"
+          // One finger gets the full-size digit it always had. A chord's worth
+          // shrinks to fit rather than overflowing the palm.
+          fontSize={fingers.length > 2 ? 15 : 20}
           fontWeight="650"
           fill="var(--ds-accent-text)"
-          // Un-mirrored so a left-hand diagram does not print a reversed digit.
+          // Un-mirrored so a left-hand diagram does not print a reversed digit,
+          // and so a chord's fingers read low to high rather than backwards.
           style={
             hand === 'left' ? { transform: 'scaleX(-1)', transformOrigin: '52px 92px' } : undefined
           }
         >
-          {finger}
+          {fingers.join(' ')}
         </text>
       )}
     </svg>

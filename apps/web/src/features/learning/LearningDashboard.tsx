@@ -208,7 +208,7 @@ function CurrentStepCard({
           </div>
           {reveal && (
             <div className="h-28 w-24 shrink-0" aria-hidden={false}>
-              <HandDiagram hand={hand} finger={finger} />
+              <HandDiagram hand={hand} fingers={finger === null ? [] : [finger]} />
             </div>
           )}
         </div>
@@ -410,7 +410,7 @@ function HandPositionCard({ exercise, session }: { exercise: Exercise; session: 
   return (
     <Card className="flex gap-3">
       <div className="h-20 w-16 shrink-0 opacity-70">
-        <HandDiagram hand={hand} finger={step?.fingers[0]?.finger ?? null} />
+        <HandDiagram hand={hand} fingers={step?.fingers.map((f) => f.finger) ?? []} />
       </div>
       <div className="flex min-w-0 flex-col gap-1.5">
         <h3 className="flex items-center gap-2 text-label text-[var(--ds-fg)]">

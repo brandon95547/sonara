@@ -73,3 +73,112 @@ describe('a song’s fingering reaching the keyboard', () => {
     expect(chosen[60]?.finger).toBe(1)
   })
 })
+
+/**
+ * A chord is a hand shape, not a note.
+ *
+ * The keyboard had this right — every note of the step lights with its own
+ * finger. The hand card did not: it took the first note of the step and showed
+ * one finger, so a three-note chord looked like a single note and a chord
+ * spanning both hands showed one hand.
+ */
+describe('a chord in Learn', () => {
+  const chord = (): SongNote[] => [
+    {
+      note: 48,
+      velocity: 90,
+      startMs: 0,
+      durationMs: 400,
+      hand: 'left',
+      role: 'keyboard',
+      finger: 5,
+    },
+    {
+      note: 52,
+      velocity: 90,
+      startMs: 0,
+      durationMs: 400,
+      hand: 'left',
+      role: 'keyboard',
+      finger: 3,
+    },
+    {
+      note: 55,
+      velocity: 90,
+      startMs: 0,
+      durationMs: 400,
+      hand: 'left',
+      role: 'keyboard',
+      finger: 1,
+    },
+    {
+      note: 72,
+      velocity: 90,
+      startMs: 0,
+      durationMs: 400,
+      hand: 'right',
+      role: 'keyboard',
+      finger: 2,
+    },
+  ]
+
+  const song = buildSong({
+    id: 'c',
+    title: 'c',
+    bpm: 120,
+    beatsPerMeasure: 4,
+    notes: chord(),
+    source: 'midi',
+    // Already decided, so nothing re-splits the chord underneath the test.
+    handsInferred: false,
+  })
+
+  beforeEach(() => {
+    useLearningStore.setState({ topic: 'songs', songAnnotations: {} })
+    useSongStore.setState({
+      library: [song],
+      currentId: song.id,
+      mode: 'learn',
+      part: 'both',
+      stepIndex: 0,
+      currentFingers: [],
+    })
+  })
+
+  it('lights every note of the chord on the keyboard', async () => {
+    const { useSongLearning } = await import('@/features/songs/use-song-learning')
+    renderHook(() => useSongLearning(song))
+
+    const annotations = useLearningStore.getState().songAnnotations
+    for (const [note, finger] of [
+      [48, 5],
+      [52, 3],
+      [55, 1],
+      [72, 2],
+    ] as const) {
+      expect(annotations[note]?.role, `note ${note}`).toBe('target')
+      expect(annotations[note]?.finger, `note ${note}`).toBe(finger)
+    }
+  })
+
+  it('gives the hand card every finger, not the first one', async () => {
+    const { useSongLearning } = await import('@/features/songs/use-song-learning')
+    renderHook(() => useSongLearning(song))
+
+    // Low to high, which is the order a grip is held in.
+    expect(useSongStore.getState().currentFingers).toEqual([
+      { finger: 5, hand: 'left' },
+      { finger: 3, hand: 'left' },
+      { finger: 1, hand: 'left' },
+      { finger: 2, hand: 'right' },
+    ])
+  })
+
+  it('keeps both hands when a step reaches across them', async () => {
+    const { useSongLearning } = await import('@/features/songs/use-song-learning')
+    renderHook(() => useSongLearning(song))
+
+    const used = new Set(useSongStore.getState().currentFingers.map((entry) => entry.hand))
+    expect([...used].sort()).toEqual(['left', 'right'])
+  })
+})
