@@ -8,6 +8,8 @@ touchscreen or a USB MIDI keyboard, and watch every note land on the keys.
 
 ## What it does today
 
+### The instrument
+
 - **A virtual keyboard on centre stage**, responsive from 320px to a 4K monitor.
   It is sized in the sizes keyboards are sold in — 25, 32, 37, 49, 61, 76, 88 —
   defaulting to **61 key**, and each one keeps the range that size really has
@@ -21,10 +23,74 @@ touchscreen or a USB MIDI keyboard, and watch every note land on the keys.
 - **USB MIDI in**, with per-keyboard detection and configuration: transpose,
   octave shift, velocity curve, channel filter and sustain pedal, saved against
   the keyboard and restored the next time it is plugged in.
-- **A learning system built into the instrument.** Pick a scale, then pick how
-  much help you want: **Explore** lights every note of it across the whole
-  keyboard, **Learn** walks you through one note at a time with the recommended
-  finger on the key, and **Practice** takes the guidance away and keeps score.
+- **A live grand staff** above the keyboard, and view controls beneath it —
+  follow, key labels (off, notes, degrees or fingers), scale structure, and the
+  staff itself.
+
+### Learning a scale
+
+- **Explore, Learn, Practice.** Explore lights every note of the scale across
+  the whole keyboard; Learn walks you through one note at a time with the
+  recommended finger on the key; Practice takes the guidance away and keeps
+  score.
+- **Fourteen scale types** — major, all three minors, the five modes, both
+  pentatonics, blues, chromatic and whole tone — in every key, either hand, one
+  to three octaves, ascending, descending or both.
+- **Play it to hear it.** A demo button walks the scale at a learnable tempo,
+  driving the same finger and target guidance Learn uses.
+- **"Understand this scale"** explains the one you have selected: how it is
+  built from its tetrachords, its degrees, its relative key, and the fingering
+  principle behind the hand you are being shown.
+
+### Songs
+
+- **Import MusicXML (`.musicxml`, `.xml`), Compressed MusicXML (`.mxl`),
+  MuseScore (`.mscz`) and MIDI (`.mid`, `.midi`)** — normalised into one score
+  model on the way in, so playback, the keyboard, the staff and Learn never know
+  which format a song came from. Formats are identified by their first bytes,
+  not their extension.
+- **It tells you what the file did not carry.** Notes, rhythm, hands, dynamics,
+  pedal and fingering are each recorded as present or absent, and the library
+  says so rather than quietly filling gaps.
+- **Fingering is worked out for files that have none** — see below.
+- **Drums are played as drums.** A MIDI file's percussion channel is routed to a
+  synthesised kit rather than onto the piano, and accompaniment parts sound
+  without lighting keys you are not being asked to play.
+- **Explore and Learn for songs**, with part selection, tempo, a metronome and a
+  progress bar over the staff. The library persists between sessions.
+
+### Recording
+
+- **Record what you play**, with a three-second countdown, and export the take as
+  **MIDI** or **MusicXML**.
+
+### Fingering on import
+
+MIDI has nowhere to record which finger plays a note — the format has no field
+for it — and plenty of scores are published unfingered. Sonara works it out.
+
+- A **fingered score is never touched.** Whoever edited it knew more than this
+  does.
+- Otherwise each hand's part is cut into runs of single notes and each run is
+  fingered by searching every possibility against a published model of what a
+  hand finds difficult (Parncutt et al., _Music Perception_ 14(4), 1997 — twelve
+  weighted rules the authors tested against fingerings pianists wrote on Czerny
+  studies).
+- **Chords are declined, visibly.** The model is for melodic fragments, and a
+  method book fingers a triad without regard for what follows it — which the
+  same book's cadences disprove. A gap you can see beats a confident wrong
+  answer.
+- **You can always tell which you are looking at.** Worked-out fingering is
+  labelled _Suggested_; fingering an editor wrote is labelled _Fingered score_.
+
+Imported through the real path, a MIDI C major scale up and back down comes out
+`1 2 3 1 2 3 4 5 · 4 3 2 1 3 2 1` — the fingering a method book prints, from a
+file that could not have contained it.
+
+The full reference for all of this — the twelve rules, the span tables, the
+published scale fingerings and how they were verified — is
+`piano-fingering-reference.md`, kept alongside this repo rather than inside it
+because it is source material for more than one project.
 
 ## Getting started
 
@@ -91,9 +157,10 @@ itself, rather than being quietly silent.
 ## Layout
 
 ```
-packages/shared   the domain: MIDI decoding, note maths, velocity curves,
-                  device profiles, and the zod schemas the API and the app
-                  both validate against
+packages/shared   the domain: MIDI decoding, note maths, scales and
+                  fingering, the score model and its importers' output,
+                  velocity curves, device profiles, and the zod schemas the
+                  API and the app both validate against
 apps/api          Fastify + SQLite. The piano catalogue, the controller
                   profile database, and per-device configuration
 apps/web          React + Vite + Tailwind v4. The keyboard, the audio
@@ -177,11 +244,59 @@ class 1 comes out as D♭ _major_ and C♯ _minor_.
 
 **Fingering is a recommendation, never a reading.** MIDI reports which note was
 played and how hard. It does not report which finger played it, and Sonara does
-not pretend otherwise — the cards say so. Major and natural minor carry the
-fingerings method books teach; other scale types are derived from the two rules
-those fingerings themselves follow (the thumb does not play a black key; the
-hand moves in groups of three or four) and are labelled _Suggested_ rather than
-_Standard_, because those are different claims.
+not pretend otherwise — the cards say so.
+
+Two sources answer two different questions, and which one applies decides what
+the answer is labelled.
+
+_Published tables_ cover major, all three minor forms and the chromatic scale,
+in every key and both hands, checked against the degree each page names for its
+4th finger — which is how the source indexes a scale, and what catches a wrong
+pattern that happens to be playable. Three of those keys are exceptions worth
+knowing about: G♯ minor's left hand differs between its natural and harmonic
+forms, and F♯ and C♯ **melodic** minor move the right hand's 4th finger onto the
+raised sixth going up. A melodic minor descends as a natural minor and is
+fingered as one, because mirroring the ascent lands the same finger on both
+notes either side of the turn. Tables are keyed by pitch class rather than by
+name: D♯ minor and E♭ minor are one scale, and a caller will ask for whichever
+name you did not store.
+
+_Worked out_ covers everything else. For scales with no published fingering the
+thumb positions are planned across the whole passage by shortest path and the
+fingers filled in afterwards, which makes the result playable by construction —
+no finger reachable twice, the little finger only at an end. Run over the notes
+of the 24 published scales it reproduces every one, exactly or as the primary
+where the table stores the variant that continues into the next octave. Two
+rules do that work, and their order is the whole point: "the thumb avoids black
+keys" is a preference, "the hand has five fingers" is anatomy, and enforcing the
+first absolutely while letting the second slide produces fingerings that ask the
+little finger for three rising notes in a row.
+
+Anything worked out is labelled _Suggested_ rather than _Standard_, because
+those are different claims.
+
+### Songs
+
+Four formats in, one score model out. `read-song.ts` is the only way in and
+sniffs the first bytes rather than trusting an extension — a `.xml` that is
+really MIDI and a `.mid` that is really XML both happen when files come out of
+other programs.
+
+`.mxl` and `.mscz` are both zips. The MusicXML one is read through the manifest
+its spec requires; the MuseScore one is **not**, because MuseScore 4 lists every
+file in the archive as a `<rootfile>` with the style sheet first, so following
+the pointer hands back `score_style.mss`. The score is found by extension
+instead. MuseScore 3 happens to put it first and survives either reading, which
+is why both are kept as fixtures.
+
+A staff is only a hand when one `<Part>` owns two of them. Two single-staff
+parts are two instruments, and reading the lower one as a left hand puts a
+melody where no left hand plays — and, worse, claims the score said so.
+
+Fingering that the file did not carry is worked out on import by
+`songs/song-fingering.ts`, over the hand model in `music/hand-model.ts` and the
+search in `music/finger-passage.ts`. Runs break at chords and at rests long
+enough to move the hand.
 
 ### MIDI
 

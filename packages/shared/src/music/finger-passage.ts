@@ -48,7 +48,11 @@ export function fingerPassage(notes: readonly number[], hand: Hand): PassageFing
     const finger = FINGERS.reduce((best, f) =>
       noteCost(only, f) < noteCost(only, best) ? f : best,
     )
-    return { fingers: [finger], cost: noteCost(only, finger), byRule: explain(notes, [finger], hand) }
+    return {
+      fingers: [finger],
+      cost: noteCost(only, finger),
+      byRule: explain(notes, [finger], hand),
+    }
   }
 
   // best[a][b] — cheapest way to reach here with finger a on the previous note
@@ -62,7 +66,9 @@ export function fingerPassage(notes: readonly number[], hand: Hand): PassageFing
       if (!repeated(notes[0]!, notes[1]!) && !reachable(f, g, notes[1]! - notes[0]!, hand)) continue
       if (repeated(notes[0]!, notes[1]!) && f !== g) continue
       best[f - 1]![g - 1] =
-        noteCost(notes[0]!, f) + noteCost(notes[1]!, g) + (repeated(notes[0]!, notes[1]!) ? 0 : pairCost(notes[0]!, notes[1]!, f, g, hand))
+        noteCost(notes[0]!, f) +
+        noteCost(notes[1]!, g) +
+        (repeated(notes[0]!, notes[1]!) ? 0 : pairCost(notes[0]!, notes[1]!, f, g, hand))
     }
   }
 
@@ -137,8 +143,14 @@ export function explain(
     }
     if (i >= 2) {
       tripleCost(
-        notes[i - 2]!, notes[i - 1]!, notes[i]!,
-        fingers[i - 2]!, fingers[i - 1]!, finger, hand, tally,
+        notes[i - 2]!,
+        notes[i - 1]!,
+        notes[i]!,
+        fingers[i - 2]!,
+        fingers[i - 1]!,
+        finger,
+        hand,
+        tally,
       )
     }
   }

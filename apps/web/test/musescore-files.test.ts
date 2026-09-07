@@ -127,14 +127,12 @@ describe('a score that is not a piano score', () => {
     expect(onsets).toEqual([0, 1, 2, 3])
   })
 
-  it('does not count a slur\'s own <location> as a beat of music', () => {
+  it("does not count a slur's own <location> as a beat of music", () => {
     // <Spanner> records where it reaches with nested <location> elements.
     // Read as though they were the bar's contents they advance the cursor
     // through music that is not there, and the drift accumulates.
     const beat = 60000 / song.bpm
-    const slurred = [64, 69, 71, 72].map(
-      (pitch) => song.notes.find((note) => note.note === pitch)!,
-    )
+    const slurred = [64, 69, 71, 72].map((pitch) => song.notes.find((note) => note.note === pitch)!)
     expect(slurred.map((note) => Math.round(note.startMs / beat))).toEqual([0, 1, 2, 3])
   })
 
@@ -150,10 +148,12 @@ describe('a score that is not a piano score', () => {
   it('still reads hands when one part owns two staves', () => {
     // The piano case, which is the one where a staff really is a hand.
     const piano = importMuseScore(
-      text
-        .replace(/<Part>[\s\S]*?<\/Part>\s*<Part>[\s\S]*?<\/Part>/, '<Part>' +
+      text.replace(
+        /<Part>[\s\S]*?<\/Part>\s*<Part>[\s\S]*?<\/Part>/,
+        '<Part>' +
           '<Staff id="1"/><Staff id="2"/>' +
-          '<Instrument id="piano"><longName>Piano</longName></Instrument></Part>'),
+          '<Instrument id="piano"><longName>Piano</longName></Instrument></Part>',
+      ),
       'x',
     )!
     expect(piano.parts).toEqual(['Piano'])

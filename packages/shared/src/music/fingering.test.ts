@@ -3,7 +3,6 @@ import { scaleFingering } from './fingering.js'
 import { buildScaleExercise } from '../learning/scale-exercise.js'
 import { SCALE_TYPES, findScaleType, octaveNotes, spellScale } from './scales.js'
 
-
 const digits = (fingers: readonly number[]) => fingers.join('')
 
 const scale = (rootName: string, scaleTypeId: string, hand: 'right' | 'left', octaves = 1) =>
@@ -367,7 +366,13 @@ describe('working a fingering out', () => {
         for (const hand of ['right', 'left'] as const) {
           const rootName = spellScale(pitchClass, type).root.name
           const notes = octaveNotes(pitchClass, type)
-          const published = scaleFingering({ rootName, scaleTypeId: typeId, hand, octaves: 1, notes })
+          const published = scaleFingering({
+            rootName,
+            scaleTypeId: typeId,
+            hand,
+            octaves: 1,
+            notes,
+          })
           const workedOut = scaleFingering({
             rootName,
             scaleTypeId: 'no-such-scale',
@@ -398,10 +403,18 @@ describe('working a fingering out', () => {
     // white one, except where two white keys touch and one has to give way.
     const notes = Array.from({ length: 13 }, (_, i) => 60 + i)
     const right = scaleFingering({
-      rootName: 'C', scaleTypeId: 'chromatic', hand: 'right', octaves: 1, notes,
+      rootName: 'C',
+      scaleTypeId: 'chromatic',
+      hand: 'right',
+      octaves: 1,
+      notes,
     })
     const left = scaleFingering({
-      rootName: 'C', scaleTypeId: 'chromatic', hand: 'left', octaves: 1, notes,
+      rootName: 'C',
+      scaleTypeId: 'chromatic',
+      hand: 'left',
+      octaves: 1,
+      notes,
     })
     // RH takes 2 on C and F; LH takes 2 on E and B.
     expect(digits(right.fingers)).toBe('2313123131312')
@@ -461,7 +474,11 @@ describe('the turn, and passages that are not scales', () => {
     // Chromatic is applied by rule from the notes, so with no notes there is
     // no rule to apply and nothing published about the answer.
     const empty = scaleFingering({
-      rootName: 'C', scaleTypeId: 'chromatic', hand: 'right', octaves: 1, notes: [],
+      rootName: 'C',
+      scaleTypeId: 'chromatic',
+      hand: 'right',
+      octaves: 1,
+      notes: [],
     })
     expect(empty.fingers).toEqual([])
     expect(empty.source).toBe('derived')

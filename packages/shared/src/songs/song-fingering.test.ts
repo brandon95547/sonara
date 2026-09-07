@@ -2,11 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { fingerSong } from './song-fingering.js'
 import { buildSong, type SongNote } from './song.js'
 
-const note = (
-  pitch: number,
-  startMs: number,
-  extra: Partial<SongNote> = {},
-): SongNote => ({
+const note = (pitch: number, startMs: number, extra: Partial<SongNote> = {}): SongNote => ({
   note: pitch,
   velocity: 90,
   startMs,
@@ -54,9 +50,7 @@ describe('fingering a song the file did not finger', () => {
   it('declines chords rather than guessing at them', () => {
     // The model is for melodic fragments, and the method books finger a triad
     // without regard for what follows it — which their own cadences disprove.
-    const chords = [0, 1, 2].flatMap((step) =>
-      [60, 64, 67].map((pitch) => note(pitch, step * 500)),
-    )
+    const chords = [0, 1, 2].flatMap((step) => [60, 64, 67].map((pitch) => note(pitch, step * 500)))
     const fingered = fingerSong(song(chords))
     expect(fingered.notes.every((n) => n.finger === undefined)).toBe(true)
     expect(fingered.fingeringSource).toBeUndefined()

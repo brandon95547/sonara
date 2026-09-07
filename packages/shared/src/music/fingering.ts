@@ -355,7 +355,10 @@ export function scaleFingering(request: FingeringRequest): Fingering {
   // the request: asking twice is how the chromatic scale came to report itself
   // as published while returning nothing at all.
   const { fingers, source }: { fingers: number[]; source: Fingering['source'] } = published
-    ? { fingers: extend(published[request.hand], request.octaves, request.hand), source: 'standard' }
+    ? {
+        fingers: extend(published[request.hand], request.octaves, request.hand),
+        source: 'standard',
+      }
     : // The chromatic fingering is the source's own, applied by rule rather
       // than stored as a pattern, so it counts as published too.
       request.scaleTypeId === 'chromatic' && request.notes.length > 0

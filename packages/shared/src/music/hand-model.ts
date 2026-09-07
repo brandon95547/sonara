@@ -208,8 +208,7 @@ export function tripleCost(
   if (beyondComfort) {
     // A full change is the thumb in the middle, the middle note between the
     // outer two in pitch, and the outer interval past what is practical.
-    const middleBetween =
-      (noteB > noteA && noteB < noteC) || (noteB < noteA && noteB > noteC)
+    const middleBetween = (noteB > noteA && noteB < noteC) || (noteB < noteA && noteB > noteC)
     const full = g === 1 && middleBetween && (outer > maxPrac(f, h) || outer < minPrac(f, h))
     points += add(tally, 'position-change-count', full ? 2 : 1)
 

@@ -85,16 +85,16 @@ export function SongHandCard() {
       {song.fingeringSource === 'derived' && (
         <p className="flex items-start gap-2 text-caption text-[var(--ds-fg-muted)]">
           <Info size={13} className="mt-0.5 shrink-0" aria-hidden />
-          Worked out, not read. Single notes only — chords are left blank rather than guessed, and
-          a fingered score always overrides this.
+          Worked out, not read. Single notes only — chords are left blank rather than guessed, and a
+          fingered score always overrides this.
         </p>
       )}
 
       {!song.hasFingering && (
         <p className="flex items-start gap-2 text-caption text-[var(--ds-fg-muted)]">
           <Info size={13} className="mt-0.5 shrink-0" aria-hidden />
-          Nothing could be worked out here either — a guessed finger drawn as though the score
-          asked for it is worse than none.
+          Nothing could be worked out here either — a guessed finger drawn as though the score asked
+          for it is worse than none.
         </p>
       )}
     </Card>

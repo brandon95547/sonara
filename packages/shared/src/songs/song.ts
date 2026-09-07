@@ -167,7 +167,9 @@ export function buildSong(input: {
     // replace, and the song comes out with no key at all.
     key: input.key ?? estimateKey(notes),
     hasFingering: notes.some((note) => note.finger !== undefined),
-    ...(notes.some((note) => note.finger !== undefined) ? { fingeringSource: 'score' as const } : {}),
+    ...(notes.some((note) => note.finger !== undefined)
+      ? { fingeringSource: 'score' as const }
+      : {}),
     pedal: input.pedal ?? [],
     provides: {
       notes: notes.length > 0,
