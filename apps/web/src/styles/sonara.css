@@ -654,21 +654,33 @@
 .staff__step[data-role='ahead'] ellipse {
   fill: var(--ds-fg-muted);
 }
-.staff__step[data-role='played'] .staff__accidental,
-.staff__step[data-role='ahead'] .staff__accidental,
-.staff__step[data-role='played'] .staff__finger,
-.staff__step[data-role='ahead'] .staff__finger {
+.staff__step[data-role='played'] :is(.staff__accidental, .staff__finger, .staff__flag, .staff__dot),
+.staff__step[data-role='ahead'] :is(.staff__accidental, .staff__finger, .staff__flag, .staff__dot) {
   fill: var(--ds-fg-muted);
+}
+.staff__step[data-role='played'] :is(.staff__stem, .staff__note--hollow ellipse),
+.staff__step[data-role='ahead'] :is(.staff__stem, .staff__note--hollow ellipse) {
+  stroke: var(--ds-fg-muted);
 }
 .staff__step[data-role='upcoming'] ellipse {
   fill: var(--ds-accent-text);
 }
+.staff__step[data-role='upcoming'] .staff__note--hollow ellipse {
+  fill: none;
+}
 .staff__step[data-role='target'] ellipse {
   fill: var(--ds-fg);
 }
-.staff__step[data-role='target'] .staff__accidental,
-.staff__step[data-role='target'] .staff__finger {
+.staff__step[data-role='target']
+  :is(.staff__accidental, .staff__finger, .staff__flag, .staff__dot) {
   fill: var(--ds-fg);
+}
+.staff__step[data-role='target'] :is(.staff__stem, .staff__note--hollow ellipse) {
+  stroke: var(--ds-fg);
+}
+/* A hollow head stays hollow whatever colour it is wearing. */
+.staff__step[data-role='target'] .staff__note--hollow ellipse {
+  fill: none;
 }
 
 /* The cursor. A band rather than a line, because it has to say "these notes,
@@ -726,6 +738,31 @@
    and everything else stays structural. */
 .staff__note ellipse {
   fill: var(--ds-accent-text);
+}
+/* A minim and a semibreve are hollow. Stroked rather than filled, and drawn a
+   little heavier so the ring reads at the size a notehead actually gets. */
+.staff__note--hollow ellipse {
+  fill: none;
+  stroke: var(--ds-accent-text);
+  stroke-width: 2.2;
+  vector-effect: non-scaling-stroke;
+}
+.staff__stem {
+  stroke: var(--ds-accent-text);
+  stroke-width: 1.6;
+  vector-effect: non-scaling-stroke;
+}
+.staff__flag {
+  fill: var(--ds-accent-text);
+}
+.staff__dot {
+  fill: var(--ds-accent-text);
+}
+.staff__time-digit {
+  fill: var(--ds-fg-secondary);
+  font-size: 22px;
+  font-weight: 700;
+  text-anchor: middle;
 }
 .staff__accidental {
   fill: var(--ds-accent-text);

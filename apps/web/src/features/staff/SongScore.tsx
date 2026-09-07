@@ -1,8 +1,15 @@
 import * as React from 'react'
-import { ledgerSteps, songSteps, staffPlacement, type SongStep } from '@sonara/shared'
+import {
+  songSteps,
+  staffPlacement,
+  writtenValue,
+  type SongStep,
+  type WrittenValue,
+} from '@sonara/shared'
 import { useSongStore, useCurrentSong } from '@/state/song-store'
 import { useElementSize } from '@/lib/hooks'
 import { GUTTER, StaffGutter, StaffLines, STEP, HALF_HEIGHT, y } from './staff-frame'
+import { Chord, KeySignature, TimeSignature } from './StaffNotes'
 
 /**
  * The song, written out, with your place in it.
@@ -26,8 +33,8 @@ const MEASURE_WIDTH = 210
 const MIN_GAP = 26
 /** Never further than this: a held note should not push the next page away. */
 const MAX_GAP = 150
-/** The first note sits clear of the pinned clefs. */
-const FIRST_X = GUTTER + 22
+/** The first note sits clear of the pinned clefs, key and time signatures. */
+const FIRST_X = GUTTER + 60
 /** How many steps ahead keep a marking, matching the keyboard's lookahead. */
 const LOOKAHEAD = 4
 
@@ -37,6 +44,7 @@ interface Placed {
   readonly x: number
   readonly step: SongStep
   readonly index: number
+  readonly value: { readonly treble: WrittenValue; readonly bass: WrittenValue }
 }
 
 export function SongScore() {
@@ -60,13 +68,34 @@ export function SongScore() {
    */
   const placed = React.useMemo<Placed[]>(() => {
     const measure = song?.measureMs ?? 2000
+    const beat = song ? 60000 / song.bpm : 500
     let x = FIRST_X
     return steps.map((step, index) => {
       if (index > 0) {
         const gap = step.startMs - steps[index - 1]!.startMs
         x += Math.min(MAX_GAP, Math.max(MIN_GAP, (gap / measure) * MEASURE_WIDTH))
       }
-      return { x, step, index }
+      // How long the notes are *written* as, which is the time until this
+      // staff next has something — not how long a key was held. A player
+      // releasing early has played a short crotchet, not a quaver.
+      //
+      // Per staff, because the hands keep their own rhythm. A bar-long chord
+      // under a run of quavers is a semibreve, and taking the melody's value
+      // for it writes it as a crotchet with a stem.
+      const value = { treble: written('treble'), bass: written('bass') }
+      function written(staff: 'treble' | 'bass'): WrittenValue {
+        const on = (candidate: SongStep) =>
+          candidate.notes.some((note) => staffPlacement(note.note).staff === staff)
+        if (!on(step)) return writtenValue(beat, beat)
+        const next = steps.slice(index + 1).find(on)
+        const held = Math.max(
+          ...step.notes
+            .filter((note) => staffPlacement(note.note).staff === staff)
+            .map((note) => note.durationMs),
+        )
+        return writtenValue(next ? next.startMs - step.startMs : held, beat)
+      }
+      return { x, step, index, value }
     })
   }, [steps, song])
 
@@ -141,14 +170,26 @@ export function SongScore() {
           }
         >
           <StaffLines width={totalWidth} />
+          <KeySignature x={GUTTER + 4} fifths={song?.key?.fifths ?? 0} />
+          <TimeSignature
+            x={GUTTER + 8 + Math.min(7, Math.abs(song?.key?.fifths ?? 0)) * STEP * 2.1}
+            beats={song?.beatsPerMeasure ?? 4}
+          />
 
           {song &&
             barLines(song.measureMs, steps, placed).map((x) => (
               <line key={x} x1={x} y1={y(10)} x2={x} y2={y(-10)} className="staff__bar" />
             ))}
 
-          {placed.map(({ x, step, index }) => (
-            <Step key={index} x={x} step={step} role={roleFor(index)} />
+          {placed.map(({ x, step, index, value }) => (
+            <Step
+              key={index}
+              x={x}
+              step={step}
+              value={value}
+              role={roleFor(index)}
+              fifths={song?.key?.fifths ?? 0}
+            />
           ))}
         </svg>
       </div>
@@ -180,10 +221,20 @@ function barLines(measureMs: number, steps: readonly SongStep[], placed: readonl
   return lines
 }
 
-function Step({ x, step, role }: { x: number; step: SongStep; role: Role }) {
+function Step({
+  x,
+  step,
+  value,
+  role,
+  fifths,
+}: {
+  x: number
+  step: SongStep
+  value: { readonly treble: WrittenValue; readonly bass: WrittenValue }
+  role: Role
+  fifths: number
+}) {
   const notes = [...step.notes].sort((a, b) => a.note - b.note)
-  const seen: number[] = []
-
   const lowest = Math.min(...notes.map((note) => staffPlacement(note.note).steps))
   const highest = Math.max(...notes.map((note) => staffPlacement(note.note).steps))
 
@@ -200,47 +251,12 @@ function Step({ x, step, role }: { x: number; step: SongStep; role: Role }) {
           className="staff__cursor"
         />
       )}
-      {notes.map((note) => {
-        const placement = staffPlacement(note.note)
-        // An engraver shifts the upper of two notes a second apart so their
-        // noteheads sit side by side rather than on top of one another.
-        const clash = seen.some((steps) => Math.abs(steps - placement.steps) === 1)
-        seen.push(placement.steps)
-        const cx = x + (clash ? STEP * 2.4 : 0)
-        const cy = y(placement.steps)
-
-        return (
-          <g key={`${note.note}-${note.startMs}`} className="staff__note">
-            {ledgerSteps(placement).map((steps) => (
-              <line
-                key={steps}
-                x1={cx - STEP * 2.2}
-                y1={y(steps)}
-                x2={cx + STEP * 2.2}
-                y2={y(steps)}
-                className="staff__ledger"
-              />
-            ))}
-            <ellipse
-              cx={cx}
-              cy={cy}
-              rx={STEP * 1.35}
-              ry={STEP * 0.98}
-              transform={`rotate(-18 ${cx} ${cy})`}
-            />
-            {placement.sharp && (
-              <text x={cx - STEP * 3.6} y={cy + STEP * 0.9} className="staff__accidental">
-                ♯
-              </text>
-            )}
-            {note.finger !== undefined && (
-              <text x={cx} y={cy - STEP * 2.6} className="staff__finger">
-                {note.finger}
-              </text>
-            )}
-          </g>
-        )
-      })}
+      <Chord
+        x={x}
+        notes={notes.map((note) => ({ note: note.note, finger: note.finger }))}
+        value={value}
+        fifths={fifths}
+      />
     </g>
   )
 }
