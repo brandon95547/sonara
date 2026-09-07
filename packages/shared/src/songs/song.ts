@@ -101,8 +101,16 @@ export interface Song {
   readonly handsInferred: boolean
   /** The key, read from the file or estimated from the notes. */
   readonly key: DetectedKey | null
-  /** True when at least one note carries a fingering from the score. */
+  /** True when at least one note carries a fingering, from wherever. */
   readonly hasFingering: boolean
+  /**
+   * Where that fingering came from.
+   *
+   * `score` means somebody wrote it in the file. `derived` means Sonara worked
+   * it out, which is a weaker claim and has to be shown as one — a suggested
+   * finger drawn as though the score asked for it is worse than no finger.
+   */
+  readonly fingeringSource?: 'score' | 'derived'
   /** Sustain pedal, where the score marks it. */
   readonly pedal: readonly PedalSpan[]
   /** What the source gave us, so the UI can say what it did not. */
@@ -159,6 +167,7 @@ export function buildSong(input: {
     // replace, and the song comes out with no key at all.
     key: input.key ?? estimateKey(notes),
     hasFingering: notes.some((note) => note.finger !== undefined),
+    ...(notes.some((note) => note.finger !== undefined) ? { fingeringSource: 'score' as const } : {}),
     pedal: input.pedal ?? [],
     provides: {
       notes: notes.length > 0,

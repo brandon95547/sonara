@@ -12,9 +12,12 @@ const FINGER_NAMES = ['', 'Thumb', 'Index', 'Middle', 'Ring', 'Little'] as const
  *
  * Fingering is the one thing a piece can carry that nothing else can reproduce.
  * MusicXML has a place for it; MIDI has none, so a MIDI import never has it and
- * no amount of parsing will change that. Rather than leave the diagram blank or
- * — worse — invent a finger and draw it as though the score said so, the card
- * says which file would have it.
+ * no amount of parsing will change that.
+ *
+ * Where the file says nothing, Sonara works out what it can — but a suggested
+ * finger and one an editor wrote have to be tellable apart, or the suggestion
+ * borrows an authority it does not have. So the card always names which it is
+ * showing, and the two are never drawn the same way.
  */
 export function SongHandCard() {
   const song = useCurrentSong()
@@ -31,6 +34,14 @@ export function SongHandCard() {
           <Chip tone={song.key.declared ? 'neutral' : 'warning'}>
             {keyName(song.key)}
             {song.key.declared ? '' : ' · estimated'}
+          </Chip>
+        )}
+        {/* The same words the Scales tab uses, because it is the same claim:
+            Standard means somebody published it, Suggested means we worked it
+            out. One vocabulary for both, so the distinction carries. */}
+        {song.hasFingering && (
+          <Chip tone={song.fingeringSource === 'score' ? 'neutral' : 'warning'}>
+            {song.fingeringSource === 'score' ? 'Fingered score' : 'Suggested'}
           </Chip>
         )}
       </div>
@@ -71,11 +82,19 @@ export function SongHandCard() {
         </div>
       </div>
 
+      {song.fingeringSource === 'derived' && (
+        <p className="flex items-start gap-2 text-caption text-[var(--ds-fg-muted)]">
+          <Info size={13} className="mt-0.5 shrink-0" aria-hidden />
+          Worked out, not read. Single notes only — chords are left blank rather than guessed, and
+          a fingered score always overrides this.
+        </p>
+      )}
+
       {!song.hasFingering && (
         <p className="flex items-start gap-2 text-caption text-[var(--ds-fg-muted)]">
           <Info size={13} className="mt-0.5 shrink-0" aria-hidden />
-          Sonara will not invent one. A guessed finger drawn as though the score asked for it is
-          worse than none, because there is no way to tell them apart.
+          Nothing could be worked out here either — a guessed finger drawn as though the score
+          asked for it is worse than none.
         </p>
       )}
     </Card>

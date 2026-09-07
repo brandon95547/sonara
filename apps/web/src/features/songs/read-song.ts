@@ -1,4 +1,4 @@
-import type { Song } from '@sonara/shared'
+import { fingerSong, type Song } from '@sonara/shared'
 import { isZip, readMscz, readMxl } from './archive'
 import { importMidi } from './import-midi'
 import { importMuseScore } from './import-musescore'
@@ -26,7 +26,9 @@ export async function readSong(file: File): Promise<ImportResult> {
   const bytes = new Uint8Array(await file.arrayBuffer())
   const starts = (...magic: number[]) => magic.every((byte, index) => bytes[index] === byte)
   const fail = (failure: ImportFailure): ImportResult => ({ failure, name: file.name })
-  const done = (song: Song | null) => (song ? { song } : fail('empty'))
+  // Fingering the file did not carry. A score that has it keeps it; anything
+  // else gets what can be worked out, marked as worked out.
+  const done = (song: Song | null) => (song ? { song: fingerSong(song) } : fail('empty'))
 
   // "MThd" — the only thing a Standard MIDI File can begin with.
   if (starts(0x4d, 0x54, 0x68, 0x64)) return done(importMidi(bytes, fallbackTitle))
@@ -48,7 +50,7 @@ export async function readSong(file: File): Promise<ImportResult> {
       const song = /\.mscx$/i.test(entry.name)
         ? importMuseScore(entry.text, fallbackTitle)
         : importMusicXml(entry.text, fallbackTitle)
-      if (song) return { song }
+      if (song) return { song: fingerSong(song) }
     }
     return fail('unknown')
   }
