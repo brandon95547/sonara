@@ -2,6 +2,7 @@ import * as React from 'react'
 import { ledgerSteps, staffNoteName, staffPlacement, type StaffPlacement } from '@sonara/shared'
 import { useKeyboardStore } from '@/state/keyboard-store'
 import { useElementSize } from '@/lib/hooks'
+import { StaffFrame, STEP, HALF_HEIGHT, y } from './staff-frame'
 
 /**
  * What you are playing, written down, as you play it.
@@ -16,24 +17,7 @@ import { useElementSize } from '@/lib/hooks'
  * sideways, the way an engraver would, so their noteheads do not overlap.
  */
 
-/** Half the gap between two staff lines, in viewBox units. */
-const STEP = 5
 const NOTE_X = 116
-/**
- * Half the vertical budget, in viewBox units.
- *
- * The staff itself spans ±50 (five lines each side of middle C at 5 units a
- * step); the rest is headroom for ledger lines, so the drawing never has to be
- * scaled down to fit an unusually high or low note.
- */
-const HALF_HEIGHT = 78
-
-const STAFF_LINES = {
-  treble: [2, 4, 6, 8, 10],
-  bass: [-2, -4, -6, -8, -10],
-} as const
-
-const y = (steps: number) => -steps * STEP
 
 export function GrandStaff() {
   // One subscription to the whole map: unlike a key, this draws every sounding
@@ -84,28 +68,7 @@ export function GrandStaff() {
             : `Grand staff: ${placements.map((entry) => staffNoteName(entry.note)).join(', ')}`
         }
       >
-        <path
-          d={`M 14 ${y(10)} C 6 ${y(6)}, 6 ${y(2)}, 11 0 C 6 ${y(-2)}, 6 ${y(-6)}, 14 ${y(-10)}`}
-          className="staff__brace"
-        />
-        <line x1="20" y1={y(10)} x2="20" y2={y(-10)} className="staff__line" />
-        <line x1={width - 2} y1={y(10)} x2={width - 2} y2={y(-10)} className="staff__line" />
-
-        {(['treble', 'bass'] as const).map((staff) => (
-          <g key={staff}>
-            {STAFF_LINES[staff].map((steps) => (
-              <line
-                key={steps}
-                x1="20"
-                y1={y(steps)}
-                x2={width - 2}
-                y2={y(steps)}
-                className="staff__line"
-              />
-            ))}
-            <Clef staff={staff} />
-          </g>
-        ))}
+        <StaffFrame width={width} />
 
         {placements.map(({ note, placement, offset }) => (
           <Note key={note} placement={placement} offset={offset} />
@@ -157,50 +120,3 @@ function Note({ placement, offset }: { placement: StaffPlacement; offset: number
  * glyph is measured once against a codepoint nothing can have, and a letter
  * marker on the line the clef names stands in when it is missing.
  */
-function Clef({ staff }: { staff: 'treble' | 'bass' }) {
-  const supported = useMusicGlyphs()
-  // Each clef names a line: G above middle C, F below it.
-  const line = staff === 'treble' ? 4 : -4
-
-  if (!supported) {
-    return (
-      <>
-        <circle cx="32" cy={y(line)} r={STEP * 0.8} className="staff__clef-dot" />
-        <text x="41" y={y(line) + STEP * 1.4} className="staff__clef-letter">
-          {staff === 'treble' ? 'G' : 'F'}
-        </text>
-      </>
-    )
-  }
-
-  return (
-    <text
-      x="30"
-      y={y(staff === 'treble' ? 5.4 : -5.6)}
-      className={`staff__clef staff__clef--${staff}`}
-    >
-      {staff === 'treble' ? '\u{1D11E}' : '\u{1D122}'}
-    </text>
-  )
-}
-
-/** Measured once per session: the answer cannot change while the page is open. */
-let glyphSupport: boolean | null = null
-
-function useMusicGlyphs(): boolean {
-  const [supported, setSupported] = React.useState(glyphSupport ?? true)
-
-  React.useEffect(() => {
-    if (glyphSupport !== null) return
-    const context = document.createElement('canvas').getContext('2d')
-    if (!context) return
-    context.font = '48px serif'
-    // A private-use codepoint no font fills, so anything measuring the same as
-    // it is the same missing-glyph box.
-    const missing = context.measureText('\u{F0000}').width
-    glyphSupport = context.measureText('\u{1D11E}').width !== missing
-    setSupported(glyphSupport)
-  }, [])
-
-  return supported
-}

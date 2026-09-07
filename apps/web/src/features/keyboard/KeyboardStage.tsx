@@ -11,6 +11,8 @@ import { useCoarsePointer, useElementWidth } from '@/lib/hooks'
 import { cn } from '@/lib/cn'
 import { PianoKeyboard } from './PianoKeyboard'
 import { GrandStaff } from '@/features/staff/GrandStaff'
+import { SongScore } from '@/features/staff/SongScore'
+import { useCurrentSong } from '@/state/song-store'
 import { SongProgress } from '@/features/songs/SongProgress'
 import {
   canShift,
@@ -49,6 +51,7 @@ export function KeyboardStage() {
   const setShowStructure = useLearningStore((state) => state.setShowStructure)
   const hasStructure = useLearningStore((state) => Boolean(state.exercise?.tetrachordGroups))
   const topic = useLearningStore((state) => state.topic)
+  const openSong = useCurrentSong()
   // Owned here rather than passed in, like the label and follow toggles: it is
   // a question about this panel, and the keys take back the space when it is off.
   const [showStaff, setShowStaff] = React.useState(true)
@@ -122,7 +125,11 @@ export function KeyboardStage() {
 
         {showStaff && (
           <div className="staff-panel">
-            <GrandStaff />
+            {/* A song has a score to follow; a scale does not. Reading one
+                chord at a time out of a piece is sheet music through a
+                letterbox, so Songs gets the whole thing and everything else
+                keeps the picture of the moment. */}
+            {topic === 'songs' && openSong ? <SongScore /> : <GrandStaff />}
           </div>
         )}
 

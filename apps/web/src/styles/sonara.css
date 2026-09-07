@@ -592,6 +592,99 @@
   width: 100%;
   height: 100%;
 }
+
+/* ---- A song's score ------------------------------------------------------
+   The whole piece, scrolled rather than scaled. Fitting a four-minute song
+   into one panel width would make every notehead a speck; the panel is a
+   window onto it and follows where you are, which is what the keyboard does
+   with the keys. */
+.staff-scroll {
+  width: 100%;
+  height: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  /* Deliberately not `scroll-behavior: smooth`. Where an engine does not
+     implement it, setting `scrollLeft` under it does nothing at all rather than
+     jumping — the score simply stops following and says nothing. A follower
+     that must keep up with playing is better off arriving. */
+  /* Momentum on a trackpad, and a scrollbar that does not eat the staff. */
+  scrollbar-width: thin;
+  scrollbar-color: var(--ds-border-strong) transparent;
+}
+.staff-score {
+  position: relative;
+}
+/* The brace and clefs, held still while the music passes behind them. Opaque,
+   because notes scrolling out of the system have to disappear under it rather
+   than through it. */
+.staff-gutter {
+  position: absolute;
+  inset-block: 0;
+  left: 0;
+  display: block;
+  height: 100%;
+  /* Deliberately not `.staff`, which is 100% wide: an opaque overlay that wide
+     covers the music it is supposed to sit beside. The width comes from the
+     element's own attribute, which is the gutter's share of the drawing. */
+  background-color: var(--c-piano-body);
+  pointer-events: none;
+}
+
+.staff-scroll .staff {
+  /* The SVG sets its own pixel width from the panel height, so it must not be
+     stretched back to the container the way a single-screen staff is. */
+  width: auto;
+  min-width: 100%;
+}
+
+/* Bar lines. Quieter than the staff lines themselves: they are punctuation,
+   not structure. */
+.staff__bar {
+  stroke: var(--ds-border);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+/* Where you are, and where you are going — the same three states the keys use,
+   so looking from the staff to the keyboard and back says the same thing.
+
+   Behind you and far ahead read alike, exactly as they do on the keybed: the
+   shape of the piece stays visible without competing with the instruction. */
+.staff__step[data-role='played'] ellipse,
+.staff__step[data-role='ahead'] ellipse {
+  fill: var(--ds-fg-muted);
+}
+.staff__step[data-role='played'] .staff__accidental,
+.staff__step[data-role='ahead'] .staff__accidental,
+.staff__step[data-role='played'] .staff__finger,
+.staff__step[data-role='ahead'] .staff__finger {
+  fill: var(--ds-fg-muted);
+}
+.staff__step[data-role='upcoming'] ellipse {
+  fill: var(--ds-accent-text);
+}
+.staff__step[data-role='target'] ellipse {
+  fill: var(--ds-fg);
+}
+.staff__step[data-role='target'] .staff__accidental,
+.staff__step[data-role='target'] .staff__finger {
+  fill: var(--ds-fg);
+}
+
+/* The cursor. A band rather than a line, because it has to say "these notes,
+   together" for a chord and not just "this instant". */
+.staff__cursor {
+  fill: var(--ds-accent-subtle);
+}
+
+/* The recommended finger, over the note it belongs to. Small: it is an aside,
+   and the note is the thing being read. */
+.staff__finger {
+  fill: var(--ds-accent-text);
+  font-size: 9px;
+  font-weight: 650;
+  text-anchor: middle;
+}
 .staff {
   display: block;
   width: 100%;
