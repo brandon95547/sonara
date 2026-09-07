@@ -76,16 +76,23 @@ for it — and plenty of scores are published unfingered. Sonara works it out.
   hand finds difficult (Parncutt et al., _Music Perception_ 14(4), 1997 — twelve
   weighted rules the authors tested against fingerings pianists wrote on Czerny
   studies).
-- **Chords are declined, visibly.** The model is for melodic fragments, and a
-  method book fingers a triad without regard for what follows it — which the
-  same book's cadences disprove. A gap you can see beats a confident wrong
-  answer.
+- **Chords are fingered too**, from the shapes the method books print — keyed by
+  the intervals between the notes, so no key or root has to be worked out first.
+  That table is needed because the hand model cannot reach it: `1 3 5` and
+  `1 2 4` cost a C major triad exactly the same, so the spans leave the choice
+  open and only a book closes it.
+- **A chord too wide to hold is rolled, not refused.** A bass note a tenth under
+  a grip is ordinary piano writing and a printed edition fingers it without
+  comment. A chord whose _inner_ notes are out of reach is two hands, and gets
+  nothing.
 - **You can always tell which you are looking at.** Worked-out fingering is
   labelled _Suggested_; fingering an editor wrote is labelled _Fingered score_.
 
 Imported through the real path, a MIDI C major scale up and back down comes out
 `1 2 3 1 2 3 4 5 · 4 3 2 1 3 2 1` — the fingering a method book prints, from a
-file that could not have contained it.
+file that could not have contained it. On a real four-part arrangement, 735 of
+its 737 keyboard notes come out fingered; the two that do not are a nineteenth
+in one hand, which is not a chord.
 
 The full reference for all of this — the twelve rules, the span tables, the
 published scale fingerings and how they were verified — is
