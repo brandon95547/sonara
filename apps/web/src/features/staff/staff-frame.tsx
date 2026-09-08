@@ -18,8 +18,13 @@ export const STEP = 5
  * The staff itself spans ±50 (five lines each side of middle C at 5 units a
  * step); the rest is headroom for ledger lines, so the drawing never has to be
  * scaled down to fit an unusually high or low note.
+ *
+ * Ninety-eight rather than a rounder number because that is where the treble
+ * clef ends. It is the tallest thing on a grand staff — taller than any note,
+ * and drawn on every system — and at 92 the top of it was being shaved off in
+ * every view in the app.
  */
-export const HALF_HEIGHT = 92
+export const HALF_HEIGHT = 98
 
 /**
  * How far each staff is pushed away from middle C, in steps.

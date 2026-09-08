@@ -630,6 +630,24 @@
   pointer-events: none;
 }
 
+/* Sheet music: lines stacked down the page, scrolled vertically. The page
+   turns only when the line being played would otherwise leave the panel — see
+   `SheetView`, which lands it at the top so the unplayed music is all below. */
+.staff-sheet {
+  width: 100%;
+  height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--ds-border-strong) transparent;
+}
+.staff-sheet .staff {
+  /* The SVG sets its own pixel height from the number of systems, so it must
+     not be squashed back to the container the way a single-system staff is. */
+  width: 100%;
+  height: auto;
+}
+
 .staff-scroll .staff {
   /* The SVG sets its own pixel width from the panel height, so it must not be
      stretched back to the container the way a single-screen staff is. */
@@ -916,6 +934,15 @@
   .staff-panel {
     padding-inline: 1.5rem;
   }
+}
+
+/* Reading from sheet music means reading ahead, and one line at a time is not
+   sheet music — it is Flow with the scrolling taken out. So the panel grows to
+   hold two or three systems. Bounded at both ends: enough for two lines on a
+   short laptop, and never so tall that the keyboard is pushed off the screen
+   it is supposed to be played on. */
+.staff-panel--sheet {
+  height: clamp(300px, 42vh, 470px);
 }
 
 /* ---- Recording -----------------------------------------------------------

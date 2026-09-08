@@ -23,6 +23,16 @@ export type SongPart = 'both' | Hand
  */
 export type SongMode = 'explore' | 'learn'
 
+/**
+ * How the score is laid out.
+ *
+ * `flow` runs one endless system past a fixed playhead — Sonara's guided
+ * reading, where the music moves and your place in it does not. `sheet` prints
+ * it as lines and stacks them, holding still while you read across, which is
+ * what someone who can already read needs and what a learner does not.
+ */
+export type StaffView = 'sheet' | 'flow'
+
 interface SongState {
   library: Song[]
   currentId: string | null
@@ -34,6 +44,8 @@ interface SongState {
   tempoScale: number
   metronome: boolean
   mode: SongMode
+  /** Which way the score is written out. */
+  staffView: StaffView
   /** Which step of the song the player is on, in Learn. */
   stepIndex: number
   /** True once Start has been pressed, until the song is finished or reset. */
@@ -71,6 +83,7 @@ interface SongState {
   setTempoScale: (scale: number) => void
   setMetronome: (on: boolean) => void
   setMode: (mode: SongMode) => void
+  setStaffView: (view: StaffView) => void
   startLearning: () => void
   resetLearning: () => void
   advance: (steps: number) => void
@@ -80,6 +93,16 @@ interface SongState {
 }
 
 const STORAGE_KEY = 'sonara.songs.v1'
+/**
+ * Kept, unlike the playback settings.
+ *
+ * A loop and a tempo are things you set up to work on a passage for ten
+ * minutes; coming back to them tomorrow is a bug report. Whether you read from
+ * sheet music or from a moving staff is not a setting on a passage — it is a
+ * fact about the person reading, and asking them again every session would be
+ * asking them whether they can still read music.
+ */
+const VIEW_KEY = 'sonara.staff-view.v1'
 
 /** Nothing in progress. */
 const IDLE = { stepIndex: 0, learning: false } as const
@@ -138,6 +161,14 @@ function save(library: readonly Song[]) {
   }
 }
 
+function loadView(): StaffView {
+  try {
+    return window.localStorage.getItem(VIEW_KEY) === 'sheet' ? 'sheet' : 'flow'
+  } catch {
+    return 'flow'
+  }
+}
+
 export const useSongStore = create<SongState>((set) => ({
   library: typeof window === 'undefined' ? [] : load(),
   currentId: null,
@@ -147,6 +178,7 @@ export const useSongStore = create<SongState>((set) => ({
   tempoScale: 1,
   metronome: false,
   mode: 'explore',
+  staffView: typeof window === 'undefined' ? 'flow' : loadView(),
   stepIndex: 0,
   learning: false,
   stepCount: 0,
@@ -182,6 +214,19 @@ export const useSongStore = create<SongState>((set) => ({
   // Switching how you are working on the piece stops whatever the other way
   // was doing: playback should not carry on under a Start button.
   setMode: (mode) => set({ mode, playing: false, ...IDLE }),
+
+  // Only how the same score is drawn, so nothing else moves: not the position,
+  // not the tempo, not what has been learned. Switching views mid-piece has to
+  // be free, or nobody will try the other one.
+  setStaffView: (staffView) =>
+    set(() => {
+      try {
+        window.localStorage.setItem(VIEW_KEY, staffView)
+      } catch {
+        // Private browsing. The choice holds for this session.
+      }
+      return { staffView }
+    }),
 
   startLearning: () => set({ learning: true, stepIndex: 0, playing: false }),
   resetLearning: () => set({ ...IDLE }),

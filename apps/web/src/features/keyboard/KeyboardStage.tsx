@@ -3,7 +3,7 @@ import { Blocks, ChevronLeft, ChevronRight, Crosshair, Music, Volume2, VolumeX }
 import { noteName, STANDARD_RANGES } from '@sonara/shared'
 import { IconButton } from '@/ui/Button'
 import { Chip, StatusDot } from '@/ui/Display'
-import { Select } from '@/ui/Controls'
+import { Select, SegmentedControl } from '@/ui/Controls'
 import { useAudio } from '@/audio/AudioProvider'
 import { useKeyboardStore } from '@/state/keyboard-store'
 import { useLearningStore, type KeyLabels } from '@/state/learning-store'
@@ -12,7 +12,7 @@ import { cn } from '@/lib/cn'
 import { PianoKeyboard } from './PianoKeyboard'
 import { GrandStaff } from '@/features/staff/GrandStaff'
 import { SongScore } from '@/features/staff/SongScore'
-import { useCurrentSong } from '@/state/song-store'
+import { useCurrentSong, useSongStore } from '@/state/song-store'
 import { SongProgress } from '@/features/songs/SongProgress'
 import {
   canShift,
@@ -114,6 +114,13 @@ export function KeyboardStage() {
     setWindow((current) => windowIncluding(current, targetNote))
   }, [follow, targetNote])
 
+  // Sheet music needs more than one line on screen to be worth reading, so the
+  // panel grows for it. Flow is one system and does not.
+  const staffView = useSongStore((state) => state.staffView)
+  const setStaffView = useSongStore((state) => state.setStaffView)
+  const scoreOpen = topic === 'songs' && openSong !== null
+  const sheet = showStaff && scoreOpen && staffView === 'sheet'
+
   const sustain = useKeyboardStore((state) => state.sustain)
   const canGoDown = canShift(window, -1)
   const canGoUp = canShift(window, 1)
@@ -124,7 +131,7 @@ export function KeyboardStage() {
         {topic === 'songs' && <SongProgress />}
 
         {showStaff && (
-          <div className="staff-panel">
+          <div className={cn('staff-panel', sheet && 'staff-panel--sheet')}>
             {/* A song has a score to follow; a scale does not. Reading one
                 chord at a time out of a piece is sheet music through a
                 letterbox, so Songs gets the whole thing and everything else
@@ -222,6 +229,20 @@ export function KeyboardStage() {
           label="Staff"
           description="Write what you play on a grand staff"
         />
+        {/* Only where there is a score to lay out. A scale is one bar of notes
+            and has no lines to break. */}
+        {showStaff && scoreOpen && (
+          <SegmentedControl
+            label="Score layout"
+            className="w-auto"
+            value={staffView}
+            onChange={setStaffView}
+            options={[
+              { value: 'sheet', label: 'Sheet' },
+              { value: 'flow', label: 'Flow' },
+            ]}
+          />
+        )}
 
         <div className="ml-auto flex items-center gap-2">
           {/* Not a control — the pedal is played, not set — but the toolbar is
