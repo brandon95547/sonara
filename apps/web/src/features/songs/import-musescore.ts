@@ -27,6 +27,24 @@ import {
  * before, and each `<voice>` restarts at the beginning of its measure.
  */
 
+/**
+ * What an octave line does to the notes under it, in semitones.
+ *
+ * These are the only place in a score where the written pitch and the sounding
+ * pitch differ *and* MuseScore stores the written one. An octave-transposing
+ * clef — `G8va` and its family — is the other way round: the stored pitch
+ * already sounds, and the clef only decides where the notehead is drawn. So
+ * clefs are correctly ignored here and these are not.
+ */
+const OCTAVE_SHIFTS: Record<string, number> = {
+  '8va': 12,
+  '8vb': -12,
+  '15ma': 24,
+  '15mb': -24,
+  '22ma': 36,
+  '22mb': -36,
+}
+
 /** Fractions of a whole note. */
 const DURATIONS: Record<string, number> = {
   long: 4,
@@ -163,6 +181,10 @@ export function importMuseScore(text: string, fallbackTitle: string): Song | nul
     const hand = handForStaff(staffIndex)
     if (hand === null) guessedAHand = true
     let measureStart = 0
+    // Octave lines belong to the staff that carries them, so they are gathered
+    // per staff and applied to that staff's notes once its measures are read.
+    const octaves: { from: number; to: number; semitones: number }[] = []
+    const staffFirstNote = notes.length
 
     for (const [, attributes = '', measureBody = ''] of staffBody.matchAll(
       /<Measure((?:\s[^>]*)?)>([\s\S]*?)<\/Measure>/g,
@@ -197,7 +219,11 @@ export function importMuseScore(text: string, fallbackTitle: string): Song | nul
           'Chord',
           'Rest',
           'Dynamic',
-          'Pedal',
+          // Both the pedal and the octave lines arrive wrapped: MuseScore
+          // writes `<Spanner type="Pedal">` with the element inside it, so
+          // matching the inner tag here finds nothing at all. Pedal was written
+          // that way and had never imported a single span.
+          'Spanner',
           'location',
         ])) {
           if (element.tag === 'Dynamic') {
@@ -212,14 +238,38 @@ export function importMuseScore(text: string, fallbackTitle: string): Song | nul
             if (shift) cursor = Math.max(0, cursor + (Number(shift[1]) / Number(shift[2])) * 4)
             continue
           }
-          if (element.tag === 'Pedal') {
-            // A spanner: its length is on the element, in fractions of a whole.
-            const ticks = /(\d+)\/(\d+)/.exec(inner(element.body, 'fractions') ?? '')
-            const beats = ticks ? (Number(ticks[1]) / Number(ticks[2])) * 4 : beatsPerMeasure
-            pedal.push({
-              startMs: measureStart + cursor * beat(),
-              endMs: measureStart + (cursor + beats) * beat(),
-            })
+          if (element.tag === 'Spanner') {
+            // How far it reaches, in fractions of a whole note. A spanner's
+            // closing half carries a negative fraction in `<prev>`; only the
+            // opening half names what kind of thing it is, so the rest are
+            // skipped by having no subtype to match.
+            const ticks = /(-?\d+)\/(\d+)/.exec(inner(element.body, 'fractions') ?? '')
+            const beats = ticks ? (Number(ticks[1]) / Number(ticks[2])) * 4 : 0
+
+            if (inner(element.body, 'Pedal') !== undefined) {
+              pedal.push({
+                startMs: measureStart + cursor * beat(),
+                endMs: measureStart + (cursor + (beats > 0 ? beats : beatsPerMeasure)) * beat(),
+              })
+              continue
+            }
+
+            // An octave line, and the one place a score's written pitch and its
+            // sounding pitch differ in the file. MuseScore stores the written
+            // one here and shifts it on playback — the opposite of an
+            // octave-transposing clef, where the stored pitch already sounds
+            // and the clef only moves the notehead. Ignored, a 15ma comes out
+            // two octaves below the page.
+            const shift = OCTAVE_SHIFTS[inner(element.body, 'subtype')?.trim() ?? '']
+            if (shift !== undefined && beats > 0) {
+              octaves.push({
+                from: measureStart + cursor * beat(),
+                // A hair short, so a note starting exactly where the line ends
+                // is outside it.
+                to: measureStart + (cursor + beats) * beat() - 1,
+                semitones: shift,
+              })
+            }
             continue
           }
 
@@ -275,6 +325,17 @@ export function importMuseScore(text: string, fallbackTitle: string): Song | nul
         : beatsPerMeasure
 
       measureStart += Math.max(longestVoice, measureBeats) * beat()
+    }
+
+    // Lift the notes under any octave line onto the pitch they sound at, so
+    // everything downstream — the keys, the staff, the fingering, playback —
+    // reads one truth rather than each having to know about notation.
+    if (octaves.length > 0) {
+      for (let i = staffFirstNote; i < notes.length; i++) {
+        const note = notes[i]!
+        const span = octaves.find((o) => note.startMs >= o.from && note.startMs <= o.to)
+        if (span) notes[i] = { ...note, note: note.note + span.semitones }
+      }
     }
   }
 
