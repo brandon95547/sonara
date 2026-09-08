@@ -780,6 +780,15 @@
   fill: none;
   stroke: var(--ds-accent-text);
 }
+/* A chord too wide to close on at once is spread, and says so the way a score
+   says it. Same weight as a stem: it is notation, not an annotation. */
+.staff__arpeggio {
+  fill: none;
+  stroke: var(--ds-fg);
+  stroke-width: 1.6;
+  vector-effect: non-scaling-stroke;
+}
+
 /* Ledger lines belong to the chord, not to one note inside it, so they carry
    the flag themselves. */
 .staff__ledger[data-sounding='true'] {

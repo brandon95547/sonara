@@ -3,7 +3,7 @@ import { fingerSteps } from './finger-steps.js'
 import { chordCost, holdable, reach } from './hand-model.js'
 
 const grip = (steps: number[][], hand: 'right' | 'left' = 'right') =>
-  fingerSteps(steps, hand).map((f) => (f ? f.join('') : null))
+  fingerSteps(steps, hand).map((step) => (step ? step.fingers.join('') : null))
 
 describe('holding a chord', () => {
   it('checks every pair of fingers, not just the neighbours', () => {
@@ -97,7 +97,8 @@ describe('a part that is not all chords or all melody', () => {
       [64, 67, 71],
       [65, 69, 72],
     ]
-    for (const fingers of fingerSteps(chords, 'right')) {
+    for (const step of fingerSteps(chords, 'right')) {
+      const fingers = step?.fingers
       expect(fingers).not.toBeNull()
       expect(new Set(fingers!).size).toBe(fingers!.length)
     }

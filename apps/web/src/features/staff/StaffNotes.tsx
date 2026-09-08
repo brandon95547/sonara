@@ -27,6 +27,8 @@ const HEAD_RX = STEP * 1.35
 const HEAD_RY = STEP * 0.98
 /** Half a ledger line, which reaches wider than the head it carries. */
 const LEDGER_RX = STEP * 2.2
+/** The room the arpeggio sign takes, outside everything else on the left. */
+const ARPEGGIO_WIDTH = STEP * 2.2
 
 /*
  * The numbers below are the glyphs, measured.
@@ -66,6 +68,8 @@ export interface DrawnNote {
   readonly finger?: number
   /** Whether this pitch is under a finger right now. */
   readonly sounding?: boolean
+  /** Part of a chord too wide to close on at once, so it is spread. */
+  readonly rolled?: boolean
 }
 
 /**
@@ -181,6 +185,16 @@ function layout(x: number, notes: readonly DrawnNote[], value: WrittenValue, fif
   const accidentalX = (note: number) =>
     headLeft - ACCIDENTAL_GAP - (column.get(note)! + 1) * ACCIDENTAL_WIDTH
 
+  /*
+   * The arpeggio sign, for a chord the hand cannot close on at once.
+   *
+   * Outside the accidentals, which is where an engraver puts it — it applies to
+   * the whole chord, so nothing of the chord may sit outside it.
+   */
+  const rolled = placed.some((entry) => entry.rolled)
+  const arpeggioX =
+    headLeft - ACCIDENTAL_GAP - columns.length * ACCIDENTAL_WIDTH - ARPEGGIO_WIDTH
+
   // Dots go in one column clear of the whole chord, not each beside its own
   // head, so a displaced head cannot push its dot into the stem.
   const dotX = headRight + STEP * 0.9
@@ -255,12 +269,16 @@ function layout(x: number, notes: readonly DrawnNote[], value: WrittenValue, fif
     dotX,
     fingerX,
     fingerY,
+    rolled,
+    arpeggioX,
     /** How far the ink reaches either side of the chord's own position. */
     left:
-      headLeft -
+      (rolled
+        ? arpeggioX
+        : headLeft -
+          (columns.length > 0 ? ACCIDENTAL_GAP + columns.length * ACCIDENTAL_WIDTH : 0)) -
       x -
-      STROKE -
-      (columns.length > 0 ? ACCIDENTAL_GAP + columns.length * ACCIDENTAL_WIDTH : 0),
+      STROKE,
     right: (marked ? fingerX + FINGER_INK.half : inked) - x + STROKE,
     top: top - STROKE,
     bottom: bottom + STROKE,
@@ -311,8 +329,14 @@ function StaffGroup({
   if (!box) return null
   const { placed, staff, up, sounding } = box
 
+  const top = Math.min(...placed.map((entry) => yOn(entry.placement.steps, staff)))
+  const bottom = Math.max(...placed.map((entry) => yOn(entry.placement.steps, staff)))
+
   return (
     <>
+      {box.rolled && (
+        <Arpeggio x={box.arpeggioX} from={top - HEAD_RY} to={bottom + HEAD_RY} />
+      )}
       {[...box.ledgers].map(([steps, line]) => (
         <line
           key={steps}
@@ -406,6 +430,25 @@ function Head({
       )}
     </g>
   )
+}
+
+/**
+ * The sign for a chord that is spread rather than struck.
+ *
+ * A wavy vertical line beside the chord, which is what the notation is and what
+ * a reader already knows how to read. Drawn from one wave per staff space so it
+ * grows with the chord rather than being stretched to fit it.
+ */
+function Arpeggio({ x, from, to }: { x: number; from: number; to: number }) {
+  const wave = STEP * 2
+  const count = Math.max(2, Math.round((to - from) / wave))
+  let path = `M ${x} ${from}`
+  for (let i = 0; i < count; i++) {
+    // Alternating quarter-circles: out one side, back the other.
+    const side = i % 2 === 0 ? STEP * 1.1 : -STEP * 1.1
+    path += ` q ${side} ${wave / 2} 0 ${wave}`
+  }
+  return <path d={path} className="staff__arpeggio" />
 }
 
 /** Flags, curling away from the notehead and stacking downward. */

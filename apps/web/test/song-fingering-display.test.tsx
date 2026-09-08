@@ -321,3 +321,84 @@ describe('a wrong note in a song', () => {
     expect(useSongStore.getState().wrongNotes).toEqual([])
   })
 })
+
+/**
+ * A chord too wide for the hand.
+ *
+ * Learn waits for every note of a step to be held at once, which is what
+ * playing a chord means — right up until the chord is wider than a hand, at
+ * which point it is what playing a chord cannot mean. Those are spread, and
+ * the notes never overlap.
+ */
+describe('a chord that has to be spread', () => {
+  const wide: SongNote[] = [62, 67, 70, 79].map((note) => ({
+    note,
+    velocity: 90,
+    startMs: 0,
+    durationMs: 800,
+    hand: 'right' as const,
+    role: 'keyboard' as const,
+    finger: 1,
+    rolled: true,
+  }))
+
+  const held: SongNote[] = [60, 64, 67].map((note) => ({
+    note,
+    velocity: 90,
+    startMs: 0,
+    durationMs: 800,
+    hand: 'right' as const,
+    role: 'keyboard' as const,
+    finger: 1,
+  }))
+
+  const learn = async (notes: SongNote[]) => {
+    const { useSongLearning } = await import('@/features/songs/use-song-learning')
+    const built = buildSong({
+      id: 'w',
+      title: 'w',
+      bpm: 120,
+      beatsPerMeasure: 4,
+      notes: [...notes, { ...notes[0]!, note: 84, startMs: 4000, rolled: false }],
+      source: 'musescore',
+      handsInferred: false,
+    })
+    useSongStore.setState({
+      library: [built],
+      currentId: built.id,
+      mode: 'learn',
+      learning: true,
+      stepIndex: 0,
+      part: 'both',
+    })
+    return renderHook(() => useSongLearning(built))
+  }
+
+  const play = (pitches: number[], release = true) => {
+    const keys = useKeyboardStore.getState()
+    for (const pitch of pitches) {
+      act(() => keys.noteOn(pitch, 90, 'midi'))
+      if (release) act(() => keys.noteOff(pitch))
+    }
+  }
+
+  beforeEach(() => useKeyboardStore.getState().panic())
+
+  it('advances when a spread chord is rolled one note at a time', async () => {
+    await learn(wide)
+    // Struck and released in turn: at no point are two of them down together.
+    play([62, 67, 70, 79])
+    expect(useSongStore.getState().stepIndex).toBe(1)
+  })
+
+  it('still asks an ordinary chord to be held together', async () => {
+    await learn(held)
+    play([60, 64, 67])
+    expect(useSongStore.getState().stepIndex).toBe(0)
+
+    act(() => {
+      for (const pitch of [60, 64, 67]) useKeyboardStore.getState().noteOn(pitch, 90, 'midi')
+    })
+    expect(useSongStore.getState().stepIndex).toBe(1)
+  })
+})

@@ -107,6 +107,21 @@ function publishedShape(
 interface Candidate {
   readonly fingers: readonly Finger[]
   readonly cost: number
+  readonly rolled: boolean
+}
+
+/**
+ * How one step is played.
+ *
+ * `rolled` is not a detail of the search. A chord wider than the hand is
+ * fingered exactly as a held one — the fingers still go where they go — and
+ * the only thing that separates the two is whether they can arrive together.
+ * That answer was being computed and thrown away, which left everything
+ * downstream asking for a grip no hand can close.
+ */
+export interface StepFingering {
+  readonly fingers: readonly Finger[]
+  readonly rolled: boolean
 }
 
 /**
@@ -137,7 +152,11 @@ function candidatesFor(pitches: readonly number[], hand: Hand): Candidate[] {
         // Rolling costs something — it is a chord you cannot simply put down —
         // but far less than not fingering it at all.
         const roll = held === 'rolled' ? ROLL : 0
-        chosen.push({ fingers, cost: chordCost(pitches, fingers, hand) - bonus + roll })
+        chosen.push({
+          fingers,
+          cost: chordCost(pitches, fingers, hand) - bonus + roll,
+          rolled: held === 'rolled',
+        })
       }
       return
     }
@@ -196,8 +215,8 @@ function stepCost(
 export function fingerSteps(
   steps: readonly (readonly number[])[],
   hand: Hand,
-): (readonly Finger[] | null)[] {
-  const out: (readonly Finger[] | null)[] = steps.map(() => null)
+): (StepFingering | null)[] {
+  const out: (StepFingering | null)[] = steps.map(() => null)
   const options = steps.map((step) => candidatesFor(step, hand))
 
   let start = 0
@@ -214,6 +233,12 @@ export function fingerSteps(
   return out
 }
 
+/** What survives the search: the grip, and whether the hand can close on it at once. */
+const pick = (candidate: Candidate): StepFingering => ({
+  fingers: candidate.fingers,
+  rolled: candidate.rolled,
+})
+
 /** Second order, because three consecutive single notes have rules of their own. */
 function solve(
   steps: readonly (readonly number[])[],
@@ -221,10 +246,10 @@ function solve(
   start: number,
   end: number,
   hand: Hand,
-  out: (readonly Finger[] | null)[],
+  out: (StepFingering | null)[],
 ): void {
   if (start === end) {
-    out[start] = options[start]![0]!.fingers
+    out[start] = pick(options[start]![0]!)
     return
   }
 
@@ -297,6 +322,6 @@ function solve(
     a = previous
   }
   path.forEach((choice, offset) => {
-    out[start + offset] = options[start + offset]![choice]!.fingers
+    out[start + offset] = pick(options[start + offset]![choice]!)
   })
 }

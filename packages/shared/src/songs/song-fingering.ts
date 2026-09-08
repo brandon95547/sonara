@@ -53,6 +53,10 @@ export function fingerSong(song: Song): Song {
   if (song.hasFingering) return song
 
   const chosen = new Map<SongNote, number>()
+  // Chords the hand cannot close on at once. Kept per note rather than per
+  // step, because a step can span both hands and only one of them may be
+  // spread — and because the note is what everything downstream holds.
+  const spread = new Set<SongNote>()
   for (const hand of ['right', 'left'] as const) {
     for (const run of runsFor(song, hand)) {
       // Each step's notes in pitch order, which is the order a grip is held in.
@@ -60,10 +64,13 @@ export function fingerSong(song: Song): Song {
         [...step.notes].sort((a, b) => a.note - b.note).map((note) => note.note),
       )
       const fingered = fingerSteps(pitches, hand)
-      fingered.forEach((fingers, index) => {
-        if (!fingers) return
+      fingered.forEach((step, index) => {
+        if (!step) return
         const ordered = [...run[index]!.notes].sort((a, b) => a.note - b.note)
-        ordered.forEach((note, i) => chosen.set(note, fingers[i]!))
+        ordered.forEach((note, i) => {
+          chosen.set(note, step.fingers[i]!)
+          if (step.rolled) spread.add(note)
+        })
       })
     }
   }
@@ -71,7 +78,8 @@ export function fingerSong(song: Song): Song {
 
   const notes = song.notes.map((note) => {
     const finger = chosen.get(note)
-    return finger === undefined ? note : { ...note, finger }
+    if (finger === undefined) return note
+    return spread.has(note) ? { ...note, finger, rolled: true } : { ...note, finger }
   })
 
   return {

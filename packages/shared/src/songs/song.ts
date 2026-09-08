@@ -49,6 +49,16 @@ export interface SongNote {
   readonly finger?: number
   /** The dynamic marking in force — `mf`, `ff` — when the score gives one. */
   readonly dynamic?: string
+  /**
+   * Part of a chord too wide for the hand to close on at once.
+   *
+   * Such a chord is fingered exactly as a held one, because the fingers still
+   * go where they go — what differs is that they arrive in sequence, from the
+   * outer note inwards. Without this the app asks for a grip no hand can make
+   * and waits for it, which is the difference between a hard passage and an
+   * impossible one.
+   */
+  readonly rolled?: boolean
 }
 
 /** A stretch of sustain pedal, as the score marks it. */

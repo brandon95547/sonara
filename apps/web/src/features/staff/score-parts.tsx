@@ -102,6 +102,7 @@ export const Step = React.memo(function Step({
           note: note.note,
           finger: note.finger,
           sounding: sounding?.has(note.note) ?? false,
+          rolled: note.rolled,
         }))}
         value={placed.value}
         fifths={fifths}

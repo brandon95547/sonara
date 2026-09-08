@@ -23,6 +23,26 @@ const song = (notes: SongNote[]) =>
     handsInferred: true,
   })
 
+/**
+ * A song whose hands came from the file, so nothing reassigns them.
+ *
+ * The distinction matters for anything about reach. Given a free hand, the
+ * assignment step will split a chord too wide for one hand across two, which is
+ * the right answer for a MIDI file and hides every case this is about. A score
+ * that names its staves has already decided, and the reading has to be taken as
+ * written.
+ */
+const scored = (notes: SongNote[]) =>
+  buildSong({
+    id: 'x',
+    title: 'x',
+    bpm: 120,
+    beatsPerMeasure: 4,
+    notes,
+    source: 'musescore',
+    handsInferred: false,
+  })
+
 describe('fingering a song the file did not finger', () => {
   const scale = [60, 62, 64, 65, 67, 69, 71, 72].map((pitch, i) => note(pitch, i * 500))
 
@@ -110,5 +130,55 @@ describe('fingering a song the file did not finger', () => {
     // A leap of two octaves is beyond any pair of fingers. Fingered as one run
     // it would be unplayable and the whole thing would come back empty.
     expect(fingered.notes.every((n) => n.finger !== undefined)).toBe(true)
+  })
+
+  /**
+   * A chord wider than the hand.
+   *
+   * Real music is full of these — a rag's left hand reaching a tenth, a
+   * romantic chord spanning a twelfth — and a pianist spreads them from the
+   * outer note inwards. The fingering is the same either way, which is why the
+   * distinction was easy to lose: the search knew, and then dropped it on the
+   * floor, and every reader downstream was left asking for a grip no hand can
+   * close on.
+   */
+  it('marks a chord the hand cannot close on at once', () => {
+    // D4 to G5 is a twelfth in one hand — this exact chord appears twice in a
+    // published rag, which is how it was found.
+    const wide = [62, 67, 70, 79].map((pitch) => note(pitch, 0))
+    const fingered = fingerSong(scored(wide))
+
+    expect(fingered.notes.every((n) => n.finger !== undefined)).toBe(true)
+    expect(fingered.notes.every((n) => n.rolled === true)).toBe(true)
+  })
+
+  it('leaves a chord the hand can hold unmarked', () => {
+    const plain = [60, 64, 67].map((pitch) => note(pitch, 0))
+    const fingered = fingerSong(scored(plain))
+
+    expect(fingered.notes.map((n) => n.finger)).toEqual([1, 3, 5])
+    // Absent, not false: a chord that can be held makes no claim about rolling.
+    expect(fingered.notes.every((n) => n.rolled === undefined)).toBe(true)
+  })
+
+  it('splits a chord too wide for one hand rather than rolling it, when free to', () => {
+    // The other half of the same question. A MIDI file has not said whose hand
+    // anything is, so the assignment can put the bottom of a twelfth in the
+    // left — which beats rolling it, and is why this case has to be tested
+    // separately from a score that named its staves.
+    const wide = [62, 67, 70, 79].map((pitch) => note(pitch, 0))
+    const fingered = fingerSong(song(wide))
+    const hands = new Set(fingered.notes.map((n) => n.hand))
+    expect(hands.size).toBe(2)
+  })
+
+  it('marks only the hand that has to spread', () => {
+    const mixed = [
+      ...[62, 67, 70, 79].map((pitch) => note(pitch, 0)),
+      ...[36, 40, 43].map((pitch) => note(pitch, 0, { hand: 'left' })),
+    ]
+    const fingered = fingerSong(scored(mixed))
+    expect(fingered.notes.filter((n) => n.hand === 'right').every((n) => n.rolled)).toBe(true)
+    expect(fingered.notes.filter((n) => n.hand === 'left').some((n) => n.rolled)).toBe(false)
   })
 })

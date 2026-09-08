@@ -98,6 +98,12 @@ export function useSongLearning(song: Song | null) {
    * arrive from MIDI, a mouse or a touch, and all three end up here. A step is
    * done when every note in it has been held at the same time — which is what
    * playing a chord means.
+   *
+   * Except where it cannot be. A chord wider than the hand is spread rather
+   * than struck: its notes arrive one after another and need never overlap, so
+   * holding out for all of them at once is holding out for something no hand
+   * can do. Those steps are satisfied by every note being played during the
+   * step instead, in whatever order the player rolls it.
    */
   React.useEffect(() => {
     if (!learning || mode !== 'learn' || steps.length === 0) {
@@ -111,23 +117,39 @@ export function useSongLearning(song: Song | null) {
     // red for having been right a moment ago.
     let held = new Set(Object.keys(useKeyboardStore.getState().active).map(Number))
     let wrong = new Set<number>()
+    // Which of this step's notes have been played since it became current.
+    // Only a spread chord is judged on this; everything else still has to be
+    // held together.
+    let reached = new Set<number>()
+    let onStep = useSongStore.getState().stepIndex
 
     return useKeyboardStore.subscribe((state) => {
       const current = useSongStore.getState().stepIndex
       const step = steps[current]
       if (!step) return
+      if (current !== onStep) {
+        onStep = current
+        reached = new Set()
+      }
 
       const down = new Set(Object.keys(state.active).map(Number))
       const wanted = new Set(step.notes.map((note) => note.note))
       for (const note of down) if (!held.has(note) && !wanted.has(note)) wrong.add(note)
+      for (const note of down) if (wanted.has(note)) reached.add(note)
       // Letting go of a wrong note takes the mark off it.
       wrong = new Set([...wrong].filter((note) => down.has(note)))
       held = down
       setWrongNotes([...wrong].sort((a, b) => a - b))
 
-      if (step.notes.every((note) => down.has(note.note))) {
+      const spread = step.notes.some((note) => note.rolled)
+      const done = spread
+        ? step.notes.every((note) => reached.has(note.note))
+        : step.notes.every((note) => down.has(note.note))
+
+      if (done) {
         // A finished step clears the slate: the next one is a new question.
         wrong = new Set()
+        reached = new Set()
         setWrongNotes([])
         if (current + 1 >= steps.length) resetLearning()
         else advance(1)
