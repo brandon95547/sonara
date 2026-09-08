@@ -637,138 +637,261 @@
   min-width: 100%;
 }
 
-/* Bar lines. Quieter than the staff lines themselves: they are punctuation,
-   not structure. */
-.staff__bar {
-  stroke: var(--ds-border);
-  stroke-width: 1;
-  vector-effect: non-scaling-stroke;
-}
-
-/* Where you are, and where you are going — the same three states the keys use,
-   so looking from the staff to the keyboard and back says the same thing.
-
-   Behind you and far ahead read alike, exactly as they do on the keybed: the
-   shape of the piece stays visible without competing with the instruction. */
-.staff__step[data-role='played'] ellipse,
-.staff__step[data-role='ahead'] ellipse {
-  fill: var(--ds-fg-muted);
-}
-.staff__step[data-role='played'] :is(.staff__accidental, .staff__finger, .staff__flag, .staff__dot),
-.staff__step[data-role='ahead'] :is(.staff__accidental, .staff__finger, .staff__flag, .staff__dot) {
-  fill: var(--ds-fg-muted);
-}
-.staff__step[data-role='played'] :is(.staff__stem, .staff__note--hollow ellipse),
-.staff__step[data-role='ahead'] :is(.staff__stem, .staff__note--hollow ellipse) {
-  stroke: var(--ds-fg-muted);
-}
-.staff__step[data-role='upcoming'] ellipse {
-  fill: var(--ds-accent-text);
-}
-.staff__step[data-role='upcoming'] .staff__note--hollow ellipse {
-  fill: none;
-}
-.staff__step[data-role='target'] ellipse {
-  fill: var(--ds-fg);
-}
-.staff__step[data-role='target']
-  :is(.staff__accidental, .staff__finger, .staff__flag, .staff__dot) {
-  fill: var(--ds-fg);
-}
-.staff__step[data-role='target'] :is(.staff__stem, .staff__note--hollow ellipse) {
-  stroke: var(--ds-fg);
-}
-/* A hollow head stays hollow whatever colour it is wearing. */
-.staff__step[data-role='target'] .staff__note--hollow ellipse {
-  fill: none;
-}
-
-/* The cursor. A band rather than a line, because it has to say "these notes,
-   together" for a chord and not just "this instant". */
-.staff__cursor {
-  fill: var(--ds-accent-subtle);
-}
-
-/* The recommended finger, over the note it belongs to. Small: it is an aside,
-   and the note is the thing being read. */
-.staff__finger {
-  fill: var(--ds-accent-text);
-  font-size: 9px;
-  font-weight: 650;
-  text-anchor: middle;
-}
 .staff {
   display: block;
   width: 100%;
   height: 100%;
 }
-.staff__line,
-.staff__ledger {
+
+/* ---- The staff --------------------------------------------------------------
+   One hierarchy, and everything below is in its order:
+
+     active notes → notation → fingering → barlines → staff lines → playhead glow
+
+   The staff is scaffolding. It has to be legible and it has to stay out of the
+   way of the notes standing on it, which is why its lines are the faintest
+   thing here and the noteheads are the brightest. Getting that the wrong way
+   round is what makes a drawn stave look drawn rather than engraved. */
+
+/* Staff lines: the quietest thing on the page. Hairlines that do not scale with
+   the drawing, so they stay one pixel however large the panel is. */
+.staff__line {
+  stroke: var(--ds-border);
+  stroke-width: 0.9;
+  vector-effect: non-scaling-stroke;
+}
+
+/* Barlines and the line closing the system: punctuation. Above the staff lines,
+   well below the notes. */
+.staff__bar,
+.staff__system-line {
   stroke: var(--ds-border-strong);
   stroke-width: 1.1;
   vector-effect: non-scaling-stroke;
 }
-.staff__ledger {
-  stroke: var(--ds-fg-muted);
+
+.staff__bar-number {
+  fill: var(--ds-fg-muted);
+  font-size: 11px;
+  font-weight: 600;
+  text-anchor: start;
 }
+
+/* The brace and clefs belong with the notation, not with the lines: they are
+   what tells you how to read everything else. */
 .staff__brace {
   fill: none;
-  stroke: var(--ds-border-strong);
-  stroke-width: 2;
+  stroke: var(--ds-fg-secondary);
+  stroke-width: 2.4;
   stroke-linecap: round;
 }
-.staff__clef,
-.staff__clef-letter {
-  fill: var(--ds-fg-secondary);
-}
 .staff__clef {
-  font-size: 42px;
+  fill: var(--ds-fg);
+  /* A treble clef spans the whole staff and a little beyond; a bass clef sits
+     inside it. Sized against the staff rather than picked by eye — five lines
+     is 40 units, and the glyph's drawn height is about 1.4 of that. */
+  font-size: 58px;
 }
 .staff__clef--bass {
-  font-size: 40px;
-}
-.staff__clef-letter {
-  font-size: 13px;
-  font-weight: 700;
+  font-size: 46px;
 }
 .staff__clef-dot {
-  fill: var(--ds-fg-secondary);
+  fill: var(--ds-fg);
 }
-/* The note is the one thing on here that is happening, so it takes the accent
-   and everything else stays structural. */
+.staff__clef-letter {
+  fill: var(--ds-fg);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+/* Notation. Bright, because it is the thing being read. */
 .staff__note ellipse {
-  fill: var(--ds-accent-text);
+  fill: var(--ds-fg);
 }
-/* A minim and a semibreve are hollow. Stroked rather than filled, and drawn a
-   little heavier so the ring reads at the size a notehead actually gets. */
 .staff__note--hollow ellipse {
   fill: none;
-  stroke: var(--ds-accent-text);
-  stroke-width: 2.2;
+  stroke: var(--ds-fg);
+  stroke-width: 2.4;
   vector-effect: non-scaling-stroke;
 }
 .staff__stem {
-  stroke: var(--ds-accent-text);
-  stroke-width: 1.6;
+  stroke: var(--ds-fg);
+  stroke-width: 1.7;
   vector-effect: non-scaling-stroke;
 }
-.staff__flag {
-  fill: var(--ds-accent-text);
-}
+.staff__flag,
 .staff__dot {
-  fill: var(--ds-accent-text);
+  fill: var(--ds-fg);
+}
+.staff__accidental {
+  fill: var(--ds-fg);
+  font-size: 22px;
+}
+.staff__ledger {
+  stroke: var(--ds-fg);
+  stroke-width: 1.4;
+  vector-effect: non-scaling-stroke;
 }
 .staff__time-digit {
-  fill: var(--ds-fg-secondary);
-  font-size: 22px;
+  fill: var(--ds-fg);
+  /* Each numeral fills two spaces — 20 units — and a digit's cap height is
+     about three quarters of its point size. */
+  font-size: 26px;
   font-weight: 700;
   text-anchor: middle;
 }
-.staff__accidental {
-  fill: var(--ds-accent-text);
-  font-size: 15px;
+
+/* Fingering: wanted, but never at the expense of the note it belongs to. */
+.staff__finger {
+  fill: var(--ds-fg-muted);
+  font-size: 10px;
+  font-weight: 650;
+  text-anchor: middle;
 }
 
+/* The notes being played now. Purple is spent here and nowhere else, which is
+   what makes it mean something. */
+.staff__step[data-role='target'] :is(ellipse, .staff__flag, .staff__dot, .staff__accidental) {
+  fill: var(--ds-accent-text);
+}
+.staff__step[data-role='target'] .staff__note--hollow ellipse {
+  fill: none;
+}
+.staff__step[data-role='target'] :is(.staff__stem, .staff__ledger, .staff__note--hollow ellipse) {
+  stroke: var(--ds-accent-text);
+}
+.staff__step[data-role='target'] .staff__finger {
+  fill: var(--ds-accent-text);
+}
+
+/* Behind you. Dimmed a little rather than a lot: the shape of the piece stays
+   readable, which is half of what a score is for. */
+.staff__step[data-role='played'] :is(ellipse, .staff__flag, .staff__dot, .staff__accidental) {
+  fill: var(--ds-fg-secondary);
+}
+.staff__step[data-role='played'] :is(.staff__stem, .staff__ledger, .staff__note--hollow ellipse) {
+  stroke: var(--ds-fg-secondary);
+}
+.staff__step[data-role='played'] .staff__note--hollow ellipse {
+  fill: none;
+}
+
+/* The playhead. A line with a glow, not a block over the music: a translucent
+   column dims the very notes it is pointing at, and the eye reads the column
+   instead of them. */
+.staff__playhead {
+  stroke: var(--ds-accent-text);
+  stroke-width: 1.6;
+  vector-effect: non-scaling-stroke;
+  filter: drop-shadow(0 0 6px var(--ds-accent)) drop-shadow(0 0 14px var(--ds-accent));
+}
+
+/* ---- Finger badges -------------------------------------------------------
+   In their own layer above every key. A badge drawn inside a white key would
+   be hidden by the black keys that overlap it, and a badge inside a black key
+   would be 12px wide. */
+.key-badges {
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  height: 100%;
+  pointer-events: none;
+  z-index: 6;
+}
+
+.key-badge {
+  position: absolute;
+  /* Down on the part of the key a finger actually lands on, clear of the black
+     keys — which end at 62% — and above the note name. Up at the top the number
+     floated in the black-key band, reading as a label for the keyboard rather
+     than for one key. A percentage because the keybed's height follows its
+     width, so this holds its place on a phone and on a wide desktop.
+
+     Not flush under the black keys either: sitting right against their ends
+     made the number look attached to the black key above it. */
+  top: 70%;
+  transform: translate(-50%, -50%);
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  /* A numeral on the key, not a pill on top of it. */
+  color: rgb(0 0 0 / 0.78);
+  transition: color var(--duration-fast) var(--ease-standard);
+}
+
+/* A black key's number cannot follow the white ones down: at 70% it would have
+   left the bottom of its own key and be sitting in the gap between the two
+   white keys it divides, next to their numbers and claimed by neither. It goes
+   low on the black key instead — same idea, the key it has. */
+.key-badge[data-black='true'] {
+  top: 50%;
+  font-size: 11px;
+  color: rgb(255 255 255 / 0.88);
+}
+
+/* The key underneath is filled with the accent: as the current target, or
+   because it is being held down. A dark numeral on that fill measures 3.8:1,
+   under AA at this size; white clears it at 4.8:1. */
+.key-badge[data-role='target'],
+.key-badge[data-active='true'] {
+  color: var(--c-key-press-fg);
+}
+
+/* The cue that arrives with the note it applies to. Anchored to the key rather
+   than parked in a panel, because "thumb under" is about THIS key and reading
+   it three inches away at the wrong moment is no use. */
+.key-cue {
+  position: absolute;
+  /* Between its number and the note name. Both cues are two words, so it wraps
+     to two lines inside the key's width rather than spilling over the
+     neighbours the way a nowrap pill did. */
+  top: 81.5%;
+  transform: translate(-50%, -50%);
+  width: 5ch;
+  text-align: center;
+  white-space: normal;
+  text-wrap: balance;
+  padding: 0;
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: 0.01em;
+  background: none;
+  color: rgb(0 0 0 / 0.55);
+  box-shadow: none;
+}
+
+/* ---- Tetrachords ---------------------------------------------------------
+   Asked for from the theory dialog, and off again afterwards. The keybed
+   already says which notes are in the scale; this says how those notes divide
+   into the two four-note groups the scale is built from, for as long as the
+   question is being asked.
+
+   Two hues rather than two intensities, because the point is that the groups
+   are *equal* — the same shape twice. One washed darker than the other would
+   say one of them mattered more. */
+.keybed[data-structure='on'] .piano-key--white[data-group='lower'] {
+  --key-wash: rgb(112 111 211 / 0.34);
+}
+.keybed[data-structure='on'] .piano-key--black[data-group='lower'] {
+  --key-wash: rgb(150 149 240 / 0.5);
+}
+.keybed[data-structure='on'] .piano-key--white[data-group='upper'] {
+  --key-wash: rgb(51 217 178 / 0.32);
+}
+.keybed[data-structure='on'] .piano-key--black[data-group='upper'] {
+  --key-wash: rgb(51 217 178 / 0.46);
+}
+/* Anything outside the two groups steps back, so the split is the thing you
+   see rather than one more colour among several. */
+.keybed[data-structure='on'] .piano-key:not([data-group]) {
+  --key-wash: transparent;
+}
+
+/* ---- Grand staff ---------------------------------------------------------
+   A picture of what is sounding right now, not a score: no time axis, no bar
+   lines beyond the ones that close the system. */
 /* The staff sits inside the instrument panel, above the felt: one unit with the
    keys rather than a card of its own, so hiding it gives the space straight
    back to the keyboard. */

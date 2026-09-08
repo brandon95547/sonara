@@ -7,7 +7,7 @@ import {
   type StaffPlacement,
   type WrittenValue,
 } from '@sonara/shared'
-import { STEP, y } from './staff-frame'
+import { STEP, yOn } from './staff-frame'
 
 /**
  * Notes, drawn the way notes are drawn.
@@ -55,6 +55,7 @@ function StaffGroup({
     .sort((a, b) => a.placement.steps - b.placement.steps)
   if (placed.length === 0) return null
 
+  const staff = placed[0]!.placement.staff
   const direction = stemDirection(placed.map((entry) => entry.placement))
   const up = direction === 'up'
 
@@ -69,8 +70,8 @@ function StaffGroup({
 
   const stemX = up ? x + HEAD_RX * 0.92 : x - HEAD_RX * 0.92
   const outer = up ? placed.at(-1)! : placed[0]!
-  const stemEnd = y(outer.placement.steps + (up ? STEM_STEPS : -STEM_STEPS))
-  const stemStart = y(placed[up ? 0 : placed.length - 1]!.placement.steps)
+  const stemEnd = yOn(outer.placement.steps + (up ? STEM_STEPS : -STEM_STEPS), staff)
+  const stemStart = yOn(placed[up ? 0 : placed.length - 1]!.placement.steps, staff)
 
   return (
     <>
@@ -89,6 +90,7 @@ function StaffGroup({
           value={value}
           accidental={needsAccidental(entry.note, fifths)}
           finger={entry.finger}
+          stemUp={up}
         />
       ))}
     </>
@@ -101,14 +103,17 @@ function Head({
   value,
   accidental,
   finger,
+  stemUp,
 }: {
   x: number
   placement: StaffPlacement
   value: WrittenValue
   accidental: boolean
   finger?: number
+  stemUp: boolean
 }) {
-  const cy = y(placement.steps)
+  const staff = placement.staff
+  const cy = yOn(placement.steps, staff)
 
   return (
     <g className={`staff__note${value.filled ? '' : ' staff__note--hollow'}`}>
@@ -116,9 +121,9 @@ function Head({
         <line
           key={steps}
           x1={x - STEP * 2.2}
-          y1={y(steps)}
+          y1={yOn(steps, staff)}
           x2={x + STEP * 2.2}
-          y2={y(steps)}
+          y2={yOn(steps, staff)}
           className="staff__ledger"
         />
       ))}
@@ -128,7 +133,7 @@ function Head({
         // invisible.
         <circle
           cx={x + HEAD_RX * 2.1}
-          cy={y(placement.steps % 2 === 0 ? placement.steps + 1 : placement.steps)}
+          cy={yOn(placement.steps % 2 === 0 ? placement.steps + 1 : placement.steps, staff)}
           r={STEP * 0.42}
           className="staff__dot"
         />
@@ -139,7 +144,15 @@ function Head({
         </text>
       )}
       {finger !== undefined && (
-        <text x={x} y={cy - STEP * 2.6} className="staff__finger">
+        // Always the same place relative to its own note: above it, and off to
+        // the side the stem is not on. Aligned to the notehead rather than to
+        // the staff, so a chord's fingers stack the way its notes do, and clear
+        // of the stem either way so the two never sit on top of each other.
+        <text
+          x={x + (stemUp ? -HEAD_RX * 1.5 : HEAD_RX * 1.5)}
+          y={cy - STEP * 2.4}
+          className="staff__finger"
+        >
           {finger}
         </text>
       )}
@@ -210,7 +223,7 @@ export function Chord({
 /** The key signature, drawn once after the clefs. */
 export function KeySignature({ x, fifths }: { x: number; fifths: number }) {
   if (fifths === 0) return null
-  const spacing = STEP * 2.1
+  const spacing = STEP * 2.4
 
   return (
     <g className="staff__key">
@@ -219,7 +232,7 @@ export function KeySignature({ x, fifths }: { x: number; fifths: number }) {
           <text
             key={`${staff}-${index}`}
             x={x + index * spacing}
-            y={y(mark.steps) + STEP * 0.9}
+            y={yOn(mark.steps, staff) + STEP * 0.9}
             className="staff__accidental"
           >
             {mark.sign}
@@ -243,16 +256,22 @@ export function TimeSignature({ x, beats }: { x: number; beats: number }) {
 
   return (
     <g className="staff__time">
-      {([6, -6] as const).map((middle) => (
-        <g key={middle}>
-          <text x={x} y={y(middle + 2) + STEP * 0.9} className="staff__time-digit">
-            {beats}
-          </text>
-          <text x={x} y={y(middle - 2) + STEP * 0.9} className="staff__time-digit">
-            4
-          </text>
-        </g>
-      ))}
+      {(['treble', 'bass'] as const).map((staff) => {
+        const middle = staff === 'treble' ? 6 : -6
+        return (
+          <g key={staff}>
+            {/* Two numerals, each filling half the staff: the upper one across
+                the top two spaces and the lower across the bottom two. No line
+                between them — a slash reads as a fraction, not as a metre. */}
+            <text x={x} y={yOn(middle + 2, staff) + STEP * 1.5} className="staff__time-digit">
+              {beats}
+            </text>
+            <text x={x} y={yOn(middle - 2, staff) + STEP * 1.5} className="staff__time-digit">
+              4
+            </text>
+          </g>
+        )
+      })}
     </g>
   )
 }

@@ -8,7 +8,7 @@ import {
 } from '@sonara/shared'
 import { useSongStore, useCurrentSong } from '@/state/song-store'
 import { useElementSize } from '@/lib/hooks'
-import { GUTTER, StaffGutter, StaffLines, STEP, HALF_HEIGHT, y } from './staff-frame'
+import { GUTTER, StaffGutter, StaffLines, STEP, HALF_HEIGHT, yOn } from './staff-frame'
 import { Chord, KeySignature, TimeSignature } from './StaffNotes'
 
 /**
@@ -28,13 +28,25 @@ import { Chord, KeySignature, TimeSignature } from './StaffNotes'
  */
 
 /** How much horizontal room a bar of music gets, before clamping. */
-const MEASURE_WIDTH = 210
-/** Never closer than this: a notehead with an accidental needs the room. */
-const MIN_GAP = 26
+const MEASURE_WIDTH = 260
+/**
+ * Never closer than this.
+ *
+ * A notehead is about 13 units across and may carry an accidental in front of
+ * it and a fingering beside it. Crowding past this is where a score stops being
+ * readable and starts being a smear, so the page grows instead.
+ */
+const MIN_GAP = 40
 /** Never further than this: a held note should not push the next page away. */
-const MAX_GAP = 150
-/** The first note sits clear of the pinned clefs, key and time signatures. */
-const FIRST_X = GUTTER + 60
+const MAX_GAP = 170
+/**
+ * Where the music starts.
+ *
+ * Clear of the pinned clefs, the key signature and the time signature, with
+ * room left over — an engraver does not begin the first bar hard against the
+ * metre, and neither should this.
+ */
+const FIRST_X = GUTTER + 110
 /** How many steps ahead keep a marking, matching the keyboard's lookahead. */
 const LOOKAHEAD = 4
 
@@ -170,15 +182,30 @@ export function SongScore() {
           }
         >
           <StaffLines width={totalWidth} />
-          <KeySignature x={GUTTER + 4} fifths={song?.key?.fifths ?? 0} />
+          {/* Clef, then key, then metre, each clear of the last. An engraver
+              gives this run of symbols room; crowded, it reads as one blot. */}
+          <KeySignature x={GUTTER + 10} fifths={song?.key?.fifths ?? 0} />
           <TimeSignature
-            x={GUTTER + 8 + Math.min(7, Math.abs(song?.key?.fifths ?? 0)) * STEP * 2.1}
+            x={GUTTER + 26 + Math.min(7, Math.abs(song?.key?.fifths ?? 0)) * STEP * 2.4}
             beats={song?.beatsPerMeasure ?? 4}
           />
 
           {song &&
-            barLines(song.measureMs, steps, placed).map((x) => (
-              <line key={x} x1={x} y1={y(10)} x2={x} y2={y(-10)} className="staff__bar" />
+            barLines(song.measureMs, steps, placed).map(({ x, bar }) => (
+              <g key={x}>
+                <line
+                  x1={x}
+                  y1={yOn(10, 'treble')}
+                  x2={x}
+                  y2={yOn(-10, 'bass')}
+                  className="staff__bar"
+                />
+                {/* Numbered, the way a part is, so a player can say where they
+                    are out loud. */}
+                <text x={x + STEP * 1.4} y={yOn(14, 'treble')} className="staff__bar-number">
+                  {bar}
+                </text>
+              </g>
             ))}
 
           {placed.map(({ x, step, index, value }) => (
@@ -191,6 +218,19 @@ export function SongScore() {
               fifths={song?.key?.fifths ?? 0}
             />
           ))}
+
+          {/* The playhead. A line, not a column: a translucent block over the
+              music dims the very notes it is pointing at, and the eye reads the
+              block instead of them. */}
+          {placed[here] && (
+            <line
+              x1={placed[here]!.x}
+              y1={yOn(12, 'treble')}
+              x2={placed[here]!.x}
+              y2={yOn(-12, 'bass')}
+              className="staff__playhead"
+            />
+          )}
         </svg>
       </div>
 
@@ -212,11 +252,11 @@ export function SongScore() {
 /** A bar line wherever a measure boundary falls between two steps. */
 function barLines(measureMs: number, steps: readonly SongStep[], placed: readonly Placed[]) {
   if (measureMs <= 0 || steps.length === 0) return []
-  const lines: number[] = []
+  const lines: { x: number; bar: number }[] = []
   for (let i = 1; i < steps.length; i++) {
     const before = Math.floor(steps[i - 1]!.startMs / measureMs)
     const now = Math.floor(steps[i]!.startMs / measureMs)
-    if (now > before) lines.push((placed[i - 1]!.x + placed[i]!.x) / 2)
+    if (now > before) lines.push({ x: (placed[i - 1]!.x + placed[i]!.x) / 2, bar: now + 1 })
   }
   return lines
 }
@@ -235,22 +275,9 @@ function Step({
   fifths: number
 }) {
   const notes = [...step.notes].sort((a, b) => a.note - b.note)
-  const lowest = Math.min(...notes.map((note) => staffPlacement(note.note).steps))
-  const highest = Math.max(...notes.map((note) => staffPlacement(note.note).steps))
 
   return (
     <g className="staff__step" data-role={role}>
-      {role === 'target' && (
-        // Behind the notes, and tall enough to gather a chord into one mark.
-        <rect
-          x={x - STEP * 2.6}
-          y={y(Math.max(highest, 10) + 1.5)}
-          width={STEP * 5.6}
-          height={(Math.max(highest, 10) - Math.min(lowest, -10) + 3) * STEP}
-          rx={STEP}
-          className="staff__cursor"
-        />
-      )}
       <Chord
         x={x}
         notes={notes.map((note) => ({ note: note.note, finger: note.finger }))}

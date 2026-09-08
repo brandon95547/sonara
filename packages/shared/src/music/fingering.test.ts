@@ -158,6 +158,12 @@ describe('published fingerings', () => {
  * "the hand has five fingers" as one that could.
  */
 describe('every scale the app can build', () => {
+  // Genuinely slow rather than accidentally slow: it builds every one of the
+  // 1,344 exercises. Under a full parallel run it has flaked past the default
+  // five seconds more than once, which reads as a broken fingering engine and
+  // is not one.
+  const SWEEP_TIMEOUT = 30_000
+
   const combinations = SCALE_TYPES.flatMap((type) =>
     [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].flatMap((pitchClass) =>
       (['right', 'left'] as const).flatMap((hand) =>
@@ -183,58 +189,82 @@ describe('every scale the app can build', () => {
     ),
   )
 
-  it('covers every scale type, key, hand and length', () => {
-    expect(combinations).toHaveLength(SCALE_TYPES.length * 12 * 2 * 4)
-  })
+  it(
+    'covers every scale type, key, hand and length',
+    () => {
+      expect(combinations).toHaveLength(SCALE_TYPES.length * 12 * 2 * 4)
+    },
+    SWEEP_TIMEOUT,
+  )
 
-  it('never asks for a finger the hand does not have', () => {
-    for (const { where, fingers } of combinations) {
-      for (const finger of fingers) {
-        expect(finger, `${where}: finger ${finger}`).toBeGreaterThanOrEqual(1)
-        expect(finger, `${where}: finger ${finger}`).toBeLessThanOrEqual(5)
+  it(
+    'never asks for a finger the hand does not have',
+    () => {
+      for (const { where, fingers } of combinations) {
+        for (const finger of fingers) {
+          expect(finger, `${where}: finger ${finger}`).toBeGreaterThanOrEqual(1)
+          expect(finger, `${where}: finger ${finger}`).toBeLessThanOrEqual(5)
+        }
       }
-    }
-  })
+    },
+    SWEEP_TIMEOUT,
+  )
 
-  it('never asks one finger for two notes in a row', () => {
-    // The exact shape of the old failure: a hand that has run out moves on
-    // without moving its fingers.
-    for (const { where, fingers } of combinations) {
-      for (let i = 1; i < fingers.length; i++) {
-        expect(fingers[i], `${where} at ${i}`).not.toBe(fingers[i - 1])
+  it(
+    'never asks one finger for two notes in a row',
+    () => {
+      // The exact shape of the old failure: a hand that has run out moves on
+      // without moving its fingers.
+      for (const { where, fingers } of combinations) {
+        for (let i = 1; i < fingers.length; i++) {
+          expect(fingers[i], `${where} at ${i}`).not.toBe(fingers[i - 1])
+        }
       }
-    }
-  })
+    },
+    SWEEP_TIMEOUT,
+  )
 
-  it('saves the little finger for the end of the scale', () => {
-    // 5 has nowhere to go after itself, so in an ascending scale it belongs on
-    // the last note in the right hand and the first in the left, and nowhere
-    // else in either.
-    for (const { where, hand, fingers } of combinations) {
-      const inside = hand === 'right' ? fingers.slice(0, -1) : fingers.slice(1)
-      expect(inside, `${where}`).not.toContain(5)
-    }
-  })
+  it(
+    'saves the little finger for the end of the scale',
+    () => {
+      // 5 has nowhere to go after itself, so in an ascending scale it belongs on
+      // the last note in the right hand and the first in the left, and nowhere
+      // else in either.
+      for (const { where, hand, fingers } of combinations) {
+        const inside = hand === 'right' ? fingers.slice(0, -1) : fingers.slice(1)
+        expect(inside, `${where}`).not.toContain(5)
+      }
+    },
+    SWEEP_TIMEOUT,
+  )
 
-  it('keeps the thumb off black keys wherever the scale allows it', () => {
-    // A preference, not a law — a scale with almost no white keys has to break
-    // it, and breaking it is far better than running out of fingers. So the
-    // rule is enforced only where it can be kept.
-    for (const { where, pitchClass, type, fingers, notes } of combinations) {
-      const whiteKeys = octaveNotes(pitchClass, type).filter((note) => !isBlack(note)).length
-      if (whiteKeys < 3) continue
-      fingers.forEach((finger, index) => {
-        if (finger !== 1) return
-        expect(isBlack(notes[index]!), `${where} thumb at ${index}`).toBe(false)
-      })
-    }
-  })
+  it(
+    'keeps the thumb off black keys wherever the scale allows it',
+    () => {
+      // A preference, not a law — a scale with almost no white keys has to break
+      // it, and breaking it is far better than running out of fingers. So the
+      // rule is enforced only where it can be kept.
+      for (const { where, pitchClass, type, fingers, notes } of combinations) {
+        const whiteKeys = octaveNotes(pitchClass, type).filter((note) => !isBlack(note)).length
+        if (whiteKeys < 3) continue
+        fingers.forEach((finger, index) => {
+          if (finger !== 1) return
+          expect(isBlack(notes[index]!), `${where} thumb at ${index}`).toBe(false)
+        })
+      }
+    },
+    SWEEP_TIMEOUT,
+  )
 
-  it('gives every note exactly one finger', () => {
-    for (const { where, fingers, notes } of combinations) {
-      expect(fingers.length, where).toBe(notes.length)
-    }
-  })
+  it(
+    'gives every note exactly one finger',
+    () => {
+      for (const { where, fingers, notes } of combinations) {
+        expect(fingers.length, where).toBe(notes.length)
+      }
+    },
+    SWEEP_TIMEOUT,
+  )
 })
 
 /**

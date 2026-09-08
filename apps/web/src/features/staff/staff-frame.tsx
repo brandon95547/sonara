@@ -19,9 +19,31 @@ export const STEP = 5
  * step); the rest is headroom for ledger lines, so the drawing never has to be
  * scaled down to fit an unusually high or low note.
  */
-export const HALF_HEIGHT = 78
+export const HALF_HEIGHT = 92
 
-export const y = (steps: number) => -steps * STEP
+/**
+ * How far each staff is pushed away from middle C, in steps.
+ *
+ * The two staves of a grand staff are not four steps apart on the page, however
+ * neatly that falls out of measuring both from middle C. Engraved music leaves
+ * room between them — for the ledger lines either staff may need, and because a
+ * system crammed together reads as ten lines rather than as two hands.
+ *
+ * Applied on the way to the page, not in the model: `staffPlacement` keeps
+ * saying what note is written where, and this says how far apart to draw it.
+ */
+export const SYSTEM_GAP = 3
+
+/** Vertical position of a step, once its staff has been pushed clear. */
+export const yOn = (steps: number, staff: 'treble' | 'bass') =>
+  -(steps + (staff === 'treble' ? SYSTEM_GAP : -SYSTEM_GAP)) * STEP
+
+/**
+ * Vertical position of a step on the staff it belongs to.
+ *
+ * Middle C and above is treble, which is the same rule `staffPlacement` uses.
+ */
+export const y = (steps: number) => yOn(steps, steps >= 0 ? 'treble' : 'bass')
 
 const STAFF_LINES = {
   treble: [2, 4, 6, 8, 10],
@@ -35,16 +57,22 @@ export const GUTTER = 120
 export function StaffLines({ width, from = 20 }: { width: number; from?: number }) {
   return (
     <>
-      <line x1={width - 2} y1={y(10)} x2={width - 2} y2={y(-10)} className="staff__line" />
+      <line
+        x1={width - 2}
+        y1={yOn(10, 'treble')}
+        x2={width - 2}
+        y2={yOn(-10, 'bass')}
+        className="staff__system-line"
+      />
       {(['treble', 'bass'] as const).map((staff) => (
         <g key={staff}>
           {STAFF_LINES[staff].map((steps) => (
             <line
               key={steps}
               x1={from}
-              y1={y(steps)}
+              y1={yOn(steps, staff)}
               x2={width - 2}
-              y2={y(steps)}
+              y2={yOn(steps, staff)}
               className="staff__line"
             />
           ))}
@@ -65,19 +93,25 @@ export function StaffGutter() {
   return (
     <>
       <path
-        d={`M 14 ${y(10)} C 6 ${y(6)}, 6 ${y(2)}, 11 0 C 6 ${y(-2)}, 6 ${y(-6)}, 14 ${y(-10)}`}
+        d={`M 14 ${yOn(10, 'treble')} C 4 ${yOn(5, 'treble')}, 4 ${yOn(1, 'treble')}, 11 0 C 4 ${yOn(-1, 'bass')}, 4 ${yOn(-5, 'bass')}, 14 ${yOn(-10, 'bass')}`}
         className="staff__brace"
       />
-      <line x1="20" y1={y(10)} x2="20" y2={y(-10)} className="staff__line" />
+      <line
+        x1="20"
+        y1={yOn(10, 'treble')}
+        x2="20"
+        y2={yOn(-10, 'bass')}
+        className="staff__system-line"
+      />
       {(['treble', 'bass'] as const).map((staff) => (
         <g key={staff}>
           {STAFF_LINES[staff].map((steps) => (
             <line
               key={steps}
               x1="20"
-              y1={y(steps)}
+              y1={yOn(steps, staff)}
               x2={GUTTER}
-              y2={y(steps)}
+              y2={yOn(steps, staff)}
               className="staff__line"
             />
           ))}
@@ -114,8 +148,8 @@ function Clef({ staff }: { staff: 'treble' | 'bass' }) {
   if (!supported) {
     return (
       <>
-        <circle cx="32" cy={y(line)} r={STEP * 0.8} className="staff__clef-dot" />
-        <text x="41" y={y(line) + STEP * 1.4} className="staff__clef-letter">
+        <circle cx="32" cy={yOn(line, staff)} r={STEP * 0.8} className="staff__clef-dot" />
+        <text x="41" y={yOn(line, staff) + STEP * 1.4} className="staff__clef-letter">
           {staff === 'treble' ? 'G' : 'F'}
         </text>
       </>
@@ -125,7 +159,7 @@ function Clef({ staff }: { staff: 'treble' | 'bass' }) {
   return (
     <text
       x="30"
-      y={y(staff === 'treble' ? 5.4 : -5.6)}
+      y={yOn(staff === 'treble' ? 5.4 : -5.6, staff)}
       className={`staff__clef staff__clef--${staff}`}
     >
       {staff === 'treble' ? '\u{1D11E}' : '\u{1D122}'}
