@@ -126,6 +126,7 @@ export function importMuseScore(text: string, fallbackTitle: string): Song | nul
   if (!Number.isFinite(bpm) || bpm <= 0) bpm = 0
 
   let beatsPerMeasure = 4
+  let timeSignature = { beats: 4, beatType: 4 }
   let key: DetectedKey | null = null
   const notes: SongNote[] = []
   const pedal: PedalSpan[] = []
@@ -168,7 +169,10 @@ export function importMuseScore(text: string, fallbackTitle: string): Song | nul
     )) {
       const sigN = num(measureBody, 'sigN')
       const sigD = num(measureBody, 'sigD')
-      if (sigN && sigD) beatsPerMeasure = (sigN * 4) / sigD
+      if (sigN && sigD) {
+        beatsPerMeasure = (sigN * 4) / sigD
+        timeSignature = { beats: sigN, beatType: sigD }
+      }
 
       const accidental = num(measureBody, 'accidental')
       if (accidental !== undefined && key === null) {
@@ -291,6 +295,7 @@ export function importMuseScore(text: string, fallbackTitle: string): Song | nul
     title,
     bpm: bpm || 100,
     beatsPerMeasure,
+    timeSignature,
     notes,
     source: 'musescore',
     // Read from the score only where one part owns two staves. Anywhere else

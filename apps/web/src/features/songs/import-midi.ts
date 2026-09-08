@@ -128,6 +128,7 @@ export function importMidi(bytes: Uint8Array, title: string): Song | null {
     bpm: midi.header.tempos[0]?.bpm ?? 100,
     // A bar of 6/8 is six eighths, which is three quarter-note beats.
     beatsPerMeasure: Math.max(1, (beats * 4) / beatType),
+    timeSignature: { beats, beatType },
     notes,
     source: 'midi',
     handsInferred: !byTrack,

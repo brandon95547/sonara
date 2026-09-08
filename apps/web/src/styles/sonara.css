@@ -749,31 +749,32 @@
   text-anchor: middle;
 }
 
-/* The notes being played now. Purple is spent here and nowhere else, which is
-   what makes it mean something. */
-.staff__step[data-role='target'] :is(ellipse, .staff__flag, .staff__dot, .staff__accidental) {
+/* The notes under a finger right now.
+   Purple is spent on two things and nothing else: the playhead, and the notes
+   actually sounding. Not the next note to play — that is where it was, and it
+   meant the page always had a purple chord on it whether or not anybody was
+   touching the keyboard, so the colour stopped saying anything. Everything else
+   is white, the way printed music is black. */
+.staff__note[data-sounding='true'] :is(ellipse, .staff__accidental, .staff__dot) {
   fill: var(--ds-accent-text);
 }
-.staff__step[data-role='target'] .staff__note--hollow ellipse {
+.staff__note--hollow[data-sounding='true'] ellipse {
   fill: none;
-}
-.staff__step[data-role='target'] :is(.staff__stem, .staff__ledger, .staff__note--hollow ellipse) {
   stroke: var(--ds-accent-text);
 }
-.staff__step[data-role='target'] .staff__finger {
+/* Ledger lines belong to the chord, not to one note inside it, so they carry
+   the flag themselves. */
+.staff__ledger[data-sounding='true'] {
+  stroke: var(--ds-accent-text);
+}
+.staff__note[data-sounding='true'] .staff__finger {
   fill: var(--ds-accent-text);
 }
-
-/* Behind you. Dimmed a little rather than a lot: the shape of the piece stays
-   readable, which is half of what a score is for. */
-.staff__step[data-role='played'] :is(ellipse, .staff__flag, .staff__dot, .staff__accidental) {
-  fill: var(--ds-fg-secondary);
+.staff__stem[data-sounding='true'] {
+  stroke: var(--ds-accent-text);
 }
-.staff__step[data-role='played'] :is(.staff__stem, .staff__ledger, .staff__note--hollow ellipse) {
-  stroke: var(--ds-fg-secondary);
-}
-.staff__step[data-role='played'] .staff__note--hollow ellipse {
-  fill: none;
+.staff__flag[data-sounding='true'] {
+  fill: var(--ds-accent-text);
 }
 
 /* The playhead. A line with a glow, not a block over the music: a translucent

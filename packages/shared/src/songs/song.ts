@@ -80,7 +80,15 @@ export interface Song {
   readonly title: string
   /** The tempo the file declares. Playback scales from this. */
   readonly bpm: number
+  /**
+   * Beats per bar, counted in crotchets, which is what the timing maths wants.
+   *
+   * Not what to print. A bar of 7/8 is three and a half crotchets, and printing
+   * that gives `3.5/4` — a time signature no music has ever been written in.
+   */
   readonly beatsPerMeasure: number
+  /** The signature as written, for the page rather than for the clock. */
+  readonly timeSignature: { readonly beats: number; readonly beatType: number }
   readonly notes: readonly SongNote[]
   readonly durationMs: number
   /** Bar lines, in milliseconds, so a loop can be set in measures. */
@@ -167,6 +175,7 @@ export function buildSong(input: {
   title: string
   bpm: number
   beatsPerMeasure: number
+  timeSignature?: { beats: number; beatType: number }
   notes: SongNote[]
   source: Song['source']
   handsInferred: boolean
@@ -192,6 +201,8 @@ export function buildSong(input: {
     ...input,
     bpm,
     beatsPerMeasure,
+    // A file that never said keeps the reading everything else assumes.
+    timeSignature: input.timeSignature ?? { beats: Math.round(beatsPerMeasure) || 4, beatType: 4 },
     notes,
     durationMs,
     measureMs,

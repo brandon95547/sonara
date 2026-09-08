@@ -53,6 +53,7 @@ export function importMusicXml(text: string, fallbackTitle: string): Song | null
 
   let divisions = 1
   let beatsPerMeasure = 4
+  let timeSignature = { beats: 4, beatType: 4 }
   let bpm = 0
   let key: DetectedKey | null = null
 
@@ -93,7 +94,10 @@ export function importMusicXml(text: string, fallbackTitle: string): Song | null
         divisions = num(content, 'divisions') ?? divisions
         const beats = num(content, 'beats')
         const beatType = num(content, 'beat-type')
-        if (beats && beatType) beatsPerMeasure = (beats * 4) / beatType
+        if (beats && beatType) {
+          beatsPerMeasure = (beats * 4) / beatType
+          timeSignature = { beats, beatType }
+        }
         continue
       }
 
@@ -222,6 +226,7 @@ export function importMusicXml(text: string, fallbackTitle: string): Song | null
     title,
     bpm: bpm || 100,
     beatsPerMeasure,
+    timeSignature,
     notes,
     source: 'musicxml',
     handsInferred: !/<staff>/.test(text),
