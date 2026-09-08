@@ -1,6 +1,5 @@
 import * as React from 'react'
 import { useSongStore, useCurrentSong } from '@/state/song-store'
-import { useKeyboardStore } from '@/state/keyboard-store'
 import { useMeasuredScore } from './score'
 import { FlowView } from './FlowView'
 import { SheetView } from './SheetView'
@@ -22,25 +21,31 @@ import type { Role } from './score-parts'
  * it, and a learner has to be able to look from one to the other.
  *
  * Two ways to lay it out, and everything above is true of both. The measuring,
- * the fingering, the position and what is sounding are worked out here, once,
- * and handed to whichever view is showing — so the toggle changes the picture
- * and nothing else.
+ * the fingering and the position are worked out here, once, and handed to
+ * whichever view is showing — so the toggle changes the picture and nothing
+ * else.
+ *
+ * What is *sounding* deliberately does not come from here. This component
+ * holds every chord in the piece, so subscribing it to the keyboard means
+ * reconciling all of them on every note-on and every note-off. The chords near
+ * the playhead watch the keys themselves instead.
+ *
+ * And it takes no props, so `memo` holds the whole score still while the stage
+ * around it redraws. The stage watches the last note played, to follow the
+ * player along the keyboard — which means it renders on every note-on, and
+ * without this it took two hundred chords with it every time.
  */
 
 /** How many steps ahead keep a marking, matching the keyboard's lookahead. */
 const LOOKAHEAD = 4
 
-export function SongScore() {
+export const SongScore = React.memo(function SongScore() {
   const song = useCurrentSong()
   const part = useSongStore((state) => state.part)
   const mode = useSongStore((state) => state.mode)
   const view = useSongStore((state) => state.staffView)
   const stepIndex = useSongStore((state) => state.stepIndex)
   const positionMs = useSongStore((state) => state.positionMs)
-  // What is under a finger right now. The staff and the keys light the same
-  // notes at the same moment, which is the whole reason for having both.
-  const active = useKeyboardStore((state) => state.active)
-  const sounding = React.useMemo(() => new Set(Object.keys(active).map(Number)), [active])
 
   const { steps, measured } = useMeasuredScore(song, part)
 
@@ -76,7 +81,6 @@ export function SongScore() {
     fifths: song?.key?.fifths ?? 0,
     beats: song?.timeSignature?.beats ?? 4,
     beatType: song?.timeSignature?.beatType ?? 4,
-    sounding,
     roleFor,
     label: song
       ? `${song.title}, ${steps.length} steps, showing step ${Math.max(here, 0) + 1}`
@@ -84,4 +88,4 @@ export function SongScore() {
   }
 
   return view === 'sheet' ? <SheetView {...shared} /> : <FlowView {...shared} />
-}
+})

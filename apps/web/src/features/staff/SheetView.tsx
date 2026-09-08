@@ -1,8 +1,16 @@
 import * as React from 'react'
 import { useElementSize } from '@/lib/hooks'
 import { HALF_HEIGHT, StaffFrame } from './staff-frame'
-import { BarLines, Playhead, Signatures, Step, type Role } from './score-parts'
-import { barLinesIn, breakIntoSystems, frameOf, headerEnd, place, type Measured } from './score'
+import { BarLines, isLive, LiveStep, Playhead, Signatures, Step, type Role } from './score-parts'
+import {
+  barLinesIn,
+  breakIntoSystems,
+  frameOf,
+  headerEnd,
+  place,
+  type Measured,
+  type Placed,
+} from './score'
 
 /**
  * The song as printed music: lines, read left to right and then down.
@@ -47,7 +55,6 @@ export function SheetView({
   fifths,
   beats,
   beatType,
-  sounding,
   roleFor,
   label,
 }: {
@@ -56,7 +63,6 @@ export function SheetView({
   fifths: number
   beats: number
   beatType: number
-  sounding: ReadonlySet<number>
   roleFor: (index: number) => Role
   label: string
 }) {
@@ -126,12 +132,11 @@ export function SheetView({
               />
               <BarLines lines={barLinesIn(system.placed)} />
               {system.placed.map((entry) => (
-                <Step
+                <StepAt
                   key={entry.index}
                   placed={entry}
                   role={roleFor(entry.index)}
                   fifths={fifths}
-                  sounding={sounding}
                 />
               ))}
               {system === current && <Playhead x={system.placed[here - system.from]!.x} />}
@@ -140,5 +145,14 @@ export function SheetView({
         </svg>
       </div>
     </div>
+  )
+}
+
+/** Watched if it is near the playhead, drawn once and left alone if it is not. */
+function StepAt({ placed, role, fifths }: { placed: Placed; role: Role; fifths: number }) {
+  return isLive(role) ? (
+    <LiveStep placed={placed} role={role} fifths={fifths} />
+  ) : (
+    <Step placed={placed} role={role} fifths={fifths} lit="" />
   )
 }
