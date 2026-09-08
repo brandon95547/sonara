@@ -118,6 +118,8 @@ export function KeyboardStage() {
   // panel grows for it. Flow is one system and does not.
   const staffView = useSongStore((state) => state.staffView)
   const setStaffView = useSongStore((state) => state.setStaffView)
+  const fingering = useSongStore((state) => state.fingering)
+  const setFingering = useSongStore((state) => state.setFingering)
   const scoreOpen = topic === 'songs' && openSong !== null
   const sheet = showStaff && scoreOpen && staffView === 'sheet'
 
@@ -232,16 +234,33 @@ export function KeyboardStage() {
         {/* Only where there is a score to lay out. A scale is one bar of notes
             and has no lines to break. */}
         {showStaff && scoreOpen && (
-          <SegmentedControl
-            label="Score layout"
-            className="w-auto"
-            value={staffView}
-            onChange={setStaffView}
-            options={[
-              { value: 'sheet', label: 'Sheet' },
-              { value: 'flow', label: 'Flow' },
-            ]}
-          />
+          <>
+            <SegmentedControl
+              label="Score layout"
+              className="w-auto"
+              value={staffView}
+              onChange={setStaffView}
+              options={[
+                { value: 'sheet', label: 'Sheet' },
+                { value: 'flow', label: 'Flow' },
+              ]}
+            />
+            {/* How much of a worked-out fingering to print. Music that changes
+                its grip every beat has a number under every note, and how many
+                of them help depends on whether you are reading it or learning
+                it — which is the reader's answer to give, not ours. */}
+            <SegmentedControl
+              label="Fingering"
+              className="w-auto"
+              value={fingering}
+              onChange={setFingering}
+              options={[
+                { value: 'all', label: 'All' },
+                { value: 'hints', label: 'Key' },
+                { value: 'off', label: 'Off' },
+              ]}
+            />
+          </>
         )}
 
         <div className="ml-auto flex items-center gap-2">

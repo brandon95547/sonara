@@ -46,6 +46,15 @@ interface SongState {
   mode: SongMode
   /** Which way the score is written out. */
   staffView: StaffView
+  /**
+   * How much fingering the staff prints.
+   *
+   * A derived fingering knows a number for every note, and how many of them a
+   * reader wants is a fact about the reader, not about the music: sight-reading
+   * wants almost none, learning a passage wants all of it. Guessing it from the
+   * notes means guessing at the person, so it is asked rather than inferred.
+   */
+  fingering: FingeringDensity
   /** Which step of the song the player is on, in Learn. */
   stepIndex: number
   /** True once Start has been pressed, until the song is finished or reset. */
@@ -84,6 +93,7 @@ interface SongState {
   setMetronome: (on: boolean) => void
   setMode: (mode: SongMode) => void
   setStaffView: (view: StaffView) => void
+  setFingering: (density: FingeringDensity) => void
   startLearning: () => void
   resetLearning: () => void
   advance: (steps: number) => void
@@ -161,6 +171,28 @@ function save(library: readonly Song[]) {
   }
 }
 
+/**
+ * `all` prints every finger. `hints` prints the ones a reader could not work
+ * out — the start of a run, a change of grip, a leap. `off` prints none.
+ *
+ * `hints` thins a scale from eight numbers to two and a rag from a thousand to
+ * eight hundred, which is worth knowing: on music that changes its grip every
+ * beat the honest answer is that there is nothing to thin, and `off` is what
+ * makes that page readable.
+ */
+export type FingeringDensity = 'all' | 'hints' | 'off'
+
+const FINGERING_KEY = 'sonara.songs.fingering'
+
+function loadFingering(): FingeringDensity {
+  try {
+    const stored = window.localStorage.getItem(FINGERING_KEY)
+    return stored === 'all' || stored === 'off' ? stored : 'hints'
+  } catch {
+    return 'hints'
+  }
+}
+
 function loadView(): StaffView {
   try {
     return window.localStorage.getItem(VIEW_KEY) === 'sheet' ? 'sheet' : 'flow'
@@ -179,6 +211,7 @@ export const useSongStore = create<SongState>((set) => ({
   metronome: false,
   mode: 'explore',
   staffView: typeof window === 'undefined' ? 'flow' : loadView(),
+  fingering: typeof window === 'undefined' ? 'hints' : loadFingering(),
   stepIndex: 0,
   learning: false,
   stepCount: 0,
@@ -218,6 +251,16 @@ export const useSongStore = create<SongState>((set) => ({
   // Only how the same score is drawn, so nothing else moves: not the position,
   // not the tempo, not what has been learned. Switching views mid-piece has to
   // be free, or nobody will try the other one.
+  setFingering: (fingering) =>
+    set(() => {
+      try {
+        window.localStorage.setItem(FINGERING_KEY, fingering)
+      } catch {
+        // Private browsing. The choice holds for this session.
+      }
+      return { fingering }
+    }),
+
   setStaffView: (staffView) =>
     set(() => {
       try {

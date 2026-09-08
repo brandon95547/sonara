@@ -1,4 +1,5 @@
 import * as React from 'react'
+import { fingeringHints, type SongNote } from '@sonara/shared'
 import { useSongStore, useCurrentSong } from '@/state/song-store'
 import { useMeasuredScore } from './score'
 import { FlowView } from './FlowView'
@@ -43,6 +44,7 @@ export const SongScore = React.memo(function SongScore() {
   const song = useCurrentSong()
   const part = useSongStore((state) => state.part)
   const mode = useSongStore((state) => state.mode)
+  const density = useSongStore((state) => state.fingering)
   const view = useSongStore((state) => state.staffView)
   const stepIndex = useSongStore((state) => state.stepIndex)
   const positionMs = useSongStore((state) => state.positionMs)
@@ -75,6 +77,19 @@ export const SongScore = React.memo(function SongScore() {
     [here],
   )
 
+  /*
+   * Which fingerings the page prints.
+   *
+   * Computed once for the song rather than per view, because it is a property
+   * of the music and not of how it is being looked at — Sheet and Flow show the
+   * same piece and must agree about what it says.
+   */
+  const hints = React.useMemo(() => {
+    if (!song || density === 'off') return new Set<SongNote>()
+    if (density === 'all') return new Set(song.notes)
+    return fingeringHints(song)
+  }, [song, density])
+
   const shared = {
     measured,
     here,
@@ -82,6 +97,7 @@ export const SongScore = React.memo(function SongScore() {
     beats: song?.timeSignature?.beats ?? 4,
     beatType: song?.timeSignature?.beatType ?? 4,
     roleFor,
+    hints,
     label: song
       ? `${song.title}, ${steps.length} steps, showing step ${Math.max(here, 0) + 1}`
       : 'Grand staff',

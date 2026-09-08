@@ -1,6 +1,7 @@
 import * as React from 'react'
 import { STEP, yOn } from './staff-frame'
 import { Chord, KeySignature, TimeSignature } from './StaffNotes'
+import type { SongNote } from '@sonara/shared'
 import { useKeyboardStore } from '@/state/keyboard-store'
 import { KEY_X, timeX, type Placed } from './score'
 
@@ -84,12 +85,21 @@ export const Step = React.memo(function Step({
   role,
   fifths,
   lit,
+  hints,
 }: {
   placed: Placed
   role: Role
   fifths: number
   /** The sounding notes of this chord, comma separated. Almost always empty. */
   lit: string
+  /**
+   * The notes whose fingering is worth printing here.
+   *
+   * The finger stays on every note — the hand card and the keys still show it.
+   * This is only about the page, where a number under every notehead buries the
+   * music it is supposed to help with.
+   */
+  hints: ReadonlySet<SongNote>
 }) {
   const notes = [...placed.step.notes].sort((a, b) => a.note - b.note)
   const sounding = lit === '' ? null : new Set(lit.split(',').map(Number))
@@ -100,7 +110,7 @@ export const Step = React.memo(function Step({
         x={placed.x}
         notes={notes.map((note) => ({
           note: note.note,
-          finger: note.finger,
+          finger: hints.has(note) ? note.finger : undefined,
           sounding: sounding?.has(note.note) ?? false,
           rolled: note.rolled,
         }))}
@@ -124,14 +134,24 @@ export const Step = React.memo(function Step({
  * change to the store — the sustain pedal, a note somewhere else — comes back
  * equal and re-renders nothing.
  */
-export function LiveStep({ placed, role, fifths }: { placed: Placed; role: Role; fifths: number }) {
+export function LiveStep({
+  placed,
+  role,
+  fifths,
+  hints,
+}: {
+  placed: Placed
+  role: Role
+  fifths: number
+  hints: ReadonlySet<SongNote>
+}) {
   const lit = useKeyboardStore((state) =>
     placed.step.notes
       .filter((note) => state.active[note.note] !== undefined)
       .map((note) => note.note)
       .join(','),
   )
-  return <Step placed={placed} role={role} fifths={fifths} lit={lit} />
+  return <Step placed={placed} role={role} fifths={fifths} lit={lit} hints={hints} />
 }
 
 /**
