@@ -117,7 +117,13 @@ export function ScaleConfigRow() {
         </Labelled>
       </div>
 
-      <div className="flex items-end gap-2 coarse:gap-3">
+      {/* Wraps rather than squeezes. Unwrapped, a 320px screen took the four
+          controls here and shrank them to fit: the guidance toggle lost its
+          last option behind the demo button and both icon buttons came out
+          nineteen pixels across — half a touch target, and under the Bible's
+          rule that controls do not shrink to make room. A second line costs a
+          row of height and every control keeps its size. */}
+      <div className="flex flex-wrap items-end gap-2 coarse:gap-3">
         <Labelled label="Guidance">
           <div
             role="radiogroup"
