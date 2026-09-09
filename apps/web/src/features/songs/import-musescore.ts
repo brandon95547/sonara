@@ -1,12 +1,21 @@
 import {
   buildSong,
   inferHand,
+  modeForFifths,
+  numberMeasures,
+  spellingFromTpc,
+  spellingName,
   tonicForFifths,
+  velocityForDynamic,
+  type ChordSymbol,
   type DetectedKey,
   type Hand,
+  type NoteValue,
   type PedalSpan,
   type Song,
+  type SongMeasure,
   type SongNote,
+  type WrittenNote,
 } from '@sonara/shared'
 
 /**
@@ -18,13 +27,18 @@ import {
  * as; exporting MusicXML is an extra step, and a step people forget.
  *
  * Two things make it pleasant to read where MusicXML is not. Pitch is already
- * a MIDI number, so nothing has to be spelled. And duration is a name —
- * `quarter`, `eighth` — rather than a count of divisions, so the tuplet and
- * dot arithmetic is small and local.
+ * a MIDI number, and its spelling is beside it as a tonal pitch class, so
+ * nothing has to be worked out. And duration is a name — `quarter`, `eighth` —
+ * rather than a count of divisions, so the tuplet and dot arithmetic is small
+ * and local.
  *
  * The awkward part is time. There is no cursor in the file: a `<Chord>` or
  * `<Rest>` advances it, a `<Chord>` inside the same `<voice>` follows the one
- * before, and each `<voice>` restarts at the beginning of its measure.
+ * before, and each `<voice>` restarts at the beginning of its measure. Three
+ * things do not advance it and were read as though they did: a grace note,
+ * which is struck before the beat it belongs to; a `<Tuplet>`, which scales
+ * the chords that follow it until `<endTuplet/>`; and a tie, which is one note
+ * written as two.
  */
 
 /**
@@ -59,6 +73,36 @@ const DURATIONS: Record<string, number> = {
   '128th': 1 / 128,
   measure: 1,
 }
+
+/** MuseScore duration names onto the values the engraver draws. */
+const VALUES: Record<string, NoteValue> = {
+  long: 'whole',
+  breve: 'whole',
+  whole: 'whole',
+  measure: 'whole',
+  half: 'half',
+  quarter: 'quarter',
+  eighth: 'eighth',
+  '16th': 'sixteenth',
+  '32nd': 'thirty-second',
+  '64th': 'thirty-second',
+  '128th': 'thirty-second',
+}
+
+/** The elements that mark a chord as a grace note, before or after its beat. */
+const GRACE_TAGS = [
+  'acciaccatura',
+  'appoggiatura',
+  'grace4',
+  'grace16',
+  'grace32',
+  'grace8after',
+  'grace16after',
+  'grace32after',
+]
+
+/** How long before its beat a grace note is struck, in crotchets. */
+const GRACE_Q = 0.25
 
 const inner = (xml: string, tag: string): string | undefined =>
   new RegExp(`<${tag}(?:\\s[^>]*)?>([\\s\\S]*?)</${tag}>`).exec(xml)?.[1]
@@ -133,21 +177,29 @@ function readParts(text: string): Part[] {
   return parts
 }
 
+interface Parsed extends SongNote {
+  readonly startQ: number
+  readonly durationQ: number
+}
+
 export function importMuseScore(text: string, fallbackTitle: string): Song | null {
   if (!/<museScore/i.test(text)) return null
 
   const title =
     /<metaTag name="workTitle">([^<]*)<\/metaTag>/.exec(text)?.[1]?.trim() || fallbackTitle
 
-  let bpm = num(text, 'tempo') ? num(text, 'tempo')! * 60 : 0
-  // <tempo> is beats per second in MuseScore's file, not per minute.
-  if (!Number.isFinite(bpm) || bpm <= 0) bpm = 0
-
   let beatsPerMeasure = 4
   let timeSignature = { beats: 4, beatType: 4 }
-  let key: DetectedKey | null = null
-  const notes: SongNote[] = []
-  const pedal: PedalSpan[] = []
+  let fifths: number | null = null
+  let mode: 'major' | 'minor' | null = null
+  const notes: Parsed[] = []
+  const pedalsQ: { fromQ: number; toQ: number }[] = []
+  const chordsQ: { startQ: number; text: string }[] = []
+  /** Tempo marks in crotchets from the start. `<tempo>` is beats per second. */
+  const tempos: { atQ: number; bpm: number }[] = []
+  /** Each bar's length in crotchets and its metre, from the first staff read. */
+  const bars: { durationQ: number; beats: number; beatType: number }[] = []
+  let tupletCounter = 0
 
   // Each <Staff id="n"> at the top level carries that staff's measures.
   const staves = [...text.matchAll(/<Staff id="(\d+)">([\s\S]*?)<\/Staff>/g)].filter(([, , body]) =>
@@ -173,22 +225,23 @@ export function importMuseScore(text: string, fallbackTitle: string): Song | nul
     return owner.staffIds[0] === id ? 'right' : 'left'
   }
 
-  const beat = () => 60000 / (bpm || 100)
   let guessedAHand = false
 
   for (const [, idText, staffBody = ''] of staves) {
     const staffIndex = Number(idText)
     const hand = handForStaff(staffIndex)
     if (hand === null) guessedAHand = true
-    let measureStart = 0
+    let measureStartQ = 0
     // Octave lines belong to the staff that carries them, so they are gathered
     // per staff and applied to that staff's notes once its measures are read.
-    const octaves: { from: number; to: number; semitones: number }[] = []
+    const octaves: { fromQ: number; toQ: number; semitones: number }[] = []
     const staffFirstNote = notes.length
+    /** Open tied notes on this staff, by pitch, so a tie extends rather than restrikes. */
+    const tied = new Map<number, Parsed>()
 
-    for (const [, attributes = '', measureBody = ''] of staffBody.matchAll(
-      /<Measure((?:\s[^>]*)?)>([\s\S]*?)<\/Measure>/g,
-    )) {
+    for (const [index, [, attributes = '', measureBody = '']] of [
+      ...staffBody.matchAll(/<Measure((?:\s[^>]*)?)>([\s\S]*?)<\/Measure>/g),
+    ].entries()) {
       const sigN = num(measureBody, 'sigN')
       const sigD = num(measureBody, 'sigD')
       if (sigN && sigD) {
@@ -196,13 +249,16 @@ export function importMuseScore(text: string, fallbackTitle: string): Song | nul
         timeSignature = { beats: sigN, beatType: sigD }
       }
 
-      const accidental = num(measureBody, 'accidental')
-      if (accidental !== undefined && key === null) {
-        key = {
-          fifths: accidental,
-          mode: 'major',
-          pitchClass: tonicForFifths(accidental, 'major'),
-          declared: true,
+      // `<accidental>` is the signature's count of sharps or flats; MuseScore 4
+      // also writes it as `<concertKey>`. The mode is written only when the
+      // key was set as minor, and is worked out from the notes otherwise.
+      const keySig = inner(measureBody, 'KeySig')
+      if (keySig && fifths === null) {
+        const declared = num(keySig, 'accidental') ?? num(keySig, 'concertKey')
+        if (declared !== undefined) {
+          fifths = declared
+          const written = inner(keySig, 'mode')?.trim().toLowerCase()
+          mode = written === 'minor' ? 'minor' : written === 'major' ? 'major' : null
         }
       }
 
@@ -214,6 +270,8 @@ export function importMuseScore(text: string, fallbackTitle: string): Song | nul
       for (const voiceBody of bodies) {
         let cursor = 0
         let dynamic: string | undefined
+        /** Tuplets in force, innermost last. Each scales what is under it. */
+        const tuplets: { id: number; actual: number; normal: number }[] = []
 
         for (const element of children(voiceBody, [
           'Chord',
@@ -225,9 +283,44 @@ export function importMuseScore(text: string, fallbackTitle: string): Song | nul
           // that way and had never imported a single span.
           'Spanner',
           'location',
+          'Tuplet',
+          'endTuplet',
+          'Tempo',
+          'Harmony',
         ])) {
           if (element.tag === 'Dynamic') {
             dynamic = inner(element.body, 'subtype')?.trim() || dynamic
+            continue
+          }
+          if (element.tag === 'Tempo') {
+            // Crotchets per second in the file, per minute everywhere else.
+            const perSecond = num(element.body, 'tempo')
+            if (perSecond && perSecond > 0)
+              tempos.push({ atQ: measureStartQ + cursor, bpm: perSecond * 60 })
+            continue
+          }
+          if (element.tag === 'Harmony') {
+            const root = num(element.body, 'root')
+            const spelled = root !== undefined ? spellingFromTpc(root) : null
+            if (spelled) {
+              const name = (inner(element.body, 'name') ?? '').trim()
+              const base = num(element.body, 'base')
+              const bass = base !== undefined ? spellingFromTpc(base) : null
+              chordsQ.push({
+                startQ: measureStartQ + cursor,
+                text: `${spellingName(spelled)}${name}${bass ? `/${spellingName(bass)}` : ''}`,
+              })
+            }
+            continue
+          }
+          if (element.tag === 'Tuplet') {
+            const normal = num(element.body, 'normalNotes')
+            const actual = num(element.body, 'actualNotes')
+            if (normal && actual) tuplets.push({ id: ++tupletCounter, actual, normal })
+            continue
+          }
+          if (element.tag === 'endTuplet') {
+            tuplets.pop()
             continue
           }
           if (element.tag === 'location') {
@@ -247,10 +340,12 @@ export function importMuseScore(text: string, fallbackTitle: string): Song | nul
             const beats = ticks ? (Number(ticks[1]) / Number(ticks[2])) * 4 : 0
 
             if (inner(element.body, 'Pedal') !== undefined) {
-              pedal.push({
-                startMs: measureStart + cursor * beat(),
-                endMs: measureStart + (cursor + (beats > 0 ? beats : beatsPerMeasure)) * beat(),
-              })
+              if (hand !== null || staves.length === 1) {
+                pedalsQ.push({
+                  fromQ: measureStartQ + cursor,
+                  toQ: measureStartQ + cursor + (beats > 0 ? beats : beatsPerMeasure),
+                })
+              }
               continue
             }
 
@@ -263,10 +358,10 @@ export function importMuseScore(text: string, fallbackTitle: string): Song | nul
             const shift = OCTAVE_SHIFTS[inner(element.body, 'subtype')?.trim() ?? '']
             if (shift !== undefined && beats > 0) {
               octaves.push({
-                from: measureStart + cursor * beat(),
+                fromQ: measureStartQ + cursor,
                 // A hair short, so a note starting exactly where the line ends
                 // is outside it.
-                to: measureStart + (cursor + beats) * beat() - 1,
+                toQ: measureStartQ + cursor + beats - 1e-6,
                 semitones: shift,
               })
             }
@@ -278,11 +373,9 @@ export function importMuseScore(text: string, fallbackTitle: string): Song | nul
           const dots = num(element.body, 'dots') ?? 0
           // A dot adds half of what came before it, and a second dot half again.
           let beats = whole * 4 * (2 - 2 ** -dots)
-          const tuplet =
-            /<Tuplet>[\s\S]*?<normalNotes>(\d+)<\/normalNotes>[\s\S]*?<actualNotes>(\d+)<\/actualNotes>/.exec(
-              element.body,
-            )
-          if (tuplet) beats *= Number(tuplet[1]) / Number(tuplet[2])
+          // Every tuplet in force scales the note: a triplet quaver is a third
+          // of a crotchet, and a triplet inside a duplet is both at once.
+          for (const tuplet of tuplets) beats *= tuplet.normal / tuplet.actual
 
           if (element.tag === 'Rest') {
             cursor += typeName === 'measure' ? beatsPerMeasure : beats
@@ -290,28 +383,77 @@ export function importMuseScore(text: string, fallbackTitle: string): Song | nul
             continue
           }
 
+          // A grace note is struck a little before the beat it decorates and
+          // takes no time of its own: the cursor stays where it is, or every
+          // note after an acciaccatura arrives a quaver late.
+          const grace = GRACE_TAGS.some((tag) => new RegExp(`<${tag}\\s*/>`).test(element.body))
+          const innermost = tuplets.at(-1)
+          const written: WrittenNote = {
+            value: VALUES[typeName] ?? 'quarter',
+            dots,
+            ...(innermost ? { tuplet: innermost } : {}),
+          }
+
           // A chord: every <Note> inside it starts together.
           for (const note of children(element.body, ['Note'])) {
             const pitch = num(note.body, 'pitch')
             if (pitch === undefined) continue
+            const tpc = num(note.body, 'tpc')
+            const spelling = tpc !== undefined ? spellingFromTpc(tpc) : null
             const fingerText = inner(note.body, 'Fingering')
               ? inner(inner(note.body, 'Fingering')!, 'text')?.trim()
               : undefined
             const finger = fingerText && /^[1-5]$/.test(fingerText) ? Number(fingerText) : undefined
 
-            notes.push({
+            const startQ = grace
+              ? Math.max(0, measureStartQ + cursor - GRACE_Q)
+              : measureStartQ + cursor
+            const durationQ = grace ? GRACE_Q : Math.max(0.0625, beats)
+
+            // A tie is one note written as two. Its second half carries a
+            // `<prev>` pointing back; the first half a `<next>` pointing on.
+            // MuseScore 3 and 4 both write the tie as a spanner inside the
+            // note, which is why matching `<Tie>` at the voice level found
+            // nothing and every tied note was struck twice.
+            const tie = /<Spanner\s+type="Tie">([\s\S]*?)<\/Spanner>/.exec(note.body)?.[1] ?? ''
+            const continues = /<prev>/.test(tie)
+            const starts = /<next>/.test(tie)
+            if (continues) {
+              const held = tied.get(pitch)
+              if (held) {
+                const index = notes.lastIndexOf(held)
+                if (index >= 0) {
+                  const extended: Parsed = { ...held, durationQ: startQ + durationQ - held.startQ }
+                  notes[index] = extended
+                  if (starts) tied.set(pitch, extended)
+                  else tied.delete(pitch)
+                  continue
+                }
+              }
+            }
+
+            const parsed: Parsed = {
               note: pitch,
-              velocity: velocityFor(dynamic),
-              startMs: measureStart + cursor * beat(),
-              durationMs: Math.max(30, beats * beat()),
+              velocity: velocityForDynamic(dynamic),
+              startMs: 0,
+              durationMs: 0,
+              startQ,
+              durationQ,
               hand: hand ?? inferHand(pitch),
               role: 'keyboard',
+              written,
+              ...(spelling ? { spelling } : {}),
+              ...(grace ? { grace: true } : {}),
               ...(finger ? { finger } : {}),
               ...(dynamic ? { dynamic } : {}),
-            })
+            }
+            notes.push(parsed)
+            if (starts) tied.set(pitch, parsed)
           }
-          cursor += beats
-          longestVoice = Math.max(longestVoice, cursor)
+          if (!grace) {
+            cursor += beats
+            longestVoice = Math.max(longestVoice, cursor)
+          }
         }
       }
 
@@ -323,8 +465,15 @@ export function importMuseScore(text: string, fallbackTitle: string): Song | nul
       const measureBeats = declared
         ? (Number(declared[1]) / Number(declared[2])) * 4
         : beatsPerMeasure
+      const durationQ = Math.max(longestVoice, measureBeats)
 
-      measureStart += Math.max(longestVoice, measureBeats) * beat()
+      const known = bars[index]
+      bars[index] = {
+        durationQ: Math.max(known?.durationQ ?? 0, durationQ),
+        beats: timeSignature.beats,
+        beatType: timeSignature.beatType,
+      }
+      measureStartQ += durationQ
     }
 
     // Lift the notes under any octave line onto the pitch they sound at, so
@@ -333,13 +482,59 @@ export function importMuseScore(text: string, fallbackTitle: string): Song | nul
     if (octaves.length > 0) {
       for (let i = staffFirstNote; i < notes.length; i++) {
         const note = notes[i]!
-        const span = octaves.find((o) => note.startMs >= o.from && note.startMs <= o.to)
+        const span = octaves.find((o) => note.startQ >= o.fromQ && note.startQ <= o.toQ)
         if (span) notes[i] = { ...note, note: note.note + span.semitones }
       }
     }
   }
 
   if (notes.length === 0) return null
+
+  const toMs = clock(tempos)
+  const timed: SongNote[] = notes.map((note) => ({
+    ...note,
+    startMs: toMs(note.startQ),
+    durationMs: Math.max(30, toMs(note.startQ + note.durationQ) - toMs(note.startQ)),
+  }))
+
+  const measureList: Omit<SongMeasure, 'number'>[] = []
+  let atQ = 0
+  for (const bar of bars) {
+    measureList.push({
+      startMs: toMs(atQ),
+      durationMs: toMs(atQ + bar.durationQ) - toMs(atQ),
+      startQ: atQ,
+      durationQ: bar.durationQ,
+      beats: bar.beats,
+      beatType: bar.beatType,
+      quarterMs: 60000 / bpmAt(tempos, atQ),
+    })
+    atQ += bar.durationQ
+  }
+
+  const pedal: PedalSpan[] = pedalsQ.map((span) => ({
+    startMs: toMs(span.fromQ),
+    endMs: toMs(span.toQ),
+  }))
+  const chords: ChordSymbol[] = chordsQ.map((chord) => ({
+    startQ: chord.startQ,
+    startMs: toMs(chord.startQ),
+    text: chord.text,
+    source: 'score',
+  }))
+
+  const key: DetectedKey | null =
+    fifths !== null
+      ? (() => {
+          const chosen = mode ?? modeForFifths(timed, fifths)
+          return {
+            fifths,
+            mode: chosen,
+            pitchClass: tonicForFifths(fifths, chosen),
+            declared: true,
+          }
+        })()
+      : null
 
   const sounding = new Set(staves.map(([, id]) => Number(id)))
   const named = [
@@ -351,13 +546,14 @@ export function importMuseScore(text: string, fallbackTitle: string): Song | nul
     ),
   ]
 
+  const first = bars[0]
   return buildSong({
     id: `musescore:${title}:${Date.now()}`,
     title,
-    bpm: bpm || 100,
-    beatsPerMeasure,
-    timeSignature,
-    notes,
+    bpm: tempos[0]?.bpm ?? 100,
+    beatsPerMeasure: first ? (first.beats * 4) / first.beatType : beatsPerMeasure,
+    timeSignature: first ? { beats: first.beats, beatType: first.beatType } : timeSignature,
+    notes: timed,
     source: 'musescore',
     // Read from the score only where one part owns two staves. Anywhere else
     // the hand came from pitch, and the library has to say so rather than
@@ -365,22 +561,42 @@ export function importMuseScore(text: string, fallbackTitle: string): Song | nul
     handsInferred: guessedAHand || staves.length < 2,
     key,
     pedal,
+    chords,
+    measures: numberMeasures(measureList),
     rhythmFromScore: true,
     parts: named.length > 0 ? named : ['Piano'],
   })
 }
 
-/** Dynamics as a velocity, so a marked score plays with its own shape. */
-function velocityFor(dynamic: string | undefined): number {
-  const table: Record<string, number> = {
-    ppp: 16,
-    pp: 33,
-    p: 49,
-    mp: 64,
-    mf: 80,
-    f: 96,
-    ff: 112,
-    fff: 126,
+/** The tempo in force at a point, in crotchets per minute. */
+function bpmAt(tempos: readonly { atQ: number; bpm: number }[], atQ: number): number {
+  let bpm = tempos[0]?.bpm ?? 100
+  for (const mark of tempos) if (mark.atQ <= atQ + 1e-9) bpm = mark.bpm
+  return bpm > 0 ? bpm : 100
+}
+
+/**
+ * Crotchets into milliseconds, tempo mark by tempo mark.
+ *
+ * The marks may have been read staff by staff rather than in time order, so
+ * they are sorted first; a mark at the same point as another is the later
+ * one read.
+ */
+function clock(tempos: readonly { atQ: number; bpm: number }[]): (quarters: number) => number {
+  const marks = [...tempos].filter((mark) => mark.bpm > 0).sort((a, b) => a.atQ - b.atQ)
+  const initial = marks[0]?.bpm ?? 100
+  return (quarters: number) => {
+    let ms = 0
+    let atQ = 0
+    let bpm = initial
+    for (const mark of marks) {
+      if (mark.atQ >= quarters) break
+      if (mark.atQ > atQ) {
+        ms += (mark.atQ - atQ) * (60000 / bpm)
+        atQ = mark.atQ
+      }
+      bpm = mark.bpm
+    }
+    return ms + (quarters - atQ) * (60000 / bpm)
   }
-  return dynamic ? (table[dynamic] ?? 80) : 80
 }

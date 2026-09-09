@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { Hand, Song } from '@sonara/shared'
+import { gridMeasures, type Hand, type Song } from '@sonara/shared'
 
 /**
  * The songs a player has imported, and how they are practising the one that is
@@ -134,9 +134,29 @@ function migrate(song: Song): Song {
   const notes = song.notes?.map((note) =>
     note.role ? note : { ...note, role: 'keyboard' as const },
   )
+  const timeSignature = song.timeSignature ?? {
+    beats: Math.round(song.beatsPerMeasure) || 4,
+    beatType: 4,
+  }
+  // A song stored before bars were read has one tempo and one metre to go
+  // on, which is what it had before as well: the grid is the old behaviour,
+  // kept for old songs. Importing the file again reads the real bars.
+  const measures =
+    song.measures && song.measures.length > 0
+      ? song.measures
+      : gridMeasures({
+          bpm: song.bpm,
+          beats: timeSignature.beats,
+          beatType: timeSignature.beatType,
+          durationMs: song.durationMs,
+        })
   return {
     ...song,
     notes: notes ?? [],
+    timeSignature,
+    measures,
+    measureCount: measures.length,
+    chords: song.chords ?? [],
     parts: song.parts ?? ['Piano'],
     // Reading a drum track as piano is not a small inaccuracy — a kick and a
     // snare become two low notes on the keys. Nothing in a stored note says

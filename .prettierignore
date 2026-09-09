@@ -7,3 +7,4 @@ package-lock.json
 # next re-copy a diff full of whitespace, which is how a "verbatim" file quietly
 # stops being one.
 apps/web/src/styles/tokens.css
+.claude/

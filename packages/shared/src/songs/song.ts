@@ -98,6 +98,22 @@ export interface SongNote {
   readonly grace?: boolean
 }
 
+/**
+ * A chord symbol the score prints above the staff — `Am7`, `G/B`.
+ *
+ * Read from the file where it wrote them (MusicXML `<harmony>`, MuseScore
+ * `<Harmony>`), and worked out from the notes where it did not. `text` is
+ * what to print; the root is kept spelled so the symbol can be respelled if
+ * the piece is ever transposed.
+ */
+export interface ChordSymbol {
+  readonly startMs: number
+  readonly startQ: number
+  readonly text: string
+  /** Whether the file wrote it, or Sonara read it off the notes. */
+  readonly source: 'score' | 'derived'
+}
+
 /** A stretch of sustain pedal, as the score marks it. */
 export interface PedalSpan {
   readonly startMs: number
@@ -178,6 +194,8 @@ export interface Song {
   readonly fingeringSource?: 'score' | 'derived'
   /** Sustain pedal, where the score marks it. */
   readonly pedal: readonly PedalSpan[]
+  /** Chord symbols, from the file or from the notes. */
+  readonly chords: readonly ChordSymbol[]
   /** What the source gave us, so the UI can say what it did not. */
   readonly provides: SongProvides
 }
@@ -243,6 +261,8 @@ export function buildSong(input: {
   rhythmFromScore?: boolean
   /** The bars as the file laid them out. Without them, one tempo and one metre. */
   measures?: readonly SongMeasure[]
+  /** Chord symbols the file printed. */
+  chords?: readonly ChordSymbol[]
 }): Song {
   const bpm = input.bpm > 0 ? input.bpm : 100
   const beatsPerMeasure = input.beatsPerMeasure > 0 ? input.beatsPerMeasure : 4
@@ -292,6 +312,7 @@ export function buildSong(input: {
       ? { fingeringSource: 'score' as const }
       : {}),
     pedal: input.pedal ?? [],
+    chords: input.chords ?? [],
     provides: {
       notes: notes.length > 0,
       // MIDI records when a note started, not what it is written as. That is

@@ -1,15 +1,19 @@
 import { Midi } from '@tonejs/midi'
 import {
   buildSong,
+  estimateKey,
+  fifthsForKeyName,
   inferHand,
+  numberMeasures,
   programFamily,
   roleForProgram,
+  spellInKey,
   tonicForFifths,
-  fifthsForTonic,
   type DetectedKey,
   type Hand,
   type PartRole,
   type Song,
+  type SongMeasure,
   type SongNote,
 } from '@sonara/shared'
 
@@ -25,7 +29,10 @@ import {
  * not have that bug, and gets note times back in seconds with the tempo map
  * already applied.
  *
- * What is left here is the part that is ours: deciding what each track is for.
+ * What is left here is the part that is ours: deciding what each track is for,
+ * reading the key the way the file means it, laying out the bars from the
+ * tempo and metre maps, and spelling the notes — which a MIDI file cannot do
+ * and a staff cannot do without.
  */
 export function importMidi(bytes: Uint8Array, title: string): Song | null {
   let midi: Midi
@@ -83,44 +90,66 @@ export function importMidi(bytes: Uint8Array, title: string): Song | null {
     leadTracks.map((track, index) => [track, index === 0 ? 'right' : 'left']),
   )
 
-  const notes: SongNote[] = []
+  /*
+   * The key, as the file means it.
+   *
+   * An SMF key signature is a count of sharps or flats and a major/minor
+   * flag, and the library names the count by its major key: A minor arrives
+   * as "C" with `minor`. Read as fifths that is right; read as a tonic name
+   * it is C minor, three flats out. The flats were worse — "Bb" was not on
+   * the list of names being looked up, so every flat key past F came out as C
+   * major, and was stamped as declared.
+   */
+  const declared = midi.header.keySignatures[0]
+  const declaredFifths = declared ? fifthsForKeyName(declared.key) : null
+  const declaredKey: DetectedKey | null =
+    declared && declaredFifths !== null
+      ? {
+          mode: declared.scale === 'minor' ? 'minor' : 'major',
+          pitchClass: tonicForFifths(
+            declaredFifths,
+            declared.scale === 'minor' ? 'minor' : 'major',
+          ),
+          fifths: declaredFifths,
+          declared: true,
+        }
+      : null
+
+  const ppq = midi.header.ppq > 0 ? midi.header.ppq : 480
+  const unspelled: (SongNote & { track: Track })[] = []
   for (const track of tracks) {
     const role = roleOf(track)
     for (const note of track.notes) {
-      notes.push({
+      unspelled.push({
+        track,
         note: note.midi,
         // The library normalises velocity to 0-1; MIDI and our engines want 1-127.
         velocity: Math.max(1, Math.round(note.velocity * 127)),
         startMs: note.time * 1000,
         durationMs: Math.max(30, note.duration * 1000),
+        // Exact, from the file's own ticks: the tempo map decides when a
+        // crotchet sounds, not what a crotchet is.
+        startQ: note.ticks / ppq,
+        durationQ: Math.max(0.0625, note.durationTicks / ppq),
         hand: byTrack ? (hands.get(track) ?? 'right') : inferHand(note.midi),
         role,
       })
     }
   }
 
-  const [beats = 4, beatType = 4] = midi.header.timeSignatures[0]?.timeSignature ?? []
+  // Most MIDI files declare no key, and the spelling needs one before the
+  // song is built — so the estimate is made here rather than left to
+  // buildSong, and handed on so the song reports the same key it was
+  // spelled in.
+  const key = declaredKey ?? estimateKey(unspelled)
+  const notes = spellNotes(unspelled, key)
 
-  // A MIDI file may declare a key. Most do not, and buildSong estimates one
-  // from the notes when this is null — marked as an estimate either way.
-  const declared = midi.header.keySignatures[0]
-  const key: DetectedKey | null = declared
-    ? {
-        mode: declared.scale === 'minor' ? 'minor' : 'major',
-        pitchClass: tonicForFifths(
-          fifthsForTonic(
-            ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'].indexOf(declared.key),
-            declared.scale === 'minor' ? 'minor' : 'major',
-          ),
-          declared.scale === 'minor' ? 'minor' : 'major',
-        ),
-        fifths: fifthsForTonic(
-          ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'].indexOf(declared.key),
-          declared.scale === 'minor' ? 'minor' : 'major',
-        ),
-        declared: true,
-      }
-    : null
+  const [beats = 4, beatType = 4] = midi.header.timeSignatures[0]?.timeSignature ?? []
+  const endTicks = tracks.reduce(
+    (end, track) =>
+      track.notes.reduce((last, note) => Math.max(last, note.ticks + note.durationTicks), end),
+    0,
+  )
 
   return buildSong({
     id: `midi:${title}:${Date.now()}`,
@@ -133,6 +162,7 @@ export function importMidi(bytes: Uint8Array, title: string): Song | null {
     source: 'midi',
     handsInferred: !byTrack,
     key,
+    measures: measuresFromHeader(midi.header, endTicks),
     parts: [
       ...new Set(
         tracks.map((track) =>
@@ -141,4 +171,88 @@ export function importMidi(bytes: Uint8Array, title: string): Song | null {
       ),
     ],
   })
+}
+
+/**
+ * Spells every pitched note in the key.
+ *
+ * A note a semitone from the next one in its track is a chromatic step and
+ * is spelled in the direction it is going — C C♯ D, D D♭ C — which is the
+ * one thing the key alone cannot decide. Percussion is not pitch and keeps
+ * no spelling.
+ */
+function spellNotes<T extends SongNote & { track: unknown }>(
+  notes: readonly T[],
+  key: DetectedKey | null,
+): SongNote[] {
+  const fifths = key?.fifths ?? 0
+  const mode = key?.mode ?? 'major'
+  const byTrack = new Map<unknown, T[]>()
+  for (const note of notes) {
+    const list = byTrack.get(note.track) ?? []
+    list.push(note)
+    byTrack.set(note.track, list)
+  }
+  const approaches = new Map<T, 'up' | 'down' | undefined>()
+  for (const list of byTrack.values()) {
+    const ordered = [...list].sort((a, b) => a.startMs - b.startMs || a.note - b.note)
+    for (const [index, note] of ordered.entries()) {
+      const next = ordered.slice(index + 1).find((candidate) => candidate.note !== note.note)
+      const interval = next ? next.note - note.note : 0
+      approaches.set(note, interval === 1 ? 'up' : interval === -1 ? 'down' : undefined)
+    }
+  }
+  return notes.map((original) => {
+    const { track: _track, ...note } = original
+    if (note.role === 'percussion') return note
+    return {
+      ...note,
+      spelling: spellInKey(((note.note % 12) + 12) % 12, fifths, mode, approaches.get(original)),
+    }
+  })
+}
+
+/**
+ * The bars of the file, from its metre and tempo maps.
+ *
+ * A MIDI file has no bars, only a grid it could be barred on: the time
+ * signature events say how long a bar is from that tick onward, and the tempo
+ * events say how long a tick is. Walking both gives every bar its own start
+ * and length in time, which is what puts the bar lines back where the
+ * sequencer that wrote the file had them — including after a ritardando,
+ * where one bar length for the whole piece drifts a little further wrong
+ * with every bar that follows.
+ */
+function measuresFromHeader(header: Midi['header'], endTicks: number): SongMeasure[] {
+  const ppq = header.ppq > 0 ? header.ppq : 480
+  const signatures = [...header.timeSignatures].sort((a, b) => a.ticks - b.ticks)
+  const tempos = [...header.tempos].sort((a, b) => a.ticks - b.ticks)
+  const seconds = (ticks: number) => header.ticksToSeconds(ticks)
+
+  const bars: Omit<SongMeasure, 'number'>[] = []
+  let tick = 0
+  // A file cannot be longer than this many bars and still be a piece of
+  // music; the cap is only there so a broken header cannot loop forever.
+  while ((tick < endTicks || bars.length === 0) && bars.length < 20_000) {
+    const signature = signatures.filter((entry) => entry.ticks <= tick).at(-1)
+    const [beats = 4, beatType = 4] = signature?.timeSignature ?? []
+    const barTicks = Math.max(1, Math.round((ppq * 4 * beats) / beatType))
+    // A change of metre starts a new bar, so a bar cut short by one ends
+    // where the new signature begins.
+    const change = signatures.find((entry) => entry.ticks > tick)
+    const end = change ? Math.min(tick + barTicks, change.ticks) : tick + barTicks
+    const tempo = tempos.filter((entry) => entry.ticks <= tick).at(-1)
+    const bpm = tempo && tempo.bpm > 0 ? tempo.bpm : 120
+    bars.push({
+      startMs: seconds(tick) * 1000,
+      durationMs: (seconds(end) - seconds(tick)) * 1000,
+      startQ: tick / ppq,
+      durationQ: (end - tick) / ppq,
+      beats,
+      beatType,
+      quarterMs: 60000 / bpm,
+    })
+    tick = end
+  }
+  return numberMeasures(bars)
 }

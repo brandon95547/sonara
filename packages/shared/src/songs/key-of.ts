@@ -180,3 +180,30 @@ export function fifthsForKeyName(name: string): number | null {
   const index = KEY_NAMES.indexOf(ascii)
   return index < 0 ? null : index - 7
 }
+
+/**
+ * Major or minor, for a signature the file gave without a mode.
+ *
+ * MusicXML's `<mode>` is optional and MuseScore writes one only when the key
+ * was set as minor, so a great many scores in A minor arrive saying "no
+ * sharps" and nothing else. The signature fixes the choice to two keys, and
+ * the same listener profiles that estimate a key from nothing choose between
+ * them: a piece that keeps returning to A and G♯ is not in C major.
+ */
+export function modeForFifths(
+  notes: readonly { note: number; durationMs: number }[],
+  fifths: number,
+): 'major' | 'minor' {
+  const histogram = new Array<number>(12).fill(0)
+  for (const note of notes) histogram[normalisePitchClass(note.note)]! += note.durationMs
+  if (histogram.every((value) => value === 0)) return 'major'
+
+  const score = (tonic: number, profile: readonly number[]) =>
+    correlate(
+      histogram.map((_, index) => histogram[(index + tonic) % 12]!),
+      profile,
+    )
+  const major = score(tonicForFifths(fifths, 'major'), MAJOR_PROFILE)
+  const minor = score(tonicForFifths(fifths, 'minor'), MINOR_PROFILE)
+  return minor > major ? 'minor' : 'major'
+}
