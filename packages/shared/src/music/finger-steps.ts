@@ -81,9 +81,15 @@ const SHAPES: Record<string, Shape> = {
   '5,4': { right: [1, 3, 5], left: [5, 2, 1] },
   // Three-note dominant sevenths, from the cadences. The right hand is the
   // same in all three keys read; the left is not, so it is left to the search.
+  //
+  // Two of these are the shapes the source prints — D-F-B and B-F-G, in C. The
+  // third is the remaining rotation of the same shell, F-G-B, which the source
+  // never reaches because its cadence pages take that inversion with four notes.
+  // It was keyed `2,3` for a long time, which is F-G-B♭ — a minor seventh, not
+  // a dominant one, and a chord this comment does not describe.
   '3,6': { right: [1, 2, 4], firm: true },
   '6,2': { right: [1, 4, 5], firm: true },
-  '2,3': { right: [1, 2, 4], firm: true },
+  '2,4': { right: [1, 2, 4], firm: true },
 }
 
 /** How far a published shape outweighs what the spans alone would choose. */

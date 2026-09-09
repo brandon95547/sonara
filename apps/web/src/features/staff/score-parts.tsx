@@ -1,9 +1,8 @@
 import * as React from 'react'
-import { STEP, yOn } from './staff-frame'
+import { KEY_X, STEP, yOn } from './staff-frame'
 import { Chord, KeySignature, TimeSignature } from './StaffNotes'
-import type { SongNote } from '@sonara/shared'
 import { useKeyboardStore } from '@/state/keyboard-store'
-import { KEY_X, timeX, type Placed } from './score'
+import { timeX, type Placed } from './score'
 
 /**
  * The marks a system is made of, drawn the same way in both views.
@@ -85,34 +84,25 @@ export const Step = React.memo(function Step({
   role,
   fifths,
   lit,
-  hints,
 }: {
   placed: Placed
   role: Role
   fifths: number
   /** The sounding notes of this chord, comma separated. Almost always empty. */
   lit: string
-  /**
-   * The notes whose fingering is worth printing here.
-   *
-   * The finger stays on every note — the hand card and the keys still show it.
-   * This is only about the page, where a number under every notehead buries the
-   * music it is supposed to help with.
-   */
-  hints: ReadonlySet<SongNote>
 }) {
-  const notes = [...placed.step.notes].sort((a, b) => a.note - b.note)
   const sounding = lit === '' ? null : new Set(lit.split(',').map(Number))
 
   return (
     <g className="staff__step" data-role={role}>
       <Chord
         x={placed.x}
-        notes={notes.map((note) => ({
-          note: note.note,
-          finger: hints.has(note) ? note.finger : undefined,
+        /* Spelled, handed, signed and fingered when the score was measured —
+           which is the only place that can decide any of them, because all four
+           depend on music this chord cannot see. */
+        notes={placed.notes.map((note) => ({
+          ...note,
           sounding: sounding?.has(note.note) ?? false,
-          rolled: note.rolled,
         }))}
         value={placed.value}
         fifths={fifths}
@@ -134,24 +124,14 @@ export const Step = React.memo(function Step({
  * change to the store — the sustain pedal, a note somewhere else — comes back
  * equal and re-renders nothing.
  */
-export function LiveStep({
-  placed,
-  role,
-  fifths,
-  hints,
-}: {
-  placed: Placed
-  role: Role
-  fifths: number
-  hints: ReadonlySet<SongNote>
-}) {
+export function LiveStep({ placed, role, fifths }: { placed: Placed; role: Role; fifths: number }) {
   const lit = useKeyboardStore((state) =>
     placed.step.notes
       .filter((note) => state.active[note.note] !== undefined)
       .map((note) => note.note)
       .join(','),
   )
-  return <Step placed={placed} role={role} fifths={fifths} lit={lit} hints={hints} />
+  return <Step placed={placed} role={role} fifths={fifths} lit={lit} />
 }
 
 /**

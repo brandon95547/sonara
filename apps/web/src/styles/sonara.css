@@ -28,6 +28,24 @@
      gap so the keybed stays continuous at any width. */
   --c-key-gap: rgb(0 0 0 / 0.32);
 
+  /* --- Notation --------------------------------------------------------
+     A font stack that has the signs in it.
+
+     The UI face is chosen for text and carries none of this: ♯ ♭ ♮ live in
+     Miscellaneous Symbols and the doubles 𝄫 𝄪 and the clefs in Musical
+     Symbols, which most text faces skip entirely. Without a stack that reaches
+     a face which has them, a sharp is a tofu box — or worse, silently the
+     wrong width, so the accidental column is spaced for ink that is not there.
+
+     Ordered from the faces that were made for this to the ones that merely
+     have the block, ending at the UI face so the fallback is still text. The
+     clef has a drawn stand-in behind all of it (see `useMusicGlyphs`); the
+     double accidentals do not, and are rare enough — G♯ minor's F𝄪 — that a
+     stack this long is the whole answer for them. */
+  --font-music:
+    'Bravura Text', 'Noto Music', 'Noto Sans Symbols 2', 'Segoe UI Symbol', 'Apple Symbols',
+    'DejaVu Sans', var(--font-sans);
+
   /* --- Black keys ------------------------------------------------------
      Lifted well clear of the canvas (#101010). A black key rendered at the
      page colour is a hole in the keybed, not a key. */
@@ -705,6 +723,7 @@
 }
 .staff__clef {
   fill: var(--ds-fg);
+  font-family: var(--font-music);
   /* A treble clef spans the whole staff and a little beyond; a bass clef sits
      inside it. Sized against the staff rather than picked by eye — five lines
      is 40 units, and the glyph's drawn height is about 1.4 of that. */
@@ -743,6 +762,7 @@
 }
 .staff__accidental {
   fill: var(--ds-fg);
+  font-family: var(--font-music);
   font-size: 22px;
 }
 .staff__ledger {

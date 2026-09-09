@@ -49,7 +49,24 @@ export const SongScore = React.memo(function SongScore() {
   const stepIndex = useSongStore((state) => state.stepIndex)
   const positionMs = useSongStore((state) => state.positionMs)
 
-  const { steps, measured } = useMeasuredScore(song, part)
+  /*
+   * Which fingerings the page prints.
+   *
+   * Worked out before the score is measured, because a printed numeral takes
+   * room and the spacing has to know. Computed once for the song rather than
+   * per view: it is a property of the music and not of how it is being looked
+   * at, and Sheet and Flow must agree about what the page says.
+   *
+   * The finger stays on every note either way. This decides what the staff
+   * prints; the hand card and the keys still show whatever is under them.
+   */
+  const hints = React.useMemo(() => {
+    if (!song || density === 'off') return new Set<SongNote>()
+    if (density === 'all') return new Set(song.notes)
+    return fingeringHints(song)
+  }, [song, density])
+
+  const { steps, measured } = useMeasuredScore(song, part, hints)
 
   /**
    * Which step is "here".
@@ -77,19 +94,6 @@ export const SongScore = React.memo(function SongScore() {
     [here],
   )
 
-  /*
-   * Which fingerings the page prints.
-   *
-   * Computed once for the song rather than per view, because it is a property
-   * of the music and not of how it is being looked at — Sheet and Flow show the
-   * same piece and must agree about what it says.
-   */
-  const hints = React.useMemo(() => {
-    if (!song || density === 'off') return new Set<SongNote>()
-    if (density === 'all') return new Set(song.notes)
-    return fingeringHints(song)
-  }, [song, density])
-
   const shared = {
     measured,
     here,
@@ -97,7 +101,6 @@ export const SongScore = React.memo(function SongScore() {
     beats: song?.timeSignature?.beats ?? 4,
     beatType: song?.timeSignature?.beatType ?? 4,
     roleFor,
-    hints,
     label: song
       ? `${song.title}, ${steps.length} steps, showing step ${Math.max(here, 0) + 1}`
       : 'Grand staff',

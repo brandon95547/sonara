@@ -254,6 +254,23 @@ export function splitRest(startQ: number, quarters: number, beatQ: number, barQ:
   return pieces
 }
 
+/**
+ * The sign printed in front of a notehead.
+ *
+ * Not `ACCIDENTAL_SYMBOLS`, which names notes: a natural note is called `C` and
+ * not `C♮`, so that map writes nothing at all for zero. In front of a notehead
+ * zero is a natural sign — the mark whose whole job is to cancel the signature —
+ * and printing nothing there is exactly how an F♮ in D major comes out looking
+ * like the F♯ the signature asked for.
+ */
+export const ACCIDENTAL_SIGNS: Record<Accidental, string> = {
+  [-2]: '𝄫',
+  [-1]: '♭',
+  0: '♮',
+  1: '♯',
+  2: '𝄪',
+}
+
 // --- Stems -------------------------------------------------------------------
 
 /**

@@ -2,7 +2,6 @@ import * as React from 'react'
 import { useElementSize } from '@/lib/hooks'
 import { HALF_HEIGHT, StaffFrame } from './staff-frame'
 import { BarLines, isLive, LiveStep, Playhead, Signatures, Step, type Role } from './score-parts'
-import type { SongNote } from '@sonara/shared'
 import {
   barLinesIn,
   breakIntoSystems,
@@ -57,7 +56,6 @@ export function SheetView({
   beats,
   beatType,
   roleFor,
-  hints,
   label,
 }: {
   measured: readonly Measured[]
@@ -66,8 +64,6 @@ export function SheetView({
   beats: number
   beatType: number
   roleFor: (index: number) => Role
-  /** Which notes get a printed fingering. See `fingeringHints`. */
-  hints: ReadonlySet<SongNote>
   label: string
 }) {
   const [frameRef, size] = useElementSize<HTMLDivElement>()
@@ -141,7 +137,6 @@ export function SheetView({
                   placed={entry}
                   role={roleFor(entry.index)}
                   fifths={fifths}
-                  hints={hints}
                 />
               ))}
               {system === current && <Playhead x={system.placed[here - system.from]!.x} />}
@@ -154,20 +149,10 @@ export function SheetView({
 }
 
 /** Watched if it is near the playhead, drawn once and left alone if it is not. */
-function StepAt({
-  placed,
-  role,
-  fifths,
-  hints,
-}: {
-  placed: Placed
-  role: Role
-  fifths: number
-  hints: ReadonlySet<SongNote>
-}) {
+function StepAt({ placed, role, fifths }: { placed: Placed; role: Role; fifths: number }) {
   return isLive(role) ? (
-    <LiveStep placed={placed} role={role} fifths={fifths} hints={hints} />
+    <LiveStep placed={placed} role={role} fifths={fifths} />
   ) : (
-    <Step placed={placed} role={role} fifths={fifths} lit="" hints={hints} />
+    <Step placed={placed} role={role} fifths={fifths} lit="" />
   )
 }

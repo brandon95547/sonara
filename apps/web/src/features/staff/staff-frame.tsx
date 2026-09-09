@@ -58,6 +58,25 @@ const STAFF_LINES = {
 /** How much room the brace and clefs need, in viewBox units. */
 export const GUTTER = 120
 
+/** Where the key signature's accidentals begin, just clear of the clefs. */
+export const KEY_X = GUTTER + 10
+/** The pitch of the key signature's accidentals, matching how they are drawn. */
+const KEY_SPACING = STEP * 2.4
+/** A sharp's measured width. */
+const SHARP_WIDTH = 10.5
+
+/**
+ * How wide a key signature is, drawn as `KeySignature` draws it.
+ *
+ * Both staves that draw one need to know: a system that reserves room for seven
+ * sharps it does not have has thrown away a bar of a short line, and one that
+ * reserves none prints its first note on top of the signature.
+ */
+export function keyWidth(fifths: number): number {
+  const marks = Math.min(7, Math.abs(fifths))
+  return marks === 0 ? 0 : (marks - 1) * KEY_SPACING + SHARP_WIDTH
+}
+
 /** The ten lines, and the bar line that closes them. */
 export function StaffLines({ width, from = 20 }: { width: number; from?: number }) {
   return (

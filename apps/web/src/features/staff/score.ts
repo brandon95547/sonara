@@ -1,14 +1,21 @@
 import * as React from 'react'
 import {
+  AccidentalMemory,
+  barIndexAt,
   songSteps,
+  staffFor,
   staffPlacement,
+  valueQuarters,
+  written,
   writtenValue,
   type Song,
+  type SongNote,
   type SongStep,
+  type Staff,
   type WrittenValue,
 } from '@sonara/shared'
-import { GUTTER, HALF_HEIGHT, STEP, yOn } from './staff-frame'
-import { chordExtent } from './StaffNotes'
+import { HALF_HEIGHT, KEY_X, keyWidth, STEP, yOn } from './staff-frame'
+import { chordExtent, staffOf, type DrawnNote } from './StaffNotes'
 import type { SongPart } from '@/state/song-store'
 
 /**
@@ -43,17 +50,22 @@ export const AIR = STEP * 3
 /** How far a bar number's ink rises above its own baseline, measured. */
 const BAR_NUMBER_INK = 11
 
-/** Where the key signature's accidentals begin, just clear of the clefs. */
-export const KEY_X = GUTTER + 10
-/** The pitch of the key signature's accidentals, matching how they are drawn. */
-const KEY_SPACING = STEP * 2.4
-/** A sharp's measured width, and half a time-signature numeral's. */
-const SHARP_WIDTH = 10.5
+/** Half a time-signature numeral's measured width. */
 const TIME_HALF = 9
 
 export interface Measured {
   readonly step: SongStep
   readonly index: number
+  /**
+   * Its notes as the page will draw them: spelled, handed, and each carrying
+   * the sign to print in front of it.
+   *
+   * Decided here rather than in the drawing because an accidental holds for the
+   * rest of its bar, so what one chord prints depends on the chords before it —
+   * and the components that draw chords are memoised, so a chord that does not
+   * redraw would never be asked and the bar would forget what it had said.
+   */
+  readonly notes: readonly DrawnNote[]
   /** What this chord is written as, per staff — the hands keep their own rhythm. */
   readonly value: { readonly treble: WrittenValue; readonly bass: WrittenValue }
   /** How far its ink reaches, so a page can make room for it. */
@@ -74,69 +86,138 @@ export interface Measured {
  * a crowded bar is still readable and two chords printed on top of each other
  * are not.
  */
-export function measureScore(song: Song | null, steps: readonly SongStep[]): Measured[] {
-  const measure = song?.measureMs ?? 2000
+export function measureScore(
+  song: Song | null,
+  steps: readonly SongStep[],
+  hints?: ReadonlySet<SongNote>,
+): Measured[] {
   const beat = song ? 60000 / song.bpm : 500
   const fifths = song?.key?.fifths ?? 0
+  /** The bars the file laid out. Absent only for a song stored before they were read. */
+  const measures = song?.measures
+  /** One bar length for the whole piece, which is what spacing needs and bar lines do not. */
+  const measureMs = song?.measureMs ?? 2000
+
+  /*
+   * What each staff's current bar has already said.
+   *
+   * One memory per staff, because the two are engraved as separate lines: a
+   * sharp printed in the left hand tells a reader nothing about the right.
+   */
+  const memory = {
+    treble: new AccidentalMemory(fifths),
+    bass: new AccidentalMemory(fifths),
+  }
+  let openBar = Number.NaN
   let previous = 0
 
+  const onStaff = (candidate: SongStep, staff: Staff) =>
+    candidate.notes.some((note) => staffFor(note.note, note.hand) === staff)
+
   return steps.map((step, index) => {
-    // How long the notes are *written* as, which is the time until this staff
-    // next has something — not how long a key was held. A player releasing
-    // early has played a short crotchet, not a quaver.
+    /*
+     * Which bar this chord falls in.
+     *
+     * Read off the bars the file wrote, which is the only way a pickup, a
+     * change of metre or a change of tempo lands where the score puts it.
+     * Dividing elapsed time by one bar length draws every bar line of a piece
+     * with a pickup two beats late, and every one after a rallentando further
+     * out than the last.
+     */
+    const bar = measures
+      ? measures[barIndexAt(measures, step.startMs)]!.number
+      : measureMs > 0
+        ? Math.floor(step.startMs / measureMs) + 1
+        : 1
+    if (bar !== openBar) {
+      memory.treble.startBar()
+      memory.bass.startBar()
+      openBar = bar
+    }
+
+    // How long the notes are *written* as. Where the file said, that is the
+    // answer; a performance only implies its durations and a score states them.
+    // Otherwise it is the time until this staff next has something — not how
+    // long a key was held, because a player releasing early has played a short
+    // crotchet, not a quaver.
     //
     // Per staff, because the hands keep their own rhythm. A bar-long chord
     // under a run of quavers is a semibreve, and taking the melody's value for
     // it writes it as a crotchet with a stem.
-    const value = { treble: written('treble'), bass: written('bass') }
-    function written(staff: 'treble' | 'bass'): WrittenValue {
-      const on = (candidate: SongStep) =>
-        candidate.notes.some((note) => staffPlacement(note.note).staff === staff)
-      if (!on(step)) return writtenValue(beat, beat)
-      const next = steps.slice(index + 1).find(on)
-      const held = Math.max(
-        ...step.notes
-          .filter((note) => staffPlacement(note.note).staff === staff)
-          .map((note) => note.durationMs),
-      )
+    const value = { treble: valueOn('treble'), bass: valueOn('bass') }
+    function valueOn(staff: Staff): WrittenValue {
+      const here = step.notes.filter((note) => staffFor(note.note, note.hand) === staff)
+      if (here.length === 0) return writtenValue(beat, beat)
+
+      // One stem per staff, so one value for the chord under it: the longest,
+      // which is the same note the held-duration fallback below would pick.
+      const stated = here
+        .map((note) => note.written)
+        .filter((given) => given !== undefined)
+        .sort((a, b) => valueQuarters(b.value, b.dots) - valueQuarters(a.value, a.dots))[0]
+      if (stated) return written(stated.value, stated.dots)
+
+      let next: SongStep | undefined
+      for (let i = index + 1; i < steps.length; i++) {
+        if (onStaff(steps[i]!, staff)) {
+          next = steps[i]
+          break
+        }
+      }
+      const held = Math.max(...here.map((note) => note.durationMs))
       return writtenValue(next ? next.startMs - step.startMs : held, beat)
     }
 
-    const extent = chordExtent(
-      step.notes.map((note) => ({ note: note.note, finger: note.finger })),
-      value,
-      fifths,
-    )
+    /*
+     * The chord as it will be drawn.
+     *
+     * Including which fingerings the page prints: the extent is what decides
+     * how much room the next chord gets, and reserving space for a numeral
+     * that the reader's density setting suppresses spaces the whole score for
+     * ink that is never laid down.
+     */
+    const notes: DrawnNote[] = [...step.notes]
+      .sort((a, b) => a.note - b.note)
+      .map((note) => {
+        const drawn = {
+          note: note.note,
+          finger: !hints || hints.has(note) ? note.finger : undefined,
+          rolled: note.rolled,
+          spelling: note.spelling,
+          hand: note.hand,
+        }
+        const staff = staffOf(drawn)
+        return {
+          ...drawn,
+          accidental: memory[staff].printFor(staffPlacement(note.note, note.spelling, staff)),
+        }
+      })
+
+    const extent = chordExtent(notes, value, fifths)
     let gap = 0
     if (index > 0) {
       const elapsed = step.startMs - steps[index - 1]!.startMs
-      const rhythmic = Math.min(MAX_GAP, (elapsed / measure) * MEASURE_WIDTH)
+      const rhythmic = Math.min(MAX_GAP, (elapsed / measureMs) * MEASURE_WIDTH)
       gap = Math.max(MIN_GAP, rhythmic, previous + extent.left + AIR)
     }
     previous = extent.right
 
-    return {
-      step,
-      index,
-      value,
-      extent,
-      gap,
-      bar: measure > 0 ? Math.floor(step.startMs / measure) + 1 : 1,
-    }
+    return { step, index, notes, value, extent, gap, bar }
   })
 }
 
-/** The song's chords, measured, kept until the song or the chosen part changes. */
-export function useMeasuredScore(song: Song | null, part: SongPart) {
+/**
+ * The song's chords, measured, kept until the song, the part or the printed
+ * fingering changes.
+ *
+ * The fingering belongs in here rather than in the drawing because a printed
+ * numeral takes room on the page, and a score spaced for numbers it does not
+ * print is spaced wrong.
+ */
+export function useMeasuredScore(song: Song | null, part: SongPart, hints?: ReadonlySet<SongNote>) {
   const steps = React.useMemo(() => (song ? songSteps(song, part) : []), [song, part])
-  const measured = React.useMemo(() => measureScore(song, steps), [song, steps])
+  const measured = React.useMemo(() => measureScore(song, steps, hints), [song, steps, hints])
   return { steps, measured }
-}
-
-/** How wide the key signature's accidentals are, drawn as `KeySignature` draws them. */
-export function keyWidth(fifths: number): number {
-  const marks = Math.min(7, Math.abs(fifths))
-  return marks === 0 ? 0 : (marks - 1) * KEY_SPACING + SHARP_WIDTH
 }
 
 /** Where the time signature's numerals are centred, after the key. */

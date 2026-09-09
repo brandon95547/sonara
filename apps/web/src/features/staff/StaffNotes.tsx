@@ -1,9 +1,15 @@
 import {
+  accidentalToShow,
+  ACCIDENTAL_SIGNS,
   keySignature,
   ledgerSteps,
-  needsAccidental,
+  staffFor,
   stemDirection,
   staffPlacement,
+  type Accidental,
+  type Hand,
+  type Spelling,
+  type Staff,
   type StaffPlacement,
   type WrittenValue,
 } from '@sonara/shared'
@@ -39,7 +45,15 @@ const ARPEGGIO_WIDTH = STEP * 2.2
  * out from the notes they belonged to, so they are measurements now.
  */
 
-/** The sharp's ink, from its own anchor point. */
+/**
+ * The sharp's ink, from its own anchor point.
+ *
+ * Every accidental is given the sharp's room. A flat is shorter and a natural
+ * narrower, so this over-reserves for them — which costs a little white space
+ * and can never let two signs touch. Measuring each glyph separately would buy
+ * back that space and put the column's width at the mercy of which accidental
+ * the music happens to use.
+ */
 const SHARP_INK = { width: 10.5, above: 21.3, below: 5.4 }
 /** The fingering numeral's ink, from its own anchor point. It is centred. */
 const FINGER_INK = { half: 2.2, above: 9.8, below: 2.5 }
@@ -70,7 +84,37 @@ export interface DrawnNote {
   readonly sounding?: boolean
   /** Part of a chord too wide to close on at once, so it is spread. */
   readonly rolled?: boolean
+  /**
+   * The letter and accidental it is written with.
+   *
+   * A MIDI number knows its pitch and not its name, and a note that arrives
+   * without one is spelled with sharps — which is the wrong note to a reader
+   * in every flat key. Whoever knows the score passes the spelling in.
+   */
+  readonly spelling?: Spelling | null
+  /**
+   * Which hand plays it, where anything knows.
+   *
+   * It decides the staff. Piano music writes the left hand in the bass
+   * wherever the notes fall — a left-hand chord above middle C carries ledger
+   * lines rather than moving into the treble.
+   */
+  readonly hand?: Hand | null
+  /**
+   * The sign to print in front of it, or `null` for none.
+   *
+   * Decided by whoever knows the bar, because an accidental holds for the rest
+   * of one and no chord can see the chord before it. Left `undefined` by the
+   * live staff, which draws a single moment and asks the key instead.
+   */
+  readonly accidental?: Accidental | null
 }
+
+/** Which staff a note is written on: its hand's, where a hand is known. */
+export const staffOf = (note: DrawnNote): Staff => staffFor(note.note, note.hand)
+
+const placementOf = (note: DrawnNote): StaffPlacement =>
+  staffPlacement(note.note, note.spelling, staffOf(note))
 
 /**
  * Where every mark of one staff's chord goes.
@@ -86,7 +130,7 @@ export interface DrawnNote {
  */
 function layout(x: number, notes: readonly DrawnNote[], value: WrittenValue, fifths: number) {
   const placed = notes
-    .map((note) => ({ ...note, placement: staffPlacement(note.note) }))
+    .map((note) => ({ ...note, placement: placementOf(note) }))
     .sort((a, b) => a.placement.steps - b.placement.steps)
   if (placed.length === 0) return null
 
@@ -173,14 +217,20 @@ function layout(x: number, notes: readonly DrawnNote[], value: WrittenValue, fif
    */
   const columns: number[][] = []
   const column = new Map<number, number>()
+  const sign = new Map<number, Accidental>()
   for (let i = placed.length - 1; i >= 0; i--) {
     const entry = placed[i]!
-    if (!needsAccidental(entry.note, fifths)) continue
+    // Whoever knew the bar has already decided. The live staff has no bar to
+    // remember in, so its notes arrive undecided and the key answers.
+    const show =
+      entry.accidental !== undefined ? entry.accidental : accidentalToShow(entry.placement, fifths)
+    if (show === null || show === undefined) continue
     let at = 0
     while (columns[at]?.some((steps) => Math.abs(steps - entry.placement.steps) < ACCIDENTAL_CLEAR))
       at += 1
     ;(columns[at] ??= []).push(entry.placement.steps)
     column.set(entry.note, at)
+    sign.set(entry.note, show)
   }
   const accidentalX = (note: number) =>
     headLeft - ACCIDENTAL_GAP - (column.get(note)! + 1) * ACCIDENTAL_WIDTH
@@ -265,6 +315,7 @@ function layout(x: number, notes: readonly DrawnNote[], value: WrittenValue, fif
     ledgers,
     accidentalX,
     column,
+    sign,
     dotX,
     fingerX,
     fingerY,
@@ -301,7 +352,7 @@ export function chordExtent(
   let top = 0
   let bottom = 0
   for (const staff of ['treble', 'bass'] as const) {
-    const on = notes.filter((note) => staffPlacement(note.note).staff === staff)
+    const on = notes.filter((note) => staffOf(note) === staff)
     const box = layout(0, on, per[staff], fifths)
     if (!box) continue
     left = Math.min(left, box.left)
@@ -365,7 +416,11 @@ function StaffGroup({
           x={box.headX[index]!}
           placement={entry.placement}
           value={value}
-          accidentalX={box.column.has(entry.note) ? box.accidentalX(entry.note) : null}
+          accidental={
+            box.column.has(entry.note)
+              ? { x: box.accidentalX(entry.note), sign: box.sign.get(entry.note)! }
+              : null
+          }
           dotX={box.dotX}
           finger={entry.finger}
           fingerAt={{ x: box.fingerX, y: box.fingerY[index]! }}
@@ -380,7 +435,7 @@ function Head({
   x,
   placement,
   value,
-  accidentalX,
+  accidental,
   dotX,
   finger,
   fingerAt,
@@ -389,8 +444,8 @@ function Head({
   x: number
   placement: StaffPlacement
   value: WrittenValue
-  /** Where its accidental goes, or null when the key already accounts for it. */
-  accidentalX: number | null
+  /** Which sign to print and where, or null when nothing is printed. */
+  accidental: { x: number; sign: Accidental } | null
   dotX: number
   finger?: number
   fingerAt: { x: number; y: number }
@@ -415,9 +470,9 @@ function Head({
           className="staff__dot"
         />
       )}
-      {accidentalX !== null && (
-        <text x={accidentalX} y={cy + STEP * 0.9} className="staff__accidental">
-          ♯
+      {accidental !== null && (
+        <text x={accidental.x} y={cy + STEP * 0.9} className="staff__accidental">
+          {ACCIDENTAL_SIGNS[accidental.sign]}
         </text>
       )}
       {finger !== undefined && (
@@ -509,8 +564,8 @@ export function Chord({
   value: WrittenValue | { readonly treble: WrittenValue; readonly bass: WrittenValue }
   fifths?: number
 }) {
-  const treble = notes.filter((note) => staffPlacement(note.note).staff === 'treble')
-  const bass = notes.filter((note) => staffPlacement(note.note).staff === 'bass')
+  const treble = notes.filter((note) => staffOf(note) === 'treble')
+  const bass = notes.filter((note) => staffOf(note) === 'bass')
   const per = 'treble' in value ? value : { treble: value, bass: value }
 
   return (
