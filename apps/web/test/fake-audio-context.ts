@@ -28,6 +28,12 @@ export class FakeParam {
     return this.#record('linearRampToValueAtTime', [value, time])
   }
   exponentialRampToValueAtTime(value: number, time: number) {
+    // A real param throws here: an exponential curve cannot pass through zero.
+    // The fake throws too, so a voicing that schedules one fails the test
+    // instead of failing the first note on a real piano.
+    if (!(Math.abs(value) > 1.7e-38)) {
+      throw new RangeError(`The float target value provided (${value}) should not be zero`)
+    }
     return this.#record('exponentialRampToValueAtTime', [value, time])
   }
   setTargetAtTime(value: number, time: number, constant: number) {

@@ -12,7 +12,10 @@ export interface AudioEngine {
   readonly kind: 'sampled' | 'synth'
   noteOn(note: number, velocity: number): void
   noteOff(note: number): void
-  /** Panic. Silences everything immediately — used on device change and unmount. */
+  /**
+   * Panic. Releases every voice at once, with the shortest fade that does not
+   * click — a hard cut is itself a click. Used on device change and unmount.
+   */
   allNotesOff(): void
   dispose(): void
 }
