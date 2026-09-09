@@ -32,6 +32,37 @@ interface Voice {
 const MAX_VOICES = 32
 /** Retrigger release. Long enough not to click, short enough not to smear. */
 const RETRIGGER_RELEASE = 0.04
+/** What allNotesOff() gives every voice: the shortest fade that does not click. */
+const PANIC_RELEASE = 0.08
+/**
+ * The shortest ramp scheduled anywhere in a voice, in seconds.
+ *
+ * A ramp of zero length is a step, and a step in gain is a click at the start
+ * (or end) of every note — the same reason the master volume is ramped rather
+ * than assigned. Two milliseconds is under a hundred samples, too short to
+ * hear as an attack and long enough not to hear as a click. A catalogue
+ * voicing is free to ask for less; it gets this.
+ */
+const MIN_RAMP = 0.002
+/**
+ * The smallest gain a ramp may be scheduled to or from.
+ *
+ * `exponentialRampToValueAtTime` throws a RangeError at zero — the curve has
+ * nowhere to go — and a voicing can legitimately carry a silent partial, so
+ * one `gain: 0` in the catalogue would make every note on that instrument
+ * throw out of noteOn. Clamped to a level below audibility instead.
+ */
+const GAIN_FLOOR = 0.0001
+
+/** A gain that is safe to hand to an exponential ramp: finite and above the floor. */
+function audible(gain: number): number {
+  return Number.isFinite(gain) && gain > GAIN_FLOOR ? gain : GAIN_FLOOR
+}
+
+/** A ramp length that is safe to schedule: finite and at least MIN_RAMP. */
+function rampLength(seconds: number): number {
+  return Number.isFinite(seconds) && seconds > MIN_RAMP ? seconds : MIN_RAMP
+}
 
 export class SynthEngine implements AudioEngine {
   readonly kind = 'synth' as const
@@ -76,6 +107,7 @@ export class SynthEngine implements AudioEngine {
     const voicing = this.#voicing
     const level = velocityToGain(velocity)
     const normalised = velocity / 127
+    const attack = rampLength(voicing.attack)
 
     const gain = context.createGain()
     gain.gain.value = level * 0.22 // headroom for a ten-note chord
@@ -110,14 +142,14 @@ export class SynthEngine implements AudioEngine {
         oscillator.detune.value = cents
 
         const partialGain = context.createGain()
-        const peak = (partial.gain / copies.length) * (0.55 + 0.45 * normalised)
-        partialGain.gain.setValueAtTime(0.0001, now)
-        partialGain.gain.linearRampToValueAtTime(peak, now + voicing.attack)
+        const peak = audible((partial.gain / copies.length) * (0.55 + 0.45 * normalised))
+        partialGain.gain.setValueAtTime(GAIN_FLOOR, now)
+        partialGain.gain.linearRampToValueAtTime(peak, now + attack)
         // A struck string decays exponentially. exponentialRamp cannot reach
         // zero, so it targets a value below audibility instead.
         partialGain.gain.exponentialRampToValueAtTime(
-          peak * 0.0004,
-          now + voicing.attack + partial.decay,
+          audible(peak * 0.0004),
+          now + attack + rampLength(partial.decay),
         )
 
         oscillator.connect(partialGain).connect(filter)
@@ -138,9 +170,9 @@ export class SynthEngine implements AudioEngine {
       hammerFilter.Q.value = 0.8
 
       const hammerGain = context.createGain()
-      const peak = voicing.hammer * normalised * 0.5
+      const peak = audible(voicing.hammer * normalised * 0.5)
       hammerGain.gain.setValueAtTime(peak, now)
-      hammerGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.06)
+      hammerGain.gain.exponentialRampToValueAtTime(GAIN_FLOOR, now + 0.06)
 
       hammer.connect(hammerFilter).connect(hammerGain).connect(filter)
       hammer.start(now)
@@ -157,7 +189,7 @@ export class SynthEngine implements AudioEngine {
   }
 
   allNotesOff(): void {
-    for (const voice of this.#voices.values()) this.#release(voice, 0.08)
+    for (const voice of this.#voices.values()) this.#release(voice, PANIC_RELEASE)
     this.#voices.clear()
   }
 
@@ -179,17 +211,18 @@ export class SynthEngine implements AudioEngine {
     this.#output.disconnect()
   }
 
-  #release(voice: Voice, seconds: number): void {
+  #release(voice: Voice, requested: number): void {
     if (voice.releaseAt !== null) return
     const now = this.#context.currentTime
+    const seconds = rampLength(requested)
     voice.releaseAt = now + seconds
 
     // Ramp from wherever the envelope currently is, not from the peak — a
     // release that jumps back to full level before fading is an audible bump.
-    const current = Math.max(0.0001, voice.gain.gain.value)
+    const current = audible(voice.gain.gain.value)
     voice.gain.gain.cancelScheduledValues(now)
     voice.gain.gain.setValueAtTime(current, now)
-    voice.gain.gain.exponentialRampToValueAtTime(0.0001, now + seconds)
+    voice.gain.gain.exponentialRampToValueAtTime(GAIN_FLOOR, now + seconds)
 
     for (const source of voice.sources) {
       try {

@@ -210,6 +210,48 @@ describe('SynthEngine', () => {
     expect(output!.gain.value).toBeCloseTo(0.501, 2)
   })
 
+  it('ramps the attack over at least two milliseconds, whatever the voicing says', () => {
+    // A zero-length ramp is a step, and a step in gain is a click on every note.
+    const instant: Instrument = { ...noDetune, voicing: { ...noDetune.voicing, attack: 0 } }
+    const { context, engine } = build(instant)
+    engine.noteOn(60, 100)
+
+    const attacks = context.gains
+      .map((gain) => ({
+        start: gain.gain.calls.find((call) => call.method === 'setValueAtTime'),
+        ramp: gain.gain.calls.find((call) => call.method === 'linearRampToValueAtTime'),
+      }))
+      .filter((pair) => pair.start && pair.ramp)
+    expect(attacks).toHaveLength(3)
+    for (const { start, ramp } of attacks) {
+      expect(ramp!.args[1]! - start!.args[1]!).toBeGreaterThanOrEqual(0.002)
+    }
+  })
+
+  it('never hands an exponential ramp a zero, which Web Audio rejects', () => {
+    // A silent partial is a legitimate voicing. Scheduled as written it throws
+    // a RangeError out of noteOn, and the instrument plays nothing at all.
+    const silent: Instrument = {
+      ...noDetune,
+      voicing: {
+        ...noDetune.voicing,
+        partials: [
+          { ratio: 1, gain: 1, decay: 4 },
+          { ratio: 2, gain: 0, decay: 1 },
+        ],
+      },
+    }
+    const { context, engine } = build(silent)
+    expect(() => engine.noteOn(60, 100)).not.toThrow()
+    expect(() => engine.noteOff(60)).not.toThrow()
+
+    for (const gain of context.gains) {
+      for (const call of gain.gain.calls) {
+        if (call.method === 'exponentialRampToValueAtTime') expect(call.args[0]).toBeGreaterThan(0)
+      }
+    }
+  })
+
   it('plays every note on an 88-key piano without throwing', () => {
     const { engine } = build(instrument)
     for (let note = 21; note <= 108; note++) {
