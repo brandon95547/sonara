@@ -2,10 +2,12 @@ import { z } from 'zod'
 import { normalisePitchClass } from '../music/pitch.js'
 import {
   findScaleType,
+  keySignatureOf,
   scaleFormula,
   scaleOffsets,
   SCALE_TYPES,
   spellScale,
+  spellScaleFrom,
   type SpelledScale,
 } from '../music/scales.js'
 import { scaleFingering, type Hand } from '../music/fingering.js'
@@ -102,9 +104,14 @@ export function buildScaleExercise(spec: ScaleSpec): Exercise {
     ? (findScaleType(type.descendingTypeId) ?? type)
     : type
   const differsDescending = descendingType !== type
+  // The same notes may still be *named* differently on the way down: the
+  // chromatic scale falls in flats. Spelled from the same root, so the scale
+  // keeps one name whichever way it is going.
   const descendingScale = differsDescending
     ? spellScale(spec.rootPitchClass, descendingType)
-    : scale
+    : type.descendingDegrees
+      ? (spellScaleFrom(scale.root, type, type.descendingDegrees) ?? scale)
+      : scale
   const descendingOffsets = differsDescending ? scaleOffsets(descendingType) : offsets
 
   /** Root to octave, in pitch order, for whichever form is asked for. */
@@ -231,7 +238,7 @@ export function buildScaleExercise(spec: ScaleSpec): Exercise {
       : {}),
     facts: [
       { label: 'Notes', value: scale.notes.map((note) => note.name).join(' ') },
-      ...(differsDescending
+      ...(descendingScale !== scale
         ? [
             {
               label: 'Coming down',
@@ -246,6 +253,7 @@ export function buildScaleExercise(spec: ScaleSpec): Exercise {
       { label: 'Formula', value: scaleFormula(type) },
       { label: 'Degrees', value: type.degrees.join(' ') },
     ],
+    keyFifths: keySignatureOf(scale),
     fingering: { hand: spec.hand, fingers: fingering.fingers, source: fingering.source },
     defaultBpm: 72,
   }

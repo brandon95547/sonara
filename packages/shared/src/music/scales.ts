@@ -1,4 +1,12 @@
-import { accidentalFor, makePitch, normalisePitchClass, spellingsFor, type Pitch } from './pitch.js'
+import {
+  accidentalFor,
+  makePitch,
+  normalisePitchClass,
+  spellingsFor,
+  tpcOf,
+  type Accidental,
+  type Pitch,
+} from './pitch.js'
 
 /**
  * Scale definitions.
@@ -35,6 +43,34 @@ export interface ScaleType {
    * wrong notes every time the hand turns around.
    */
   readonly descendingTypeId?: string
+  /**
+   * How the scale is spelled coming back down, when that differs.
+   *
+   * Only the chromatic scale: it is written with sharps rising and flats
+   * falling, so that every step is a raised note going up and a lowered one
+   * coming down. Same pitches, same fingering, different names.
+   */
+  readonly descendingDegrees?: readonly string[]
+  /**
+   * Which degree of a major scale this scale begins on, for its key
+   * signature.
+   *
+   * D dorian is the notes of C major from D, so its signature is C major's;
+   * A harmonic minor keeps C major's signature and writes its G♯ as an
+   * accidental. Absent for the scales no signature fits — chromatic, whole
+   * tone — which are written in C with accidentals throughout.
+   */
+  readonly signatureDegree?: number
+  /**
+   * Whether a degree that would need a double accidental may be respelled on
+   * the neighbouring letter instead.
+   *
+   * The blues scale's flattened fifth from a flat root is the case: E♭ blues
+   * by the letter rule is E♭ G♭ A♭ B𝄫 B♭ D♭, and no blues player has ever
+   * written B𝄫 — the note is A. Scales are otherwise held to the letter rule,
+   * because G♯ harmonic minor really does have an F𝄪.
+   */
+  readonly respellDoubles?: boolean
 }
 
 export const SCALE_TYPES: readonly ScaleType[] = [
@@ -44,6 +80,7 @@ export const SCALE_TYPES: readonly ScaleType[] = [
     steps: [2, 2, 1, 2, 2, 2, 1],
     degrees: ['1', '2', '3', '4', '5', '6', '7'],
     family: 'major',
+    signatureDegree: 1,
     description: 'The reference scale. Bright, and the one every other is described against.',
   },
   {
@@ -52,6 +89,7 @@ export const SCALE_TYPES: readonly ScaleType[] = [
     steps: [2, 1, 2, 2, 1, 2, 2],
     degrees: ['1', '2', '♭3', '4', '5', '♭6', '♭7'],
     family: 'minor',
+    signatureDegree: 6,
     description:
       'The plain minor. Same notes as its relative major, started three semitones lower.',
   },
@@ -61,6 +99,7 @@ export const SCALE_TYPES: readonly ScaleType[] = [
     steps: [2, 1, 2, 2, 1, 3, 1],
     degrees: ['1', '2', '♭3', '4', '5', '♭6', '7'],
     family: 'minor',
+    signatureDegree: 6,
     description: 'Natural minor with the seventh raised, which is what gives it the leading tone.',
   },
   {
@@ -69,6 +108,7 @@ export const SCALE_TYPES: readonly ScaleType[] = [
     steps: [2, 1, 2, 2, 2, 2, 1],
     degrees: ['1', '2', '♭3', '4', '5', '6', '7'],
     family: 'minor',
+    signatureDegree: 6,
     description:
       'Sixth and seventh raised going up, smoothing the leap harmonic minor has; both drop back on the way down.',
     descendingTypeId: 'natural-minor',
@@ -79,6 +119,7 @@ export const SCALE_TYPES: readonly ScaleType[] = [
     steps: [2, 1, 2, 2, 2, 1, 2],
     degrees: ['1', '2', '♭3', '4', '5', '6', '♭7'],
     family: 'mode',
+    signatureDegree: 2,
     description: 'Minor with a raised sixth. The sound of a great deal of folk and jazz.',
   },
   {
@@ -87,6 +128,7 @@ export const SCALE_TYPES: readonly ScaleType[] = [
     steps: [1, 2, 2, 2, 1, 2, 2],
     degrees: ['1', '♭2', '♭3', '4', '5', '♭6', '♭7'],
     family: 'mode',
+    signatureDegree: 3,
     description: 'Minor with a flattened second. Spanish, and unmistakable from the first step.',
   },
   {
@@ -95,6 +137,7 @@ export const SCALE_TYPES: readonly ScaleType[] = [
     steps: [2, 2, 2, 1, 2, 2, 1],
     degrees: ['1', '2', '3', '♯4', '5', '6', '7'],
     family: 'mode',
+    signatureDegree: 4,
     description: 'Major with a raised fourth. Floating, unresolved, film-score bright.',
   },
   {
@@ -103,6 +146,7 @@ export const SCALE_TYPES: readonly ScaleType[] = [
     steps: [2, 2, 1, 2, 2, 1, 2],
     degrees: ['1', '2', '3', '4', '5', '6', '♭7'],
     family: 'mode',
+    signatureDegree: 5,
     description: 'Major with a flattened seventh. The dominant-seventh sound.',
   },
   {
@@ -111,6 +155,7 @@ export const SCALE_TYPES: readonly ScaleType[] = [
     steps: [1, 2, 2, 1, 2, 2, 2],
     degrees: ['1', '♭2', '♭3', '4', '♭5', '♭6', '♭7'],
     family: 'mode',
+    signatureDegree: 7,
     description: 'The one with no perfect fifth. Restless, and rarely used on its own.',
   },
   {
@@ -119,6 +164,7 @@ export const SCALE_TYPES: readonly ScaleType[] = [
     steps: [2, 2, 3, 2, 3],
     degrees: ['1', '2', '3', '5', '6'],
     family: 'pentatonic',
+    signatureDegree: 1,
     description: 'Major with the two semitone steps removed. Nothing in it can clash.',
   },
   {
@@ -127,6 +173,7 @@ export const SCALE_TYPES: readonly ScaleType[] = [
     steps: [3, 2, 2, 3, 2],
     degrees: ['1', '♭3', '4', '5', '♭7'],
     family: 'pentatonic',
+    signatureDegree: 6,
     description: 'The other five-note scale. Blues and rock live here.',
   },
   {
@@ -135,6 +182,8 @@ export const SCALE_TYPES: readonly ScaleType[] = [
     steps: [3, 2, 1, 1, 3, 2],
     degrees: ['1', '♭3', '4', '♭5', '5', '♭7'],
     family: 'other',
+    signatureDegree: 6,
+    respellDoubles: true,
     description:
       'Minor pentatonic with the flattened fifth pushed in between the fourth and fifth.',
   },
@@ -143,6 +192,8 @@ export const SCALE_TYPES: readonly ScaleType[] = [
     name: 'Chromatic',
     steps: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
     degrees: ['1', '♯1', '2', '♯2', '3', '4', '♯4', '5', '♯5', '6', '♯6', '7'],
+    // Falling, the same twelve keys are lowered notes: C B B♭ A A♭ G G♭ …
+    descendingDegrees: ['1', '♭2', '2', '♭3', '3', '4', '♭5', '5', '♭6', '6', '♭7', '7'],
     family: 'other',
     description: 'Every key in order. A technique exercise more than a colour.',
   },
@@ -216,15 +267,28 @@ export interface SpelledScale {
  * Returns null when the root would force a triple accidental, which is how the
  * caller knows to try the enharmonic root instead.
  */
-export function spellScaleFrom(root: Pitch, type: ScaleType): SpelledScale | null {
+export function spellScaleFrom(
+  root: Pitch,
+  type: ScaleType,
+  degrees: readonly string[] = type.degrees,
+): SpelledScale | null {
   const offsets = scaleOffsets(type)
   const notes: Pitch[] = []
 
   for (let i = 0; i < offsets.length; i++) {
-    const letter = (root.letter + degreeNumber(type.degrees[i]!) - 1) % 7
-    const accidental = accidentalFor(letter, normalisePitchClass(root.pitchClass + offsets[i]!))
+    const pitchClass = normalisePitchClass(root.pitchClass + offsets[i]!)
+    const letter = (root.letter + degreeNumber(degrees[i]!) - 1) % 7
+    let accidental = accidentalFor(letter, pitchClass)
+    let written = letter
+    // A double accidental where the scale allows respelling moves to the
+    // neighbouring letter: a double flat becomes the letter below, a double
+    // sharp the letter above. B𝄫 is A; F𝄪 is G.
+    if (accidental !== null && Math.abs(accidental) === 2 && type.respellDoubles) {
+      written = (letter + (accidental < 0 ? 6 : 1)) % 7
+      accidental = accidentalFor(written, pitchClass)
+    }
     if (accidental === null) return null
-    notes.push(makePitch(letter, accidental))
+    notes.push(makePitch(written, accidental))
   }
 
   return { root, notes, type }
@@ -256,15 +320,63 @@ export function spellScale(pitchClass: number, type: ScaleType): SpelledScale {
   }
 
   return candidates.sort((a, b) => {
+    // The signature first, where the scale has one: G♯ harmonic minor
+    // carries an F𝄪 that A♭ harmonic minor does not, and counting the
+    // accidentals in the notes would call it a tie — but G♯ minor is five
+    // sharps and A♭ minor is seven flats, and that is the fact a musician
+    // names the key by.
+    const signature = (scale: SpelledScale) => {
+      const fifths = keySignatureOf(scale)
+      return fifths === null ? 99 : Math.abs(fifths)
+    }
+    const bySignature = signature(a) - signature(b)
+    if (bySignature !== 0) return bySignature
     const weight = (scale: SpelledScale) =>
       scale.notes.reduce((total, note) => total + Math.abs(note.accidental), 0)
     const byWeight = weight(a) - weight(b)
     if (byWeight !== 0) return byWeight
     // A tie means both spellings are in real use — F♯ major and G♭ major are
-    // six of one. Prefer the simpler root, then sharps, which is the side
-    // convention lands on for the one pitch class where this comes up.
+    // six of one, and so are D♯ minor and E♭ minor. Prefer the simpler root,
+    // then the side the reference books print: the sharp name for a major
+    // key and the flat name for a minor one, so the app says F♯ major and
+    // E♭ minor everywhere it names them. The blues and pentatonic scales
+    // built on a minor follow the minor.
     const byRoot = Math.abs(a.root.accidental) - Math.abs(b.root.accidental)
     if (byRoot !== 0) return byRoot
-    return b.root.accidental - a.root.accidental
+    return prefersFlats(type)
+      ? a.root.accidental - b.root.accidental
+      : b.root.accidental - a.root.accidental
   })[0]!
 }
+
+/** Whether a scale's root, on a tie, is named on the flat side. */
+export function prefersFlats(type: ScaleType): boolean {
+  return type.family === 'minor' || type.signatureDegree === 6
+}
+
+/**
+ * Fifths on the line of fifths from the tonic to each degree of a major
+ * scale: the fourth is one fifth down, the seventh five up.
+ */
+const DEGREE_FIFTHS = [0, 2, 4, -1, 1, 3, 5] as const
+
+/**
+ * The key signature a spelled scale is written in, as fifths, or null for a
+ * scale no signature fits.
+ *
+ * Read off the line of fifths rather than by counting the scale's
+ * accidentals, because the count is wrong for exactly the scales a player
+ * would ask about: A harmonic minor has a G♯ and a signature of nothing.
+ * The scale's root and its degree in the parent major fix the parent's
+ * tonic, and the tonic fixes the signature — D♯ minor comes out as six
+ * sharps and E♭ minor as six flats, because they are spelled differently.
+ */
+export function keySignatureOf(scale: SpelledScale): number | null {
+  const degree = scale.type.signatureDegree
+  if (degree === undefined) return null
+  const parentTonic = tpcOf(scale.root) - DEGREE_FIFTHS[degree - 1]!
+  const fifths = parentTonic - 14
+  return Math.abs(fifths) <= 7 ? fifths : null
+}
+
+export type { Accidental }

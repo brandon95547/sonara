@@ -134,10 +134,49 @@ export function fifthsForTonic(pitchClass: number, mode: 'major' | 'minor'): num
   let fewest = Infinity
   for (let fifths = -7; fifths <= 7; fifths++) {
     if (normalisePitchClass(fifths * 7) !== majorTonic) continue
-    if (Math.abs(fifths) < fewest) {
-      fewest = Math.abs(fifths)
+    const count = Math.abs(fifths)
+    // Six sharps and six flats name the same keys. The reference books print
+    // F♯ major and E♭ minor, and so does the scale speller, so a piece is
+    // named the same way whether it arrived as a song or as a scale.
+    const preferred = count === fewest && (mode === 'major' ? fifths > best : fifths < best)
+    if (count < fewest || preferred) {
+      fewest = count
       best = fifths
     }
   }
   return best
+}
+
+/**
+ * The names a MIDI reader gives a key signature, in signature order.
+ *
+ * Every SMF key signature is a count of sharps or flats plus a major/minor
+ * flag, and the library names the count by its *major* key — "C" with
+ * `minor` is A minor, not C minor. Read as fifths, both halves come out
+ * right; read as a tonic name, every minor key comes out a third wrong and
+ * every flat key not on this list comes out as C. Both happened.
+ */
+const KEY_NAMES = [
+  'Cb',
+  'Gb',
+  'Db',
+  'Ab',
+  'Eb',
+  'Bb',
+  'F',
+  'C',
+  'G',
+  'D',
+  'A',
+  'E',
+  'B',
+  'F#',
+  'C#',
+]
+
+/** Fifths for a key name in either ASCII or symbol form, or null. */
+export function fifthsForKeyName(name: string): number | null {
+  const ascii = name.trim().replace('♭', 'b').replace('♯', '#')
+  const index = KEY_NAMES.indexOf(ascii)
+  return index < 0 ? null : index - 7
 }

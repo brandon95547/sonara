@@ -57,9 +57,7 @@ describe('which fingerings a staff should print', () => {
   })
 
   it('prints a chord once and not while it repeats', () => {
-    const vamp = [0, 1, 2, 3].flatMap((bar) =>
-      [60, 64, 67].map((pitch) => note(pitch, bar * 500)),
-    )
+    const vamp = [0, 1, 2, 3].flatMap((bar) => [60, 64, 67].map((pitch) => note(pitch, bar * 500)))
     const fingered = fingerSong(song(vamp))
     const shown = fingered.notes.filter((n) => fingeringHints(fingered).has(n))
     // The grip is shown when it arrives and not on each of its repeats.

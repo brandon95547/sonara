@@ -55,11 +55,11 @@ function writable(duration: number): [number, string, boolean][] {
 const escape = (value: string) => value.replace(/&/g, '&amp;').replace(/</g, '&lt;')
 
 function pitchXml(note: number): string {
-  const { letter, sharp, octave } = staffPlacement(note)
+  const { letter, accidental, octave } = staffPlacement(note)
   return [
     '<pitch>',
     `<step>${letter}</step>`,
-    sharp ? '<alter>1</alter>' : '',
+    accidental !== 0 ? `<alter>${accidental}</alter>` : '',
     `<octave>${octave}</octave>`,
     '</pitch>',
   ].join('')

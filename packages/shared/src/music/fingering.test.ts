@@ -343,10 +343,14 @@ describe('checked against the page headers', () => {
     // Coming down, a melodic minor is a natural minor and is fingered as one.
     // Mirroring the ascending fingering would carry the raised sixth's hand
     // into a descent that does not have a raised sixth in it.
+    // Pitch class 8 is G♯ minor in every form: the ascending 4th finger is
+    // on C♯, the fourth degree. It used to be named A♭ melodic minor on the
+    // way up and G♯ natural minor on the way down — one scale, two keys —
+    // because the raised sixth's F𝄪 was counted against the G♯ spelling.
     for (const [pitchClass, hand, ascending, descending] of [
       [1, 'right', 'A♯', 'D♯'],
       [6, 'right', 'D♯', 'G♯'],
-      [8, 'left', 'D♭', 'F♯'],
+      [8, 'left', 'C♯', 'F♯'],
       [10, 'left', 'G', 'G♭'],
     ] as const) {
       const exercise = buildScaleExercise({

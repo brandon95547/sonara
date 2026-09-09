@@ -192,8 +192,7 @@ function layout(x: number, notes: readonly DrawnNote[], value: WrittenValue, fif
    * the whole chord, so nothing of the chord may sit outside it.
    */
   const rolled = placed.some((entry) => entry.rolled)
-  const arpeggioX =
-    headLeft - ACCIDENTAL_GAP - columns.length * ACCIDENTAL_WIDTH - ARPEGGIO_WIDTH
+  const arpeggioX = headLeft - ACCIDENTAL_GAP - columns.length * ACCIDENTAL_WIDTH - ARPEGGIO_WIDTH
 
   // Dots go in one column clear of the whole chord, not each beside its own
   // head, so a displaced head cannot push its dot into the stem.
@@ -334,9 +333,7 @@ function StaffGroup({
 
   return (
     <>
-      {box.rolled && (
-        <Arpeggio x={box.arpeggioX} from={top - HEAD_RY} to={bottom + HEAD_RY} />
-      )}
+      {box.rolled && <Arpeggio x={box.arpeggioX} from={top - HEAD_RY} to={bottom + HEAD_RY} />}
       {[...box.ledgers].map(([steps, line]) => (
         <line
           key={steps}

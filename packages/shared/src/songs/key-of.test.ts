@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { estimateKey, fifthsForTonic, keyName, tonicForFifths } from './key-of.js'
+import { estimateKey, fifthsForKeyName, fifthsForTonic, keyName, tonicForFifths } from './key-of.js'
 
 const hold = (note: number, durationMs = 500) => ({ note, durationMs })
 /** A scale, held evenly — the clearest possible statement of a key. */
@@ -78,5 +78,41 @@ describe('estimating a key from the notes', () => {
       expect(key.fifths).toBeLessThanOrEqual(7)
       expect(keyName(key)).toMatch(/major|minor/)
     }
+  })
+})
+
+describe('the tied keys', () => {
+  it('names them the way the scales do', () => {
+    // Six of one: F♯ major on the sharp side, E♭ minor on the flat side, so a
+    // song and a scale on the same pitch class print the same name.
+    expect(
+      keyName({ pitchClass: 6, mode: 'major', fifths: fifthsForTonic(6, 'major'), declared: true }),
+    ).toBe('F♯ major')
+    expect(
+      keyName({ pitchClass: 3, mode: 'minor', fifths: fifthsForTonic(3, 'minor'), declared: true }),
+    ).toBe('E♭ minor')
+    // And the untied ones are untouched.
+    expect(fifthsForTonic(1, 'major')).toBe(-5)
+    expect(fifthsForTonic(1, 'minor')).toBe(4)
+    expect(fifthsForTonic(8, 'minor')).toBe(5)
+  })
+})
+
+describe('reading a key name from a MIDI file', () => {
+  it('reads flats, sharps and both spellings of the symbols', () => {
+    expect(fifthsForKeyName('Bb')).toBe(-2)
+    expect(fifthsForKeyName('B♭')).toBe(-2)
+    expect(fifthsForKeyName('F#')).toBe(6)
+    expect(fifthsForKeyName('F♯')).toBe(6)
+    expect(fifthsForKeyName('C')).toBe(0)
+    expect(fifthsForKeyName('Cb')).toBe(-7)
+    expect(fifthsForKeyName('H')).toBeNull()
+  })
+
+  it('turns a signature and a minor flag into the minor key, not the major’s', () => {
+    // An SMF key signature of no sharps, minor, is A minor. Read as "C minor"
+    // it would be three flats.
+    expect(tonicForFifths(fifthsForKeyName('C')!, 'minor')).toBe(9)
+    expect(tonicForFifths(fifthsForKeyName('Eb')!, 'minor')).toBe(0) // C minor
   })
 })

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ledgerSteps, staffNoteName, staffPlacement } from './staff.js'
+import { ledgerSteps, staffFor, staffNoteName, staffPlacement } from './staff.js'
 
 /**
  * Staff position is diatonic. Getting it from a semitone count puts C♯ on its
@@ -35,8 +35,8 @@ describe('staff placement', () => {
       [67, 68],
     ]) {
       expect(staffPlacement(sharp!).steps).toBe(staffPlacement(natural!).steps)
-      expect(staffPlacement(sharp!).sharp).toBe(true)
-      expect(staffPlacement(natural!).sharp).toBe(false)
+      expect(staffPlacement(sharp!).accidental).toBe(1)
+      expect(staffPlacement(natural!).accidental).toBe(0)
     }
   })
 
@@ -82,5 +82,45 @@ describe('staff placement', () => {
       expect(b3.staff).toBe('bass')
       expect(ledgerSteps(b3)).toEqual([])
     })
+  })
+})
+
+describe('a spelled note', () => {
+  it('sits on the line its letter names, whatever it sounds like', () => {
+    // B♭4 is note 70. Spelled as the score spells it, it is on B's line with
+    // a flat; left to the sharp-side fallback it would be an A♯ on A's space.
+    const flat = staffPlacement(70, { letter: 6, accidental: -1 })
+    expect(flat).toMatchObject({ letter: 'B', accidental: -1, steps: 6, octave: 4 })
+    expect(staffPlacement(70)).toMatchObject({ letter: 'A', accidental: 1, steps: 5 })
+  })
+
+  it('keeps the octave with the letter across the C boundary', () => {
+    // B♯3 sounds as middle C and is written on B's line, one step under it.
+    expect(staffPlacement(60, { letter: 6, accidental: 1 })).toMatchObject({
+      steps: -1,
+      octave: 3,
+      letter: 'B',
+    })
+    // C♭4 sounds as B3 and is written on middle C's line.
+    expect(staffPlacement(59, { letter: 0, accidental: -1 })).toMatchObject({
+      steps: 0,
+      octave: 4,
+      letter: 'C',
+    })
+  })
+
+  it('names the note the way it is spelled', () => {
+    expect(staffNoteName(70, { letter: 6, accidental: -1 })).toBe('B♭4')
+    expect(staffNoteName(60, { letter: 6, accidental: 1 })).toBe('B♯3')
+  })
+
+  it('goes on the hand’s staff when the hand is known', () => {
+    // A left-hand E4 is written in the bass with a ledger line, not moved into
+    // the treble because it happens to be above middle C.
+    expect(staffFor(64, 'left')).toBe('bass')
+    expect(staffFor(48, 'right')).toBe('treble')
+    expect(staffFor(64)).toBe('treble')
+    expect(staffPlacement(64, null, 'bass')).toMatchObject({ staff: 'bass', steps: 2 })
+    expect(ledgerSteps(staffPlacement(64, null, 'bass'))).toEqual([0, 2])
   })
 })

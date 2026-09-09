@@ -76,6 +76,12 @@ export interface Exercise {
     readonly lower: readonly number[]
     readonly upper: readonly number[]
   }
+  /**
+   * The key signature the material is written in, as fifths, or null where
+   * no signature fits and every accidental is printed. The live staff draws
+   * it and spells what is played from it.
+   */
+  readonly keyFifths: number | null
   /** Reference rows for the dashboard. Kind-specific content, generic shape. */
   readonly facts: readonly ExerciseFact[]
   readonly fingering: {

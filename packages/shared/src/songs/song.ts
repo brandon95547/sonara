@@ -11,10 +11,27 @@
 // The same Hand the fingering module uses: one piece of music has one idea of
 // which hand plays a note, wherever that idea came from.
 import type { Hand } from '../music/fingering.js'
+import type { NoteValue } from '../music/notation.js'
+import type { Spelling } from '../music/pitch.js'
 import { withInferredHands } from './hand-assignment.js'
 import type { PartRole } from './general-midi.js'
 import { estimateKey, type DetectedKey } from './key-of.js'
+import { gridMeasures, quartersPerBar, type SongMeasure } from './meter.js'
 export type { Hand }
+
+/**
+ * How a note is written in the score it came from.
+ *
+ * A tied pair is one note here, so this is the value of its first written
+ * segment; the engraver splits a held note across bar lines for itself. A
+ * tuplet carries its ratio and an id shared by every note under the same
+ * bracket, so the bracket can be drawn once over all of them.
+ */
+export interface WrittenNote {
+  readonly value: NoteValue
+  readonly dots: number
+  readonly tuplet?: { readonly id: number; readonly actual: number; readonly normal: number }
+}
 
 export interface SongNote {
   readonly note: number
@@ -59,6 +76,26 @@ export interface SongNote {
    * impossible one.
    */
   readonly rolled?: boolean
+  /**
+   * The letter and accidental the note is written with.
+   *
+   * A score always says — MusicXML as step and alter, MuseScore as a tonal
+   * pitch class — and the staff must draw what the score says: a B♭ is a B
+   * with a flat, not an A with a sharp. For a MIDI file it is worked out from
+   * the key on import. Absent only on songs stored before it was read.
+   */
+  readonly spelling?: Spelling
+  /** Where it begins in crotchets from the start of the piece. */
+  readonly startQ?: number
+  /** How long it lasts in crotchets — its written length, tempo aside. */
+  readonly durationQ?: number
+  /** Its written value, where a score gave one. */
+  readonly written?: WrittenNote
+  /**
+   * A grace note: struck just before the beat it decorates, taking no time
+   * of its own. Drawn small, and never asked for as a step of its own.
+   */
+  readonly grace?: boolean
 }
 
 /** A stretch of sustain pedal, as the score marks it. */
@@ -101,9 +138,18 @@ export interface Song {
   readonly timeSignature: { readonly beats: number; readonly beatType: number }
   readonly notes: readonly SongNote[]
   readonly durationMs: number
-  /** Bar lines, in milliseconds, so a loop can be set in measures. */
+  /**
+   * The length of an ordinary bar at the opening tempo.
+   *
+   * A convenience for the controls that step by a bar. The bars themselves
+   * are the list below, and anything that needs to know *which* bar reads
+   * that — a pickup, a change of metre or a ritardando makes this number
+   * wrong for every bar after it.
+   */
   readonly measureMs: number
   readonly measureCount: number
+  /** Every bar, with its start, its length, its metre and its tempo. */
+  readonly measures: readonly SongMeasure[]
   readonly source: 'midi' | 'musicxml' | 'musescore'
   /** What is in the file — "Piano · Bass · Drums" — for saying so. */
   readonly parts: readonly string[]
@@ -195,10 +241,11 @@ export function buildSong(input: {
   pedal?: readonly PedalSpan[]
   /** True when the file states rhythm and staves, rather than us inferring them. */
   rhythmFromScore?: boolean
+  /** The bars as the file laid them out. Without them, one tempo and one metre. */
+  measures?: readonly SongMeasure[]
 }): Song {
   const bpm = input.bpm > 0 ? input.bpm : 100
   const beatsPerMeasure = input.beatsPerMeasure > 0 ? input.beatsPerMeasure : 4
-  const measureMs = (60000 / bpm) * beatsPerMeasure
   // Where the file named the staff or separated the tracks, its answer stands.
   // Where it did not, the hands are worked out from the music rather than from
   // each note's pitch on its own — see `hand-assignment.ts` for why that
@@ -206,17 +253,31 @@ export function buildSong(input: {
   const collapsed = collapseUnisons(input.notes)
   const notes = input.handsInferred ? withInferredHands(collapsed) : collapsed
   const durationMs = songDuration(notes)
+  // A file that never said keeps the reading everything else assumes.
+  const timeSignature = input.timeSignature ?? {
+    beats: Math.round(beatsPerMeasure) || 4,
+    beatType: 4,
+  }
+  const measures =
+    input.measures && input.measures.length > 0
+      ? input.measures
+      : gridMeasures({
+          bpm,
+          beats: timeSignature.beats,
+          beatType: timeSignature.beatType,
+          durationMs,
+        })
 
   return {
     ...input,
     bpm,
     beatsPerMeasure,
-    // A file that never said keeps the reading everything else assumes.
-    timeSignature: input.timeSignature ?? { beats: Math.round(beatsPerMeasure) || 4, beatType: 4 },
-    notes,
+    timeSignature,
+    notes: withQuarters(notes, measures),
     durationMs,
-    measureMs,
-    measureCount: Math.max(1, Math.ceil(durationMs / measureMs)),
+    measureMs: quartersPerBar(timeSignature.beats, timeSignature.beatType) * (60000 / bpm),
+    measureCount: measures.length,
+    measures,
     parts: input.parts ?? [],
     // Anything built here came from a file we just read, so the parts are known
     // unless a caller says otherwise.
@@ -243,6 +304,32 @@ export function buildSong(input: {
       fingering: notes.some((note) => note.finger !== undefined),
     },
   }
+}
+
+/**
+ * Gives every note its place in crotchets, where the importer did not.
+ *
+ * A score states its rhythm and its importer writes `startQ` itself. A MIDI
+ * file states time, and the bars — which carry the tempo in force — turn
+ * that time back into crotchets, so the engraver reads one thing whatever
+ * the file was. A song stored before bars were read gets the same treatment
+ * from its grid.
+ */
+function withQuarters(notes: readonly SongNote[], measures: readonly SongMeasure[]): SongNote[] {
+  const toQ = (ms: number): number => {
+    let bar = measures[0]!
+    for (const candidate of measures) {
+      if (candidate.startMs <= ms + 1e-6) bar = candidate
+      else break
+    }
+    return bar.startQ + (ms - bar.startMs) / bar.quarterMs
+  }
+  return notes.map((note) => {
+    if (note.startQ !== undefined && note.durationQ !== undefined) return note
+    const startQ = toQ(note.startMs)
+    const endQ = toQ(note.startMs + note.durationMs)
+    return { ...note, startQ, durationQ: Math.max(0, endQ - startQ) }
+  })
 }
 
 /** Splits by pitch when the file gave us nothing better. Middle C is the seam. */

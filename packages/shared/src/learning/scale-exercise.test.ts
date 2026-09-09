@@ -203,3 +203,39 @@ describe('melodic minor descending', () => {
     expect([...down].reverse()).toEqual(up)
   })
 })
+
+describe('the key the exercise is written in', () => {
+  it('carries a signature the live staff can draw', () => {
+    expect(
+      buildScaleExercise({ ...DEFAULT_SCALE_SPEC, rootPitchClass: 3, scaleTypeId: 'major' })
+        .keyFifths,
+    ).toBe(-3)
+    expect(
+      buildScaleExercise({
+        ...DEFAULT_SCALE_SPEC,
+        rootPitchClass: 9,
+        scaleTypeId: 'harmonic-minor',
+      }).keyFifths,
+    ).toBe(0)
+    expect(
+      buildScaleExercise({ ...DEFAULT_SCALE_SPEC, rootPitchClass: 0, scaleTypeId: 'chromatic' })
+        .keyFifths,
+    ).toBeNull()
+  })
+
+  it('spells the chromatic scale with flats on the way down', () => {
+    const exercise = buildScaleExercise({
+      ...DEFAULT_SCALE_SPEC,
+      rootPitchClass: 0,
+      scaleTypeId: 'chromatic',
+      octaves: 1,
+      direction: 'up-down',
+    })
+    const labels = exercise.steps.map((step) => step.label)
+    expect(labels.slice(0, 13).join(' ')).toBe('C C♯ D D♯ E F F♯ G G♯ A A♯ B C')
+    expect(labels.slice(13).join(' ')).toBe('B B♭ A A♭ G G♭ F E E♭ D D♭ C')
+    expect(exercise.facts.find((fact) => fact.label === 'Coming down')?.value).toBe(
+      'C B B♭ A A♭ G G♭ F E E♭ D D♭',
+    )
+  })
+})

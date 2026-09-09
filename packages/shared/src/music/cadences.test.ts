@@ -44,7 +44,9 @@ describe('the cadences the source prints', () => {
         const want = chords.map((chord) =>
           [...chord[hand]!].sort((a, b) => a[0]! - b[0]!).map((note) => note[1]!),
         )
-        const got = fingerSteps(steps, hand === 'rh' ? 'right' : 'left').map((s) => s?.fingers ?? null)
+        const got = fingerSteps(steps, hand === 'rh' ? 'right' : 'left').map(
+          (s) => s?.fingers ?? null,
+        )
         for (const [i, expected] of want.entries()) {
           total++
           if (expected.join('') === (got[i]?.join('') ?? '')) matched++
@@ -66,7 +68,9 @@ describe('the cadences the source prints', () => {
         const steps = chords.map((chord) =>
           chord[hand]!.map((note) => note[0]!).sort((a, b) => a - b),
         )
-        for (const fingers of fingerSteps(steps, hand === 'rh' ? 'right' : 'left').map((s) => s?.fingers ?? null)) {
+        for (const fingers of fingerSteps(steps, hand === 'rh' ? 'right' : 'left').map(
+          (s) => s?.fingers ?? null,
+        )) {
           expect(fingers, `${prog.key} p${prog.position} ${hand}`).not.toBeNull()
           expect(new Set(fingers!).size).toBe(fingers!.length)
         }
