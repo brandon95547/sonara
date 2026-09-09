@@ -121,6 +121,20 @@ export function estimateKey(
 }
 
 /**
+ * The key a tonic and a signature name together.
+ *
+ * A signature does not say whether a piece is major or minor — no sharps is
+ * C major and A minor both — so the tonic is what settles it, and the pair is
+ * what spelling a note needs. For a caller that knows what it is working on
+ * and would otherwise have to estimate.
+ */
+export function keyFromTonic(pitchClass: number, fifths: number): DetectedKey {
+  const tonic = normalisePitchClass(pitchClass)
+  const mode = tonicForFifths(fifths, 'minor') === tonic ? 'minor' : 'major'
+  return { pitchClass: tonic, mode, fifths, declared: true }
+}
+
+/**
  * The signature a key is written with.
  *
  * Several signatures can name the same sounding key — B major and C♭ major are

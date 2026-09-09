@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { notesFromEvents, performanceLength, type PerformanceEvent } from './performance.js'
+import {
+  notesFromEvents,
+  pedalFromEvents,
+  performanceLength,
+  type PedalEvent,
+  type PerformanceEvent,
+} from './performance.js'
 import { writeMidiFile } from './midi-file.js'
 import { writeMusicXml } from './musicxml.js'
 
@@ -190,5 +196,110 @@ describe('MusicXML', () => {
     const closes = xml.match(/<\/measure>/g)?.length ?? 0
     expect(opens).toBe(closes)
     expect(opens).toBeGreaterThan(0)
+  })
+})
+
+const down = (at: number): PedalEvent => ({ down: true, at })
+const up = (at: number): PedalEvent => ({ down: false, at })
+
+/**
+ * The pedal is half of a piano performance and was not being kept at all.
+ *
+ * Every export came back dry — the notes exactly as played and no sign that the
+ * damper had ever moved — which is not the take, and gives no clue that
+ * anything is missing.
+ */
+describe('the pedal', () => {
+  it('pairs each press with its release', () => {
+    expect(pedalFromEvents([down(100), up(900), down(1200), up(2000)])).toEqual([
+      { startMs: 100, endMs: 900 },
+      { startMs: 1200, endMs: 2000 },
+    ])
+  })
+
+  it('ignores a press on an already-pressed pedal, and a release of a raised one', () => {
+    // Half-pedalling wobbles on the way down. One mark, not four.
+    expect(pedalFromEvents([up(0), down(100), down(140), down(180), up(900)])).toEqual([
+      { startMs: 100, endMs: 900 },
+    ])
+  })
+
+  it('closes a pedal still held when the recording stops', () => {
+    expect(pedalFromEvents([down(100)], 2000)).toEqual([{ startMs: 100, endMs: 2000 }])
+  })
+
+  it('is written into the MIDI file as CC64', () => {
+    const bytes = writeMidiFile(notesFromEvents([on(60, 0), off(60, 1000)]), {
+      bpm: 100,
+      pedal: [{ startMs: 0, endMs: 1000 }],
+    })
+    const controllers: number[][] = []
+    for (let at = 0; at < bytes.length - 2; at++)
+      if (bytes[at] === 0xb0 && bytes[at + 1] === 64)
+        controllers.push([bytes[at + 1]!, bytes[at + 2]!])
+    expect(controllers).toEqual([
+      [64, 127],
+      [64, 0],
+    ])
+  })
+
+  it('is marked under the bass staff in the notation', () => {
+    const xml = writeMusicXml(notesFromEvents([on(60, 0), off(60, 1000)]), {
+      bpm: 100,
+      pedal: [{ startMs: 0, endMs: 1000 }],
+    })
+    expect(xml).toContain('<pedal type="start"')
+    expect(xml).toContain('<pedal type="stop"')
+  })
+
+  it('keeps the piece going long enough to close a pedal held past the last note', () => {
+    const xml = writeMusicXml(notesFromEvents([on(60, 0), off(60, 300)]), {
+      bpm: 100,
+      pedal: [{ startMs: 0, endMs: 9600 }],
+    })
+    // A mark that opens and never closes is the one thing a reader cannot
+    // resolve, so the bars run to where the pedal comes up.
+    expect(xml).toContain('<measure number="4">')
+    expect(xml).toContain('<pedal type="stop"')
+  })
+})
+
+describe('what the notation must not lose', () => {
+  it('writes a note that begins and ends inside a held one', () => {
+    // Hold a chord, play a melody over it. The held note is cut to the next
+    // onset — one voice per staff, as documented — and the melody survives.
+    // It used to be dropped entirely and silently.
+    const xml = writeMusicXml(
+      [
+        { note: 60, velocity: 80, startMs: 0, durationMs: 2400 },
+        { note: 64, velocity: 80, startMs: 600, durationMs: 300 },
+      ],
+      { bpm: 100 },
+    )
+    expect(xml).toContain('<step>E</step>')
+  })
+
+  it('ties a note held across a bar line rather than striking it again', () => {
+    const xml = writeMusicXml([{ note: 60, velocity: 80, startMs: 0, durationMs: 3600 }], {
+      bpm: 100,
+    })
+    const [first, second] = xml.split('<measure number="2">')
+    expect(first).toContain('<tie type="start"/>')
+    expect(second).toContain('<tie type="stop"/>')
+  })
+
+  it('spells the notes in the key it is told, and says which key that is', () => {
+    const notes = [{ note: 58, velocity: 80, startMs: 0, durationMs: 600 }]
+    const inF = writeMusicXml(notes, {
+      bpm: 100,
+      key: { pitchClass: 5, mode: 'major', fifths: -1, declared: true },
+    })
+    expect(inF).toContain('<fifths>-1</fifths>')
+    expect(inF).toContain('<step>B</step><alter>-1</alter>')
+
+    // Nobody said, so nothing is claimed: C major, spelled with sharps.
+    const plain = writeMusicXml(notes, { bpm: 100 })
+    expect(plain).toContain('<fifths>0</fifths>')
+    expect(plain).toContain('<step>A</step><alter>1</alter>')
   })
 })

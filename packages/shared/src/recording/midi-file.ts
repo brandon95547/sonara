@@ -1,3 +1,4 @@
+import type { PedalSpan } from '../songs/song.js'
 import type { RecordedNote } from './performance.js'
 
 /**
@@ -41,7 +42,19 @@ function chunk(id: string, body: number[]): number[] {
 export interface MidiFileOptions {
   /** Beats per minute the file declares. Timing is absolute either way. */
   readonly bpm?: number
+  /** When the sustain pedal was down, written as CC64. */
+  readonly pedal?: readonly PedalSpan[]
 }
+
+/**
+ * Where a message sorts against the others at the same tick.
+ *
+ * Releases first, so a repeated pitch is let go before it is struck again.
+ * Then the pedal: an up lands after the release it belongs with rather than
+ * catching it, and a down lands before the note it is meant to hold. Strikes
+ * last.
+ */
+const ORDER = { off: 0, pedal: 1, on: 2 } as const
 
 export function writeMidiFile(
   notes: readonly RecordedNote[],
@@ -58,8 +71,17 @@ export function writeMidiFile(
     const start = Math.max(0, Math.round(note.startMs * ticksPerMs))
     const end = Math.max(start + 1, Math.round((note.startMs + note.durationMs) * ticksPerMs))
     const velocity = Math.min(127, Math.max(1, Math.round(note.velocity)))
-    timeline.push({ tick: start, order: 1, bytes: [0x90, note.note & 0x7f, velocity] })
-    timeline.push({ tick: end, order: 0, bytes: [0x80, note.note & 0x7f, 0x00] })
+    timeline.push({ tick: start, order: ORDER.on, bytes: [0x90, note.note & 0x7f, velocity] })
+    timeline.push({ tick: end, order: ORDER.off, bytes: [0x80, note.note & 0x7f, 0x00] })
+  }
+  // Controller 64 is the damper pedal, and 64 is also the threshold every
+  // synth reads it against: 127 is down and 0 is up, which is what a switch
+  // pedal sends and all this needs to say.
+  for (const span of options.pedal ?? []) {
+    const down = Math.max(0, Math.round(span.startMs * ticksPerMs))
+    const up = Math.max(down, Math.round(span.endMs * ticksPerMs))
+    timeline.push({ tick: down, order: ORDER.pedal, bytes: [0xb0, 64, 127] })
+    timeline.push({ tick: up, order: ORDER.pedal, bytes: [0xb0, 64, 0] })
   }
   timeline.sort((a, b) => a.tick - b.tick || a.order - b.order)
 

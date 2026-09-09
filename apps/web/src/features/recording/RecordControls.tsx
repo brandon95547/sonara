@@ -1,5 +1,5 @@
-import { Circle, Download, Square, Trash2 } from 'lucide-react'
-import { performanceLength, writeMidiFile, writeMusicXml } from '@sonara/shared'
+import { Circle, Download, History, Square, Trash2 } from 'lucide-react'
+import { keyFromTonic, performanceLength, writeMidiFile, writeMusicXml } from '@sonara/shared'
 import { Button, IconButton } from '@/ui/Button'
 import { Drawer } from '@/ui/Drawer'
 import { Divider } from '@/ui/Display'
@@ -34,6 +34,32 @@ export function RecordButton() {
       }
       icon={live ? <Square /> : <Circle />}
       onClick={() => (live ? stop() : arm())}
+    />
+  )
+}
+
+/**
+ * The take you closed without deciding, and the way back to it.
+ *
+ * A dialog that can be dismissed has to leave something behind, or dismissing
+ * it is deleting it by another name. This is that something: it appears only
+ * while a finished take is waiting, and arming a new recording clears it — which
+ * is the one place a take is dropped without being asked for, and the one place
+ * the player has plainly asked for it.
+ */
+export function LastTakeButton() {
+  const waiting = useRecordingStore((state) => state.status === 'kept' && state.take.length > 0)
+  const review = useRecordingStore((state) => state.review)
+
+  if (!waiting) return null
+
+  return (
+    <IconButton
+      size="md"
+      variant="outlined"
+      label="Reopen the last recording"
+      icon={<History />}
+      onClick={review}
     />
   )
 }
@@ -76,16 +102,32 @@ function formatLength(ms: number): string {
 export function RecordingReview() {
   const status = useRecordingStore((state) => state.status)
   const take = useRecordingStore((state) => state.take)
+  const pedal = useRecordingStore((state) => state.pedal)
   const discard = useRecordingStore((state) => state.discard)
+  const close = useRecordingStore((state) => state.close)
   const bpm = useLearningStore((state) => state.targetBpm)
   const title = useLearningStore((state) => state.exercise?.title ?? 'Sonara recording')
+  /*
+   * The key to write the export in.
+   *
+   * Taken from what you were practising rather than guessed from the notes.
+   * A signature alone cannot say major or minor — no sharps is both C major and
+   * A minor — so the tonic settles it.
+   */
+  const fifths = useLearningStore((state) => state.exercise?.keyFifths ?? null)
+  const tonic = useLearningStore((state) => state.exercise?.rootPitchClass ?? null)
+  const key = fifths === null || tonic === null ? null : keyFromTonic(tonic, fifths)
 
   const open = status === 'review' && take.length > 0
 
   return (
     <Drawer
       open={open}
-      onClose={discard}
+      /* Dismissing is not discarding. Escape and a click on the scrim used to
+         throw the take away — a reflex keystroke, and a performance nobody can
+         get back. They put it down instead, and Discard is the only thing that
+         ends it. */
+      onClose={close}
       title="Recording finished"
       description={`${take.length} ${take.length === 1 ? 'note' : 'notes'} · ${formatLength(performanceLength(take))}`}
       footer={
@@ -102,7 +144,7 @@ export function RecordingReview() {
           caveat="Timing is rounded onto a 4/4 sixteenth-note grid to be written down at all — read it as a tidy copy of the take, not the take."
           onExport={() =>
             downloadText(
-              writeMusicXml(take, { bpm, title }),
+              writeMusicXml(take, { bpm, title, key, pedal }),
               `${slug(title)}.musicxml`,
               'application/vnd.recordare.musicxml+xml',
             )
@@ -115,7 +157,7 @@ export function RecordingReview() {
           detail="The performance itself. Every DAW, sequencer and notation program reads it, and it is the format to pick if you intend to keep playing with the take."
           caveat="Keeps your exact timing and how hard each key was struck — nothing is rounded."
           onExport={() =>
-            downloadBytes(writeMidiFile(take, { bpm }), `${slug(title)}.mid`, 'audio/midi')
+            downloadBytes(writeMidiFile(take, { bpm, pedal }), `${slug(title)}.mid`, 'audio/midi')
           }
         />
       </div>

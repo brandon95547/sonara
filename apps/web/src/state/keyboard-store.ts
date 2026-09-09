@@ -64,7 +64,12 @@ export const useKeyboardStore = create<KeyboardState>((set) => ({
     })
   },
 
-  setSustain: (down) => set({ sustain: down }),
+  // The recorder taps the pedal here for the same reason it taps the notes
+  // here: this is the one place every way of pressing it arrives.
+  setSustain: (down) => {
+    recordingActions.capturePedal(down)
+    set({ sustain: down })
+  },
 
   panic: () => set({ active: {}, sustain: false }),
 }))

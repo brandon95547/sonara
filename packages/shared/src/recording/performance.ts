@@ -1,9 +1,15 @@
+import type { PedalSpan } from '../songs/song.js'
+
 /**
  * A recorded performance: what was played, when, and for how long.
  *
  * Kept as raw on/off events while recording — that is the shape the keyboard
  * produces and the cheapest thing to append to on a hot path — and paired into
  * notes only when the recording stops and something wants to write it out.
+ *
+ * The pedal is part of what was played and is kept the same way. A piano
+ * performance without it is a different performance: the notes are the same and
+ * the sound is not, and an export that drops it hands back a take nobody played.
  */
 
 export interface PerformanceEvent {
@@ -20,6 +26,12 @@ export interface RecordedNote {
   readonly velocity: number
   readonly startMs: number
   readonly durationMs: number
+}
+
+export interface PedalEvent {
+  readonly down: boolean
+  /** Milliseconds since the recording started. */
+  readonly at: number
 }
 
 /** The shortest note worth keeping. Below this it is a bounced key, not a note. */
@@ -77,4 +89,37 @@ export function notesFromEvents(
 /** Total length of the performance, in milliseconds. */
 export function performanceLength(notes: readonly RecordedNote[]): number {
   return notes.reduce((longest, note) => Math.max(longest, note.startMs + note.durationMs), 0)
+}
+
+/**
+ * The stretches the pedal was held down for.
+ *
+ * A pedal that is still down when the recording stops is closed at the end
+ * rather than dropped — the player was holding it, and a span that never
+ * closes is the one thing a reader of the file cannot make sense of.
+ *
+ * Pressing an already-pressed pedal, and releasing one that is already up,
+ * both say nothing and are ignored: a half-pedal wobble on the way down should
+ * not come out as four separate marks on the page.
+ */
+export function pedalFromEvents(events: readonly PedalEvent[], endMs?: number): PedalSpan[] {
+  const spans: PedalSpan[] = []
+  let openedAt: number | null = null
+
+  for (const event of events) {
+    if (event.down) {
+      if (openedAt === null) openedAt = event.at
+      continue
+    }
+    if (openedAt === null) continue
+    if (event.at > openedAt) spans.push({ startMs: openedAt, endMs: event.at })
+    openedAt = null
+  }
+
+  if (openedAt !== null) {
+    const last = endMs ?? events.at(-1)?.at ?? openedAt
+    if (last > openedAt) spans.push({ startMs: openedAt, endMs: last })
+  }
+
+  return spans
 }

@@ -16,7 +16,7 @@ import { Select } from '@/ui/Controls'
 import { cn } from '@/lib/cn'
 import { useLearningStore } from '@/state/learning-store'
 import { useScaleDemo } from './use-scale-demo'
-import { RecordButton } from '@/features/recording/RecordControls'
+import { LastTakeButton, RecordButton } from '@/features/recording/RecordControls'
 
 /**
  * The scale you are working on, and how much help you want with it.
@@ -151,6 +151,8 @@ export function ScaleConfigRow() {
         <StartButton mode={mode} running={running} onStart={start} onReset={reset} />
 
         <RecordButton />
+
+        <LastTakeButton />
       </div>
     </div>
   )
