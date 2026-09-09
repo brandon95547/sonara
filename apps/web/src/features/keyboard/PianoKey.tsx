@@ -18,6 +18,14 @@ export interface PianoKeyProps {
   /** Height of the black keys as a percentage of the keybed. */
   blackHeightPercent: number
   keyLabels: KeyLabels
+  /**
+   * Whether this is the key the Tab key lands on.
+   *
+   * Exactly one at a time — see the roving tabindex in `PianoKeyboard`. The
+   * rest are reachable with the arrow keys and are not tab stops, because
+   * eighty-eight of them are eighty-eight presses to get past the piano.
+   */
+  tabbable: boolean
   onPress: (note: number, event: React.PointerEvent<HTMLButtonElement>) => void
   onEnter: (note: number, event: React.PointerEvent<HTMLButtonElement>) => void
   onRelease: (note: number, event: React.PointerEvent<HTMLButtonElement>) => void
@@ -29,6 +37,7 @@ export const PianoKey = React.memo(function PianoKey({
   geometry,
   blackHeightPercent,
   keyLabels,
+  tabbable,
   onPress,
   onEnter,
   onRelease,
@@ -78,6 +87,7 @@ export const PianoKey = React.memo(function PianoKey({
       // A key is not a toggle: aria-pressed would say it stays down. `data-active`
       // drives the paint, and the live region in the keyboard announces notes.
       aria-label={annotation?.finger ? `${label}, finger ${annotation.finger}` : label}
+      tabIndex={tabbable ? 0 : -1}
       data-note={note}
       data-active={active ? 'true' : undefined}
       data-role={annotation?.role}

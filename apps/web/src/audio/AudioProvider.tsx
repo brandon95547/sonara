@@ -127,8 +127,17 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     const previous = engineRef.current
     engineRef.current = next
     if (previous) {
-      previous.allNotesOff()
-      previous.dispose()
+      /*
+       * Let the outgoing engine finish fading before taking it apart.
+       *
+       * `allNotesOff` schedules a release; `dispose` stops the sources. Doing
+       * both in the same breath means the release is audio that never happens,
+       * and every swap — which is every time samples finish downloading under
+       * a held chord — landed as a click. The two engines overlap for the
+       * length of that fade, which is a crossfade and is the point.
+       */
+      const fade = previous.allNotesOff()
+      window.setTimeout(() => previous.dispose(), fade)
     }
     // Anything held during the swap is re-struck on the new engine, so a
     // sustained chord does not vanish the moment the samples land.

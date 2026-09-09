@@ -33,11 +33,29 @@ import { buildLayout, type KeyboardLayout, type KeyboardWindow } from './keyboar
  * Pressing near the bottom of a key plays louder, the way depth of touch does
  * on a real action. It costs one rectangle measurement and it makes the
  * on-screen keyboard expressive rather than a row of on/off switches.
+ *
+ * ## One tab stop, not eighty-eight
+ *
+ * Every key is a button, so every key used to be a tab stop: reaching the
+ * controls under the piano took eighty-eight presses of Tab. The keybed is a
+ * composite now — one key is tabbable at a time and the arrows move between
+ * them, which is the pattern every grouped set of controls uses and the one a
+ * keyboard user already knows. Left and right step a semitone, up and down an
+ * octave, Home and End go to the ends, and Enter or Space plays whatever the
+ * focus is on.
  */
 
 /** Black keys reach this far down the white keys. */
 const BLACK_KEY_HEIGHT_PERCENT = 62
 const POINTER_VELOCITY = { min: 42, max: 122 } as const
+
+/** How far each arrow moves the focus, in semitones. */
+const ARROW_STEPS: Record<string, number> = {
+  ArrowRight: 1,
+  ArrowLeft: -1,
+  ArrowUp: 12,
+  ArrowDown: -12,
+}
 
 export interface PianoKeyboardProps {
   window: KeyboardWindow
@@ -57,6 +75,45 @@ export function PianoKeyboard({ window: keyWindow, className }: PianoKeyboardPro
   const pointersRef = React.useRef(new Map<number, number>())
   /** Notes held by the keyboard's own focus ring, so a key repeat cannot double-trigger. */
   const keyboardHeldRef = React.useRef(new Set<number>())
+  const keybedRef = React.useRef<HTMLDivElement>(null)
+
+  /** Every key on screen, low to high, which is what the arrows walk. */
+  const notes = React.useMemo(
+    () => [...layout.whiteKeys, ...layout.blackKeys].map((key) => key.note).sort((a, b) => a - b),
+    [layout],
+  )
+
+  /*
+   * Which key Tab lands on.
+   *
+   * Middle C to begin with, or whatever is nearest it — a player reaching the
+   * keyboard wants to arrive where their hands would go, not at the bottom A
+   * of an eighty-eight. It then follows wherever the arrows were last left,
+   * clamped back into range when the visible window changes under it.
+   */
+  const [tabbable, setTabbable] = React.useState(60)
+  const focusNote = React.useMemo(() => {
+    if (notes.includes(tabbable)) return tabbable
+    return notes.reduce(
+      (best, note) => (Math.abs(note - tabbable) < Math.abs(best - tabbable) ? note : best),
+      notes[0] ?? tabbable,
+    )
+  }, [notes, tabbable])
+
+  /*
+   * Move the focus with the roving index, but only when it is already in here.
+   *
+   * The arrows set state, and the DOM focus has to follow it. Guarding on the
+   * keybed already holding focus is what stops this stealing it: the window can
+   * change for reasons that have nothing to do with the keyboard — a resize, an
+   * octave button — and a piano that grabs the caret when the browser is
+   * resized is worse than one that is hard to tab past.
+   */
+  React.useEffect(() => {
+    const keybed = keybedRef.current
+    if (!keybed || !keybed.contains(document.activeElement)) return
+    keybed.querySelector<HTMLElement>(`[data-note="${focusNote}"]`)?.focus()
+  }, [focusNote])
 
   const press = React.useCallback((note: number, velocity: number) => {
     keyboardActions.noteOn(note, velocity, 'pointer')
@@ -162,6 +219,22 @@ export function PianoKeyboard({ window: keyWindow, className }: PianoKeyboardPro
 
   const onKeyDown = React.useCallback(
     (note: number, event: React.KeyboardEvent<HTMLButtonElement>) => {
+      const step = ARROW_STEPS[event.key]
+      if (step !== undefined || event.key === 'Home' || event.key === 'End') {
+        event.preventDefault()
+        const index = notes.indexOf(note)
+        const to =
+          event.key === 'Home'
+            ? 0
+            : event.key === 'End'
+              ? notes.length - 1
+              : // An octave up from the top lands on the top key rather than
+                // nowhere, which is what a player reaching the end expects.
+                Math.min(notes.length - 1, Math.max(0, index + step!))
+        const next = notes[to]
+        if (next !== undefined) setTabbable(next)
+        return
+      }
       if (event.key !== 'Enter' && event.key !== ' ') return
       event.preventDefault()
       // Holding the key down produces a repeat storm; one press is one note.
@@ -169,7 +242,7 @@ export function PianoKeyboard({ window: keyWindow, className }: PianoKeyboardPro
       keyboardHeldRef.current.add(note)
       press(note, 96)
     },
-    [press],
+    [press, notes],
   )
 
   const onKeyUp = React.useCallback(
@@ -184,6 +257,7 @@ export function PianoKeyboard({ window: keyWindow, className }: PianoKeyboardPro
   return (
     <div className={className}>
       <div
+        ref={keybedRef}
         className="keybed"
         data-mode={mode}
         data-structure={showStructure ? 'on' : undefined}
@@ -198,6 +272,7 @@ export function PianoKeyboard({ window: keyWindow, className }: PianoKeyboardPro
             geometry={geometry}
             blackHeightPercent={BLACK_KEY_HEIGHT_PERCENT}
             keyLabels={keyLabels}
+            tabbable={geometry.note === focusNote}
             onPress={onPress}
             onEnter={onEnter}
             onRelease={onRelease}
@@ -211,6 +286,7 @@ export function PianoKeyboard({ window: keyWindow, className }: PianoKeyboardPro
             geometry={geometry}
             blackHeightPercent={BLACK_KEY_HEIGHT_PERCENT}
             keyLabels={keyLabels}
+            tabbable={geometry.note === focusNote}
             onPress={onPress}
             onEnter={onEnter}
             onRelease={onRelease}

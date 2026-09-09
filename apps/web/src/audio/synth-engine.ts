@@ -188,9 +188,10 @@ export class SynthEngine implements AudioEngine {
     if (voice) this.#release(voice, this.#voicing.release)
   }
 
-  allNotesOff(): void {
+  allNotesOff(): number {
     for (const voice of this.#voices.values()) this.#release(voice, PANIC_RELEASE)
     this.#voices.clear()
+    return PANIC_RELEASE * 1000
   }
 
   dispose(): void {

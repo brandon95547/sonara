@@ -9,6 +9,7 @@ import { useKeyboardStore } from '@/state/keyboard-store'
 import { useLearningStore, type KeyLabels } from '@/state/learning-store'
 import { useCoarsePointer, useElementWidth } from '@/lib/hooks'
 import { cn } from '@/lib/cn'
+import { EngineChip } from '@/audio/EngineChip'
 import { PianoKeyboard } from './PianoKeyboard'
 import { GrandStaff } from '@/features/staff/GrandStaff'
 import { SongScore } from '@/features/staff/SongScore'
@@ -146,9 +147,18 @@ export function KeyboardStage() {
         <PianoKeyboard window={window} />
       </div>
 
+      <TargetAnnouncement />
+
       {/* Toolbar. Below the instrument, not on it: these controls change how you
           look at the keyboard, they are not part of it. */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        {/* The engine's status, on the screens the app bar is too narrow to
+            hold it. "Press a key to start audio" is the one thing that explains
+            silence on a fresh page, and losing it on a phone would be trading
+            one bug for a worse one. */}
+        <span className="sm:hidden">
+          <EngineChip />
+        </span>
         <div className="flex items-center gap-1 coarse:gap-3">
           <IconButton
             label="Octave down"
@@ -338,5 +348,46 @@ function ToggleChip({
       </span>
       {label}
     </button>
+  )
+}
+
+/**
+ * The note you are being asked for, said out loud.
+ *
+ * Everything the app uses to ask for it is visual — a key washed in the accent
+ * colour, a numeral above it, a cue beside the staff — and none of it reaches
+ * a screen reader, which had no way at all to tell what to play next. This is
+ * the same instruction in the one form that does.
+ *
+ * Only in Learn: Explore lights a whole scale and Practice deliberately lights
+ * nothing, and neither has a single next note to name. Polite, because it must
+ * never cut across the note the player has just been told about, and one
+ * sentence, because it is read at the pace of playing.
+ */
+function TargetAnnouncement() {
+  const message = useLearningStore((state) => {
+    if (state.mode !== 'learn') return ''
+    const annotations = state.topic === 'songs' ? state.songAnnotations : state.annotations
+
+    const targets = Object.entries(annotations)
+      .filter(([, annotation]) => annotation.role === 'target')
+      .map(([note, annotation]) => ({ note: Number(note), ...annotation }))
+      .sort((a, b) => a.note - b.note)
+    if (targets.length === 0) return ''
+
+    // The spelled name where the material has one — E♭ rather than D♯ — with
+    // the octave, which is what tells two of them apart.
+    const named = targets.map((target) => {
+      const name = target.label ?? noteName(target.note)
+      return target.finger ? `${name}, finger ${target.finger}` : name
+    })
+    const cue = targets.find((target) => target.cue)?.cue
+    return `Play ${named.join(', ')}.${cue ? ` ${cue}.` : ''}`
+  })
+
+  return (
+    <p className="sr-only-ds" role="status" aria-live="polite">
+      {message}
+    </p>
   )
 }

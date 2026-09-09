@@ -39,8 +39,13 @@ export function AppBar({
         >
           <Music4 size={17} />
         </span>
+        {/* The Bible's slot 2: `min-w-0` on the track is what lets the title
+            truncate instead of shoving the actions off the end — but only if
+            the text inside truncates too. Without that the track shrank to
+            nothing while the word kept its full width, overflowed its own box,
+            and pushed the whole row past the right edge of a 320px screen. */}
         <div className="flex min-w-0 items-baseline gap-2.5">
-          <span className="text-h3 text-[var(--ds-fg)]">Sonara</span>
+          <span className="truncate text-h3 text-[var(--ds-fg)]">Sonara</span>
           {/* Hidden below lg rather than shrunk: a tagline that wraps to two
               lines in a 56px bar is worse than a tagline that waits. */}
           <span className="hidden truncate text-label text-[var(--ds-fg-muted)] lg:inline">
@@ -49,7 +54,12 @@ export function AppBar({
         </div>
 
         <div className="ml-auto flex min-w-0 items-center gap-3">
-          {statusSlot}
+          {/* Two utilities below 640px, and the bar already spends both on the
+              keyboard and the instrument. The engine's status is a readout
+              rather than a utility, and at a phone's width there is no room to
+              be both — so it moves under the instrument it is about, which is
+              where somebody wondering why there is no sound is looking. */}
+          <span className="hidden sm:contents">{statusSlot}</span>
           <MidiStatus />
           <InstrumentSelect
             instruments={instruments}

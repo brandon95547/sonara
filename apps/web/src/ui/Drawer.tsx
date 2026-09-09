@@ -2,7 +2,7 @@ import * as React from 'react'
 import { X } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { IconButton } from './Button'
-import { useDismissable, useMediaQuery } from '@/lib/hooks'
+import { useDismissable, useFocusTrap, useMediaQuery } from '@/lib/hooks'
 
 /**
  * A side sheet on a wide screen and a bottom sheet on a narrow one.
@@ -38,6 +38,7 @@ export function Drawer({
   const descriptionId = React.useId()
 
   useDismissable(open, onClose, [panelRef])
+  useFocusTrap(open, panelRef)
 
   // Focus moves into the panel on open and the page behind it stops scrolling.
   // Without both, a keyboard user tabs into content they cannot see.

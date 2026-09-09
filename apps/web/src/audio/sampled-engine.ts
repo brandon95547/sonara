@@ -15,6 +15,17 @@ import { decibelsToGain, type AudioEngine } from './types'
 /** Sampled instruments are a large download on a slow connection; be patient, but not forever. */
 const LOAD_TIMEOUT_MS = 25_000
 
+/**
+ * How long `stop()` takes to fade a voice out, in milliseconds.
+ *
+ * The release belongs to smplr and is not ours to set, so this is a statement
+ * about the library rather than a knob: a hundred milliseconds is comfortably
+ * longer than the fade it applies, and the only thing it is used for is
+ * deciding how long to wait before tearing the engine down. Waiting too long
+ * costs a disposed engine sitting silent; too short is an audible click.
+ */
+const RELEASE_MS = 100
+
 type SmplrInstrument = {
   start: (event: { note: number; velocity?: number }) => unknown
   stop: (target?: number) => void
@@ -114,10 +125,11 @@ export class SampledEngine implements AudioEngine {
     this.#player.stop(note)
   }
 
-  allNotesOff(): void {
-    if (this.#disposed) return
+  allNotesOff(): number {
+    if (this.#disposed) return 0
     this.#sounding.clear()
     this.#player.stop()
+    return RELEASE_MS
   }
 
   dispose(): void {

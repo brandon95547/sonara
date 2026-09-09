@@ -15,8 +15,13 @@ export interface AudioEngine {
   /**
    * Panic. Releases every voice at once, with the shortest fade that does not
    * click — a hard cut is itself a click. Used on device change and unmount.
+   *
+   * Returns how long that fade lasts, in milliseconds. A caller about to tear
+   * the engine down needs it: `dispose` stops the sources outright, so calling
+   * it straight after this cuts the fade off mid-ramp and produces exactly the
+   * click the fade exists to avoid.
    */
-  allNotesOff(): void
+  allNotesOff(): number
   dispose(): void
 }
 

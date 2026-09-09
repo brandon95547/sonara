@@ -6,6 +6,7 @@ import { api, ApiClientError } from '@/lib/api'
 import { AudioProvider, useAudio } from '@/audio/AudioProvider'
 import { MidiProvider } from '@/midi/MidiProvider'
 import { AppBar } from '@/components/AppBar'
+import { EngineChip } from '@/audio/EngineChip'
 import { KeyboardStage } from '@/features/keyboard/KeyboardStage'
 import { DeviceSettingsDrawer } from '@/features/devices/DeviceSettingsDrawer'
 import { RecordingOverlay, RecordingReview } from '@/features/recording/RecordControls'
@@ -181,31 +182,6 @@ function ComingNext() {
 }
 
 /** What is actually making the sound right now. */
-function EngineChip() {
-  const { status } = useAudio()
-  if (!status.instrumentId) return null
-
-  // Browsers refuse to start audio before a gesture, so a freshly loaded page
-  // is silent until the first click — including the click on a piano key,
-  // which both unlocks the audio and plays the note. Saying so costs one chip
-  // and is the difference between "ready when you are" and "this is broken".
-  if (!status.unlocked) return <Chip tone="info">Press a key to start audio</Chip>
-
-  if (status.loadingSamples) {
-    return (
-      <Chip tone="info">
-        Loading{status.progress > 0 ? ` ${Math.round(status.progress * 100)}%` : ''}
-      </Chip>
-    )
-  }
-  if (status.fallbackReason) return <Chip tone="warning">Built-in voice</Chip>
-  return (
-    <Chip tone={status.kind === 'sampled' ? 'success' : 'neutral'}>
-      {status.kind === 'sampled' ? 'Sampled' : 'Built-in voice'}
-    </Chip>
-  )
-}
-
 function CatalogueError({ error, onRetry }: { error: unknown; onRetry: () => void }) {
   const message =
     error instanceof ApiClientError ? error.message : 'The piano catalogue could not be loaded.'
