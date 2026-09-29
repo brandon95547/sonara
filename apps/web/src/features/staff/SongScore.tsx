@@ -10,9 +10,9 @@ import type { Role } from './score-parts'
  * The song, written out, with your place in it.
  *
  * `GrandStaff` draws what is sounding at this instant and nothing else, which
- * is right for a scale and for free play — there is no score to follow. A song
- * has one, and reading a single chord at a time out of it is like being handed
- * sheet music through a letterbox.
+ * is right for free play — there is no score to follow. A song has one (and so
+ * does a scale — see `ScaleScore`), and reading a single chord at a time out of
+ * it is like being handed sheet music through a letterbox.
  *
  * So this draws the whole piece and marks where you are, in the same three
  * states the keyboard uses: what is behind you stays visible but quiet, what

@@ -12,6 +12,7 @@ import { cn } from '@/lib/cn'
 import { EngineChip } from '@/audio/EngineChip'
 import { PianoKeyboard } from './PianoKeyboard'
 import { GrandStaff } from '@/features/staff/GrandStaff'
+import { ScaleScore } from '@/features/staff/ScaleScore'
 import { SongScore } from '@/features/staff/SongScore'
 import { useCurrentSong, useSongStore } from '@/state/song-store'
 import { SongProgress } from '@/features/songs/SongProgress'
@@ -122,6 +123,7 @@ export function KeyboardStage() {
   const fingering = useSongStore((state) => state.fingering)
   const setFingering = useSongStore((state) => state.setFingering)
   const scoreOpen = topic === 'songs' && openSong !== null
+  const hasExercise = useLearningStore((state) => state.exercise !== null)
   const sheet = showStaff && scoreOpen && staffView === 'sheet'
 
   const sustain = useKeyboardStore((state) => state.sustain)
@@ -135,11 +137,17 @@ export function KeyboardStage() {
 
         {showStaff && (
           <div className={cn('staff-panel', sheet && 'staff-panel--sheet')}>
-            {/* A song has a score to follow; a scale does not. Reading one
-                chord at a time out of a piece is sheet music through a
-                letterbox, so Songs gets the whole thing and everything else
-                keeps the picture of the moment. */}
-            {topic === 'songs' && openSong ? <SongScore /> : <GrandStaff />}
+            {/* Whatever has notes to read gets them written out: a song its
+                score, a scale the scale. Reading one chord at a time out of
+                either is sheet music through a letterbox. Only a topic with
+                nothing written — free play — keeps the picture of the moment. */}
+            {topic === 'songs' && openSong ? (
+              <SongScore />
+            ) : topic === 'scales' && hasExercise ? (
+              <ScaleScore />
+            ) : (
+              <GrandStaff />
+            )}
           </div>
         )}
 

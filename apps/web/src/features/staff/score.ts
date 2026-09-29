@@ -77,6 +77,21 @@ export interface Measured {
 }
 
 /**
+ * What measuring reads from a song: its pace, its key and where its bars fall.
+ *
+ * Four fields rather than the whole song, so music that is not a song can be
+ * written out the same way — a scale is a run of steps in a key, and nothing
+ * about engraving it needs a title or a track list. A song is one of these.
+ */
+export interface ScoreSource {
+  readonly bpm: number
+  readonly measureMs: number
+  readonly key?: { readonly fifths: number } | null
+  /** The bars as a file laid them out. Without them, a bar is `measureMs` long. */
+  readonly measures?: Song['measures']
+}
+
+/**
  * Every chord of the song, measured and spaced but not placed.
  *
  * Spacing is proportional to the time before each chord, so the picture keeps
@@ -87,7 +102,7 @@ export interface Measured {
  * are not.
  */
 export function measureScore(
-  song: Song | null,
+  song: ScoreSource | null,
   steps: readonly SongStep[],
   hints?: ReadonlySet<SongNote>,
 ): Measured[] {
