@@ -1,13 +1,23 @@
 import * as React from 'react'
 import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
   BookOpen,
-  ChevronDown,
+  Compass,
+  GraduationCap,
+  Hand,
   Headphones,
   Minus,
+  MoveHorizontal,
+  Music,
   Pause,
   Play,
   Plus,
   RotateCcw,
+  Target,
+  Timer,
+  type LucideIcon,
 } from 'lucide-react'
 import {
   LEARNING_MODE_DESCRIPTIONS,
@@ -28,18 +38,23 @@ import { panelActions } from '@/state/panel-store'
 import { useMetronome } from '@/audio/use-metronome'
 import { useScaleDemo } from './use-scale-demo'
 import { MetronomeIcon } from '@/ui/MetronomeIcon'
+import { BarGlyph } from '@/ui/BarGlyph'
 
 /**
  * The Scales controls, as they sit in the app bar.
  *
- * Each setting is a button naming its current value — "Right Hand ▾" — because
- * the bar is one row and a row of captioned fields is two. Read left to right
- * they are the question being practised: which scale, which hand, how far,
- * which way, how much help. Then how fast, and go.
+ * Each setting is an icon that shows its value where it can — the key on the
+ * scale, "R" on the hand, the arrow pointing the way the scale runs — with the
+ * setting and its value spelled out in the tooltip. They used to be buttons
+ * naming their values, "Right Hand ▾", and six of those filled the bar.
  *
- * On a screen too narrow for all of them in a row, the four after the scale
- * fold into the scale's own popover (`.bar-wide` / `.popover-compact` in the
- * stylesheet), so every one of them stays one tap away and none is squeezed.
+ * On the left, what is being practised: which scale, which hand, how far,
+ * which way. On the right, how: the guidance and the tempo, next to the
+ * buttons that act on it.
+ *
+ * On a screen too narrow for all of them, the three after the scale fold into
+ * the scale's own popover (`.bar-wide` / `.popover-compact` in the stylesheet),
+ * so every one of them stays one tap away and none is squeezed.
  */
 
 const HAND_OPTIONS = [
@@ -57,6 +72,20 @@ const DIRECTION_SHORT: Record<ScaleDirection, string> = {
   up: 'Ascending',
   down: 'Descending',
   'up-down': 'Up then Down',
+}
+
+/** The arrow is the value: it points the way the scale runs. */
+const DIRECTION_ICONS: Record<ScaleDirection, LucideIcon> = {
+  up: ArrowUp,
+  down: ArrowDown,
+  'up-down': ArrowUpDown,
+}
+
+/** Shared with Songs, so a mode looks the same wherever it is chosen. */
+export const MODE_ICONS: Record<LearningMode, LucideIcon> = {
+  explore: Compass,
+  learn: GraduationCap,
+  practice: Target,
 }
 
 function rootOptions(scaleTypeId: string) {
@@ -83,20 +112,21 @@ export function ScalePicker() {
   const triggerRef = React.useRef<HTMLButtonElement>(null)
   const close = React.useCallback(() => setOpen(false), [])
   const roots = rootOptions(spec.scaleTypeId)
+  const key = roots[spec.rootPitchClass]?.label
 
   return (
     <>
       <button
         ref={triggerRef}
         type="button"
-        className="bar-button bar-button--scale"
+        className="bar-icon-button"
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-label={`Scale: ${title}`}
+        title={`Scale: ${title}`}
         onClick={() => setOpen((current) => !current)}
       >
-        <span className="bar-button__label">{title}</span>
-        <ChevronDown className="bar-button__chevron" size={16} aria-hidden />
+        <BarGlyph icon={<Music size={18} />} badge={key} />
       </button>
       <Popover
         open={open}
@@ -152,15 +182,6 @@ export function ScalePicker() {
                   label: direction === 'up-down' ? 'Up & down' : DIRECTION_SHORT[direction],
                 }))}
               />
-            </CompactField>
-            <CompactField label="Guidance">
-              <GuidanceSegments />
-            </CompactField>
-            <CompactField label="Tempo">
-              <div className="flex items-center gap-2">
-                <TempoStepper />
-                <MetronomeToggle />
-              </div>
             </CompactField>
           </div>
 
@@ -278,6 +299,9 @@ export function HandMenu() {
       value={hand}
       options={HAND_OPTIONS}
       onChange={(next) => updateSpec({ hand: next })}
+      iconOnly
+      icon={<BarGlyph icon={<Hand size={18} />} badge={hand === 'right' ? 'R' : 'L'} />}
+      className="bar-wide"
     />
   )
 }
@@ -291,6 +315,9 @@ export function OctavesMenu() {
       value={octaves}
       options={OCTAVE_OPTIONS}
       onChange={(next) => updateSpec({ octaves: next })}
+      iconOnly
+      icon={<BarGlyph icon={<MoveHorizontal size={18} />} badge={String(octaves)} />}
+      className="bar-wide"
     />
   )
 }
@@ -298,6 +325,7 @@ export function OctavesMenu() {
 export function DirectionMenu() {
   const direction = useLearningStore((state) => state.spec.direction)
   const updateSpec = useLearningStore((state) => state.updateSpec)
+  const Arrow = DIRECTION_ICONS[direction]
   return (
     <SelectMenu
       label="Direction"
@@ -308,6 +336,9 @@ export function DirectionMenu() {
         description: SCALE_DIRECTION_LABELS[option],
       }))}
       onChange={(next) => updateSpec({ direction: next })}
+      iconOnly
+      icon={<Arrow size={18} aria-hidden />}
+      className="bar-wide"
     />
   )
 }
@@ -315,9 +346,10 @@ export function DirectionMenu() {
 export function GuidanceMenu() {
   const mode = useLearningStore((state) => state.mode)
   const setMode = useLearningStore((state) => state.setMode)
+  const Icon = MODE_ICONS[mode]
   return (
     <SelectMenu<LearningMode>
-      label="Guidance"
+      label="Mode"
       value={mode}
       options={LEARNING_MODES.map((option) => ({
         value: option,
@@ -325,22 +357,9 @@ export function GuidanceMenu() {
         description: LEARNING_MODE_DESCRIPTIONS[option],
       }))}
       onChange={setMode}
-    />
-  )
-}
-
-function GuidanceSegments() {
-  const mode = useLearningStore((state) => state.mode)
-  const setMode = useLearningStore((state) => state.setMode)
-  return (
-    <SegmentedControl<LearningMode>
-      label="Guidance"
-      value={mode}
-      onChange={setMode}
-      options={LEARNING_MODES.map((option) => ({
-        value: option,
-        label: LEARNING_MODE_LABELS[option],
-      }))}
+      iconOnly
+      icon={<Icon size={18} aria-hidden />}
+      align="end"
     />
   )
 }
@@ -373,6 +392,74 @@ export function TempoStepper({ className }: { className?: string }) {
         <Plus size={16} aria-hidden />
       </button>
     </div>
+  )
+}
+
+const MIN_BPM = 30
+const MAX_BPM = 208
+
+/**
+ * The target tempo, behind one icon.
+ *
+ * It was a − 72 BPM + stepper in the bar, the widest thing in it for a setting
+ * touched once a run. Now the number rides on the icon, and the panel it opens
+ * has room for a slider as well — a jump from 60 to 120 was fifteen clicks.
+ */
+export function TempoButton({ className }: { className?: string }) {
+  const bpm = useLearningStore((state) => state.targetBpm)
+  const setTargetBpm = useLearningStore((state) => state.setTargetBpm)
+  const [open, setOpen] = React.useState(false)
+  const triggerRef = React.useRef<HTMLButtonElement>(null)
+  const close = React.useCallback(() => setOpen(false), [])
+  const label = `Tempo: ${bpm} BPM`
+  const percent = ((bpm - MIN_BPM) / (MAX_BPM - MIN_BPM)) * 100
+
+  return (
+    <>
+      <button
+        ref={triggerRef}
+        type="button"
+        className={cn('bar-icon-button', className)}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        aria-label={label}
+        title={label}
+        onClick={() => setOpen((current) => !current)}
+      >
+        <BarGlyph icon={<Timer size={18} />} badge={String(bpm)} />
+      </button>
+      <Popover
+        open={open}
+        onClose={close}
+        anchorRef={triggerRef}
+        align="end"
+        label="Tempo"
+        className="popover--tempo"
+      >
+        <div className="flex flex-col gap-4 p-4">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-label text-[var(--ds-fg-secondary)]">Target tempo</span>
+            <TempoStepper className="tempo-stepper--panel" />
+          </div>
+          <input
+            type="range"
+            min={MIN_BPM}
+            max={MAX_BPM}
+            value={bpm}
+            aria-label="Target tempo"
+            aria-valuetext={`${bpm} BPM`}
+            data-autofocus
+            onChange={(event) => setTargetBpm(Number(event.target.value))}
+            className="sonara-slider"
+            style={{ '--slider-from': '0%', '--slider-to': `${percent}%` } as React.CSSProperties}
+          />
+          <div className="flex justify-between text-caption text-[var(--ds-fg-muted)]" data-tabular>
+            <span>{MIN_BPM}</span>
+            <span>{MAX_BPM}</span>
+          </div>
+        </div>
+      </Popover>
+    </>
   )
 }
 
@@ -454,12 +541,12 @@ export function StartButton() {
   }
 
   return running ? (
-    <button type="button" className="bar-start bar-start--stop" onClick={reset}>
+    <button type="button" className="bar-start bar-start--stop" title="Stop" onClick={reset}>
       <RotateCcw size={18} aria-hidden />
       <span className="bar-start__label">Stop</span>
     </button>
   ) : (
-    <button type="button" className="bar-start" onClick={start}>
+    <button type="button" className="bar-start" title="Start" onClick={start}>
       <Play size={18} aria-hidden />
       <span className="bar-start__label">Start</span>
     </button>

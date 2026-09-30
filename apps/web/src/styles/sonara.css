@@ -1287,14 +1287,6 @@
   flex: none;
   color: var(--c-bar-fg-muted);
 }
-/* The scale or the song: the one label that can be long, and the one that
-   gives way first when the row is tight. */
-.bar-button--scale {
-  flex: 0 1 auto;
-  min-width: 6rem;
-  max-width: 17rem;
-}
-
 .bar-icon-button {
   display: inline-grid;
   flex: none;
@@ -1319,6 +1311,37 @@
   opacity: 0.4;
   cursor: not-allowed;
 }
+/* A setting's value, printed on the corner of its icon: the key, "R", "2",
+   the tempo. White on the navy it sits in, with a ring of the bar round it so
+   it reads as a tag on the icon rather than a second glyph beside it. */
+.bar-glyph {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+}
+.bar-glyph__badge {
+  position: absolute;
+  right: -11px;
+  bottom: -8px;
+  min-width: 15px;
+  height: 15px;
+  padding-inline: 3px;
+  border-radius: 999px;
+  background-color: var(--c-bar-fg);
+  box-shadow: 0 0 0 2px var(--c-bar);
+  color: var(--c-bar);
+  font-size: 0.625rem;
+  font-weight: 750;
+  line-height: 15px;
+  text-align: center;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.bar-icon-button:hover:not(:disabled) .bar-glyph__badge,
+.bar-icon-button[aria-expanded='true'] .bar-glyph__badge {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--c-bar-fg) 12%, var(--c-bar));
+}
+
 /* The same controls inside a panel, where the bar's white-on-navy would be
    white on a dark sheet with no edge. */
 .bar-icon-button--panel {
@@ -1429,22 +1452,33 @@
   background-color: var(--ds-success);
 }
 
-/* The bar folds rather than wrapping or scrolling. Below 88rem — measured: the
-   full row with a long scale name is about 1400px — the settings after the
-   scale live in its popover; below lg the tempo, metronome and recording live
-   in Settings; on a phone the two panel buttons join the overflow. */
-@media (max-width: 87.999rem) {
+/* The bar folds rather than wrapping or scrolling. Measured: the full Scales
+   row is about 830px, 870 with a take waiting. Below 56rem the settings after
+   the scale live in its popover; below 48rem the metronome and recording live
+   in Settings and the menu; on a phone the two panel buttons join the menu. `menu-only-*` is each tier's other half: the menu
+   item that stands in for a control exactly where the bar has folded it. */
+@media (max-width: 55.999rem) {
   .bar-wide {
     display: none !important;
   }
 }
-@media (min-width: 88rem) {
+@media (min-width: 56rem) {
   .popover-compact {
     display: none !important;
   }
 }
-@media (max-width: 63.999rem) {
+@media (max-width: 47.999rem) {
   .bar-mid {
+    display: none !important;
+  }
+}
+@media (min-width: 48rem) {
+  .menu-only-mid {
+    display: none !important;
+  }
+}
+@media (min-width: 40rem) {
+  .menu-only-sm {
     display: none !important;
   }
 }
@@ -1465,9 +1499,6 @@
   .bar-button {
     gap: 4px;
     padding-inline: 6px;
-  }
-  .bar-button--scale {
-    min-width: 4.5rem;
   }
   .bar-start {
     gap: 6px;
@@ -1522,6 +1553,25 @@
 }
 .popover--scale {
   width: 26rem;
+}
+.popover--tempo {
+  width: 18rem;
+}
+/* A hairline between groups, full width inside the panel's padding. */
+.menu-separator {
+  height: 1px;
+  margin: 4px 0;
+  background-color: var(--ds-border-subtle);
+}
+.menu-item__trail {
+  display: inline-flex;
+  flex: none;
+  margin-left: auto;
+  padding-top: 2px;
+  color: var(--ds-accent-text);
+}
+.menu-item:disabled .menu-item__trail {
+  color: var(--ds-fg-muted);
 }
 .menu-item {
   display: flex;
@@ -1620,6 +1670,121 @@
 .settings-menus .bar-button__icon,
 .settings-menus .bar-button__chevron {
   color: var(--ds-fg-muted);
+}
+
+/* ---- The dashboard ------------------------------------------------------
+   The stage's own page: the same lavender and the same gutters, with the areas
+   laid on it as paper cards the way the staff is. It scrolls — the one page
+   that may, because it has no keys along the bottom to keep in view. */
+.dashboard {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 32px clamp(12px, 2.5vw, 36px) 40px;
+  background-color: var(--c-stage);
+  color: var(--c-ink);
+}
+.dashboard__inner {
+  display: flex;
+  flex-direction: column;
+  /* A heading introducing a group: 16px, the Bible's spacing rule. */
+  gap: 16px;
+  max-width: 64rem;
+  margin-inline: auto;
+}
+.dashboard__title {
+  font-size: var(--text-h2);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+/* Ink on the lavender: 8.4:1. The paler inks are for paper, not for here. */
+.dashboard__lede {
+  font-size: var(--text-body);
+  color: var(--c-ink);
+}
+.area-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 1fr));
+  gap: 16px;
+}
+.area-card {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 20px;
+  border-radius: var(--radius-xl);
+  background-color: var(--c-paper);
+  color: var(--c-ink);
+  text-align: left;
+  box-shadow: 0 3px 6px rgb(0 0 0 / 0.14);
+  transition:
+    box-shadow var(--duration-fast) var(--ease-standard),
+    transform var(--duration-fast) var(--ease-standard);
+}
+button.area-card:hover {
+  box-shadow: 0 10px 22px -6px rgb(0 0 0 / 0.28);
+  transform: translateY(-2px);
+}
+button.area-card:active {
+  transform: translateY(0);
+}
+button.area-card:focus-visible {
+  outline: 3px solid var(--c-bar);
+  outline-offset: 3px;
+}
+.area-card__icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-lg);
+  background-color: var(--ds-accent);
+  color: var(--ds-accent-fg);
+}
+.area-card__name {
+  font-size: 1.125rem;
+  font-weight: 700;
+}
+/* 7.5:1 on the paper. */
+.area-card__description {
+  font-size: var(--text-body-sm);
+  line-height: 1.45;
+  color: var(--c-ink-line);
+}
+.area-card__foot {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 6px;
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid rgb(0 0 0 / 0.08);
+  font-size: var(--text-ui);
+  font-weight: 600;
+}
+.area-card__current {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Not open yet: still paper, so the shape of the app is visible, but quieter —
+   a grey tile and no lift, since there is nothing to pick up. */
+.area-card[data-locked='true'] {
+  cursor: not-allowed;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.1);
+}
+.area-card[data-locked='true'] .area-card__icon {
+  background-color: #e6e8ee;
+  color: var(--c-ink-line);
+}
+.area-card[data-locked='true'] .area-card__name,
+.area-card[data-locked='true'] .area-card__foot {
+  color: var(--c-ink-line);
 }
 
 /* ---- The stage ----------------------------------------------------------- */

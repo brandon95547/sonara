@@ -19,6 +19,8 @@ import { ScaleTheoryDialog } from '@/features/learning/ScaleTheoryDialog'
 import { Button } from '@/ui/Button'
 import { useLearningStore } from '@/state/learning-store'
 import { usePanelStore } from '@/state/panel-store'
+import { usePageStore, usePageSync } from '@/state/page-store'
+import { Dashboard } from '@/features/areas/Dashboard'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -54,6 +56,8 @@ function Shell() {
   const closePanel = usePanelStore((state) => state.close)
   const [selectedId, setSelectedId] = React.useState<string | null>(null)
   const topic = useLearningStore((state) => state.topic)
+  const page = usePageStore((state) => state.page)
+  usePageSync()
 
   const catalogue = useQuery({
     queryKey: ['instruments'],
@@ -105,12 +109,17 @@ function Shell() {
    * bar with every setting, the stage with the music, the keys along the
    * bottom. Everything else is a panel over them — opened from the bar, owning
    * focus while it is up, and gone when it is not.
+   *
+   * The dashboard takes the stage and the keys' place: it is where you choose
+   * what to play, not where you play it.
    */
   return (
     <div className="app-shell">
       <TopBar />
 
-      {catalogue.isError ? (
+      {page === 'dashboard' ? (
+        <Dashboard />
+      ) : catalogue.isError ? (
         <main className="stage stage--message">
           <CatalogueError error={catalogue.error} onRetry={() => void catalogue.refetch()} />
         </main>
@@ -122,9 +131,10 @@ function Shell() {
       )}
 
       {/* The engines run for their topic whatever the bar is showing: a song
-          must keep playing, and a metronome keep time, while a menu is shut. */}
-      {topic === 'scales' && <ScaleEngine />}
-      {topic === 'songs' && <SongEngine />}
+          must keep playing, and a metronome keep time, while a menu is shut.
+          Leaving for the dashboard is leaving the area, and stops them. */}
+      {page === 'area' && topic === 'scales' && <ScaleEngine />}
+      {page === 'area' && topic === 'songs' && <SongEngine />}
 
       <SettingsDrawer
         instruments={instruments}

@@ -1,7 +1,9 @@
-import { ChevronDown, ListMusic, Pause, Play, RotateCcw, SkipBack, SkipForward } from 'lucide-react'
+import { Hand, ListMusic, Pause, Play, RotateCcw, SkipBack, SkipForward, Timer } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { SelectMenu } from '@/ui/Menu'
 import { MetronomeIcon } from '@/ui/MetronomeIcon'
+import { BarGlyph } from '@/ui/BarGlyph'
+import { MODE_ICONS } from '@/features/learning/ScaleControls'
 import { useCurrentSong, useSongStore, type SongPart } from '@/state/song-store'
 import { panelActions } from '@/state/panel-store'
 import { useSongPlayback } from './use-song-playback'
@@ -26,19 +28,16 @@ export function SongEngine() {
 
 export function SongPicker() {
   const song = useCurrentSong()
-  const title = song?.title ?? 'My songs'
+  const label = song ? `Song: ${song.title}. Open my songs` : 'My songs'
   return (
     <button
       type="button"
-      className="bar-button bar-button--scale"
-      aria-label={song ? `Song: ${title}. Open my songs` : 'My songs'}
+      className="bar-icon-button"
+      aria-label={label}
+      title={label}
       onClick={() => panelActions.open('library')}
     >
-      <span className="bar-button__icon" aria-hidden>
-        <ListMusic size={16} />
-      </span>
-      <span className="bar-button__label">{title}</span>
-      <ChevronDown className="bar-button__chevron" size={16} aria-hidden />
+      <ListMusic size={18} aria-hidden />
     </button>
   )
 }
@@ -49,18 +48,35 @@ const PART_OPTIONS: readonly { value: SongPart; label: string }[] = [
   { value: 'left', label: 'Left Hand' },
 ]
 
-export function PartMenu() {
+const PART_BADGES: Record<SongPart, string> = { both: 'LR', right: 'R', left: 'L' }
+
+/**
+ * `iconOnly` in the bar, spelled out in Settings — the same control, and the
+ * panel has the room the bar does not.
+ */
+export function PartMenu({ iconOnly = false }: { iconOnly?: boolean }) {
   const part = useSongStore((state) => state.part)
   const setPart = useSongStore((state) => state.setPart)
-  return <SelectMenu label="Part" value={part} options={PART_OPTIONS} onChange={setPart} />
-}
-
-export function SongGuidanceMenu() {
-  const mode = useSongStore((state) => state.mode)
-  const setMode = useSongStore((state) => state.setMode)
   return (
     <SelectMenu
-      label="Guidance"
+      label="Part"
+      value={part}
+      options={PART_OPTIONS}
+      onChange={setPart}
+      iconOnly={iconOnly}
+      icon={iconOnly ? <BarGlyph icon={<Hand size={18} />} badge={PART_BADGES[part]} /> : undefined}
+      className={iconOnly ? 'bar-wide' : undefined}
+    />
+  )
+}
+
+export function SongGuidanceMenu({ iconOnly = false }: { iconOnly?: boolean }) {
+  const mode = useSongStore((state) => state.mode)
+  const setMode = useSongStore((state) => state.setMode)
+  const Icon = MODE_ICONS[mode]
+  return (
+    <SelectMenu
+      label={iconOnly ? 'Mode' : 'Guidance'}
       value={mode}
       options={[
         { value: 'explore', label: 'Explore', description: 'Play the song and listen' },
@@ -71,11 +87,14 @@ export function SongGuidanceMenu() {
         },
       ]}
       onChange={setMode}
+      iconOnly={iconOnly}
+      icon={iconOnly ? <Icon size={18} aria-hidden /> : undefined}
+      align={iconOnly ? 'end' : 'start'}
     />
   )
 }
 
-export function SongTempoMenu() {
+export function SongTempoMenu({ iconOnly = false }: { iconOnly?: boolean }) {
   const song = useCurrentSong()
   const tempoScale = useSongStore((state) => state.tempoScale)
   const setTempoScale = useSongStore((state) => state.setTempoScale)
@@ -92,6 +111,16 @@ export function SongTempoMenu() {
       display={`${percent(tempoScale)}${bpm(tempoScale)}`}
       options={values.map((scale) => ({ value: scale, label: `${percent(scale)}${bpm(scale)}` }))}
       onChange={setTempoScale}
+      iconOnly={iconOnly}
+      icon={
+        iconOnly ? (
+          <BarGlyph
+            icon={<Timer size={18} />}
+            badge={song ? String(Math.round(song.bpm * tempoScale)) : undefined}
+          />
+        ) : undefined
+      }
+      align={iconOnly ? 'end' : 'start'}
     />
   )
 }
@@ -133,7 +162,12 @@ export function SongTransport() {
 
   if (!song) {
     return (
-      <button type="button" className="bar-start" onClick={() => panelActions.open('library')}>
+      <button
+        type="button"
+        className="bar-start"
+        title="Open a song"
+        onClick={() => panelActions.open('library')}
+      >
         <ListMusic size={18} aria-hidden />
         <span className="bar-start__label">Open a song</span>
       </button>
@@ -142,12 +176,17 @@ export function SongTransport() {
 
   if (mode === 'learn') {
     return learning ? (
-      <button type="button" className="bar-start bar-start--stop" onClick={resetLearning}>
+      <button
+        type="button"
+        className="bar-start bar-start--stop"
+        title="Stop"
+        onClick={resetLearning}
+      >
         <RotateCcw size={18} aria-hidden />
         <span className="bar-start__label">Stop</span>
       </button>
     ) : (
-      <button type="button" className="bar-start" onClick={startLearning}>
+      <button type="button" className="bar-start" title="Start" onClick={startLearning}>
         <Play size={18} aria-hidden />
         <span className="bar-start__label">Start</span>
       </button>
@@ -168,7 +207,12 @@ export function SongTransport() {
       >
         <SkipBack size={18} aria-hidden />
       </button>
-      <button type="button" className="bar-start" onClick={() => setPlaying(!playing)}>
+      <button
+        type="button"
+        className="bar-start"
+        title={playing ? 'Pause' : 'Play'}
+        onClick={() => setPlaying(!playing)}
+      >
         {playing ? <Pause size={18} aria-hidden /> : <Play size={18} aria-hidden />}
         <span className="bar-start__label">{playing ? 'Pause' : 'Play'}</span>
       </button>

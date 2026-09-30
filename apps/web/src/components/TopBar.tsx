@@ -3,6 +3,7 @@ import {
   Circle,
   Gauge,
   Hand,
+  LayoutGrid,
   Lock,
   MoreVertical,
   Music4,
@@ -12,17 +13,13 @@ import {
   Upload,
 } from 'lucide-react'
 import { cn } from '@/lib/cn'
-import { ActionMenu, SelectMenu, type MenuAction } from '@/ui/Menu'
+import { ActionMenu, type MenuAction } from '@/ui/Menu'
 import { useMidi } from '@/midi/MidiProvider'
-import {
-  AVAILABLE_TOPICS,
-  LEARNING_TOPIC_LABELS,
-  LEARNING_TOPICS,
-  useLearningStore,
-  type LearningTopic,
-} from '@/state/learning-store'
+import { useLearningStore } from '@/state/learning-store'
 import { panelActions } from '@/state/panel-store'
+import { pageActions, usePageStore } from '@/state/page-store'
 import { useRecordingStore } from '@/state/recording-store'
+import { AREAS, COMING_NEXT } from '@/features/areas/areas'
 import { LastTakeButton, RecordButton } from '@/features/recording/RecordControls'
 import {
   DemoButton,
@@ -33,7 +30,7 @@ import {
   OctavesMenu,
   ScalePicker,
   StartButton,
-  TempoStepper,
+  TempoButton,
 } from '@/features/learning/ScaleControls'
 import {
   PartMenu,
@@ -47,53 +44,42 @@ import {
 /**
  * Everything you can set, in one row across the top.
  *
- * Read left to right it is the order the decisions are made in: what you are
- * working on, which exactly, how, how fast — then Start. The utilities that do
- * not change what is being practised (the MIDI readout, the Progress and
- * Settings panels, the overflow) sit after Start, apart from it, because they
- * are consulted rather than decided.
+ * Left, what you are working on: the area's own settings, each an icon that
+ * shows its value. Right, how: the mode and the tempo, the buttons that act on
+ * them, then Start. Past a divider, the utilities that do not change what is
+ * being practised — the MIDI readout, the Progress and Settings panels, and the
+ * menu, which is also how you move between the dashboard and the areas.
  *
- * The row does not wrap and does not scroll. It folds: below `xl` the settings
- * after the scale move into the scale's popover, below `lg` the tempo, the
- * metronome and recording move out to their panels, and on a phone the two
- * panel buttons join the overflow and the brand steps aside. Every control is
- * still reachable at 320px; none of them is ever cut in half.
+ * The row does not wrap and does not scroll. It folds: below `lg` the hand,
+ * octaves and direction move into the scale's popover, below `md` the
+ * metronome and recording move out to Settings and the menu, and on a phone
+ * the two panel buttons join the menu and the brand steps aside. Every control
+ * is still reachable at 320px; none of them is ever cut in half.
  */
 export function TopBar() {
   const topic = useLearningStore((state) => state.topic)
+  const page = usePageStore((state) => state.page)
+  const area = page === 'area' ? topic : null
 
   return (
     <header className="top-bar">
       <div className="top-bar__row">
-        <Brand />
-        <span className="top-bar__divider bar-sm" aria-hidden />
-        <TopicMenu />
+        <Brand keep={area === null} />
 
-        {topic === 'scales' && (
+        {area === 'scales' && (
           <>
-            <span className="top-bar__divider" aria-hidden />
+            <span className="top-bar__divider bar-sm" aria-hidden />
             <ScalePicker />
-            <span className="top-bar__divider bar-wide" aria-hidden />
-            <span className="bar-wide">
-              <HandMenu />
-            </span>
-            <span className="top-bar__divider bar-wide" aria-hidden />
-            <span className="bar-wide">
-              <OctavesMenu />
-            </span>
-            <span className="top-bar__divider bar-wide" aria-hidden />
-            <span className="bar-wide">
-              <DirectionMenu />
-            </span>
-            <span className="top-bar__divider bar-wide" aria-hidden />
-            <span className="bar-wide">
-              <GuidanceMenu />
-            </span>
+            <HandMenu />
+            <OctavesMenu />
+            <DirectionMenu />
 
             <span className="top-bar__spacer" />
 
-            <TempoStepper className="bar-mid" />
+            <GuidanceMenu />
+            <TempoButton />
             <MetronomeToggle className="bar-mid" />
+            <span className="top-bar__divider" aria-hidden />
             <DemoButton />
             <span className="bar-mid top-bar__cluster">
               <RecordButton />
@@ -103,41 +89,40 @@ export function TopBar() {
           </>
         )}
 
-        {topic === 'songs' && (
+        {area === 'songs' && (
           <>
-            <span className="top-bar__divider" aria-hidden />
+            <span className="top-bar__divider bar-sm" aria-hidden />
             <SongPicker />
-            <span className="top-bar__divider bar-wide" aria-hidden />
-            <span className="bar-wide">
-              <PartMenu />
-            </span>
-            <span className="top-bar__divider bar-wide" aria-hidden />
-            <span className="bar-wide">
-              <SongGuidanceMenu />
-            </span>
+            <PartMenu iconOnly />
 
             <span className="top-bar__spacer" />
 
-            <span className="bar-mid">
-              <SongTempoMenu />
-            </span>
+            <SongGuidanceMenu iconOnly />
+            <SongTempoMenu iconOnly />
             <SongMetronomeToggle className="bar-mid" />
+            <span className="top-bar__divider" aria-hidden />
             <SongTransport />
           </>
         )}
 
+        {area === null && <span className="top-bar__spacer" />}
+
         <span className="top-bar__divider bar-mid" aria-hidden />
-        <Utilities />
+        <Utilities area={area} />
       </div>
     </header>
   )
 }
 
-/** The name, which a phone gives up first: the tab already says it, and the controls cannot. */
-function Brand() {
+/**
+ * The name, which a phone gives up first in an area: the tab already says it,
+ * and the controls cannot. The dashboard has no controls to make room for, so
+ * there it stays.
+ */
+function Brand({ keep }: { keep: boolean }) {
   return (
-    <div className="top-bar__brand bar-sm">
-      <span className="top-bar__logo" aria-hidden>
+    <div className={cn('top-bar__brand', !keep && 'bar-sm')}>
+      <span className="top-bar__logo" title="Sonara" aria-hidden>
         <Music4 size={18} />
       </span>
       <span className="top-bar__name">Sonara</span>
@@ -145,50 +130,20 @@ function Brand() {
   )
 }
 
-function TopicMenu() {
-  const topic = useLearningStore((state) => state.topic)
-  const setTopic = useLearningStore((state) => state.setTopic)
-  return (
-    <SelectMenu<LearningTopic>
-      label="Learning topic"
-      value={topic}
-      onChange={setTopic}
-      options={LEARNING_TOPICS.map((option) => {
-        const available = AVAILABLE_TOPICS.includes(option)
-        return {
-          value: option,
-          label: LEARNING_TOPIC_LABELS[option],
-          disabled: !available,
-          description: available
-            ? undefined
-            : 'Coming next — the engine behind it is already here.',
-          badge: available ? undefined : <Lock size={13} />,
-        }
-      })}
-    />
-  )
-}
-
-function Utilities() {
-  const topic = useLearningStore((state) => state.topic)
+function Utilities({ area }: { area: string | null }) {
   const recording = useRecordingStore((state) => state.status)
   const live = recording === 'recording' || recording === 'counting'
-  const progressLabel = topic === 'songs' ? 'Hand position' : 'Progress'
+  const progressLabel = area === 'songs' ? 'Hand position' : 'Progress'
+  const ProgressIcon = area === 'songs' ? Hand : Gauge
 
-  const actions: MenuAction[] = [
-    {
-      id: 'progress',
-      label: progressLabel,
-      icon: topic === 'songs' ? <Hand size={16} /> : <Gauge size={16} />,
-      onSelect: () => panelActions.open('session'),
-    },
-    {
-      id: 'settings',
-      label: 'Settings',
-      icon: <SlidersHorizontal size={16} />,
-      onSelect: () => panelActions.open('settings'),
-    },
-    ...(topic === 'scales'
+  /*
+   * What the bar has folded away at this width, and only that. At full width
+   * Progress, Settings and Record are on the bar already, and a menu repeating
+   * them is a second place to look for the same thing. `menu-only-*` shows an
+   * item exactly where its `bar-*` twin is hidden.
+   */
+  const folded: MenuAction[] = [
+    ...(area === 'scales'
       ? [
           {
             id: 'record',
@@ -196,14 +151,56 @@ function Utilities() {
             icon: live ? <Square size={16} /> : <Circle size={16} />,
             onSelect: () =>
               live ? useRecordingStore.getState().stop() : useRecordingStore.getState().arm(),
+            className: 'menu-only-mid',
           },
         ]
       : []),
+    ...(area
+      ? [
+          {
+            id: 'progress',
+            label: progressLabel,
+            icon: <ProgressIcon size={16} />,
+            onSelect: () => panelActions.open('session'),
+            className: 'menu-only-sm',
+          },
+        ]
+      : []),
+    {
+      id: 'settings',
+      label: 'Settings',
+      icon: <SlidersHorizontal size={16} />,
+      onSelect: () => panelActions.open('settings'),
+      className: 'menu-only-sm',
+    },
+  ].map((action, index) => (index === 0 ? { ...action, separated: true } : action))
+
+  const actions: MenuAction[] = [
+    {
+      id: 'dashboard',
+      label: 'Dashboard',
+      icon: <LayoutGrid size={16} />,
+      checked: area === null,
+      onSelect: pageActions.openDashboard,
+    },
+    ...AREAS.map((entry, index): MenuAction => ({
+      id: entry.topic,
+      label: entry.label,
+      icon: <entry.icon size={16} />,
+      checked: area === entry.topic,
+      disabled: !entry.available,
+      title: entry.available ? undefined : COMING_NEXT,
+      trail: entry.available ? undefined : <Lock size={13} />,
+      separated: index === 0,
+      onSelect: () => pageActions.openArea(entry.topic),
+    })),
+    ...folded,
     {
       id: 'devices',
       label: 'Keyboard & MIDI setup',
       icon: <Piano size={16} />,
       onSelect: () => panelActions.open('devices'),
+      separated: true,
     },
     {
       id: 'import',
@@ -216,15 +213,17 @@ function Utilities() {
   return (
     <>
       <MidiStatus className="bar-wide" />
-      <button
-        type="button"
-        className="bar-icon-button bar-sm"
-        aria-label={progressLabel}
-        title={progressLabel}
-        onClick={() => panelActions.open('session')}
-      >
-        {topic === 'songs' ? <Hand size={18} aria-hidden /> : <Gauge size={18} aria-hidden />}
-      </button>
+      {area && (
+        <button
+          type="button"
+          className="bar-icon-button bar-sm"
+          aria-label={progressLabel}
+          title={progressLabel}
+          onClick={() => panelActions.open('session')}
+        >
+          <ProgressIcon size={18} aria-hidden />
+        </button>
+      )}
       <button
         type="button"
         className="bar-icon-button bar-sm"
@@ -234,7 +233,7 @@ function Utilities() {
       >
         <SlidersHorizontal size={18} aria-hidden />
       </button>
-      <ActionMenu label="More" icon={<MoreVertical size={18} aria-hidden />} actions={actions} />
+      <ActionMenu label="Menu" icon={<MoreVertical size={18} aria-hidden />} actions={actions} />
     </>
   )
 }

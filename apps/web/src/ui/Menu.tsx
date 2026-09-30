@@ -151,6 +151,7 @@ export function SelectMenu<T extends string | number>({
   onChange,
   display,
   icon,
+  iconOnly = false,
   className,
   align = 'start',
   disabled = false,
@@ -163,6 +164,13 @@ export function SelectMenu<T extends string | number>({
   /** What the trigger says. Defaults to the chosen option's label. */
   display?: React.ReactNode
   icon?: React.ReactNode
+  /**
+   * The icon alone, with the setting and its value in the tooltip — for the
+   * bar, where a row of spelled-out values ran out of room. The icon is
+   * expected to show the value itself where it can (a badge, a changed glyph):
+   * a tooltip does not exist on touch, so it cannot be the only place it is.
+   */
+  iconOnly?: boolean
   className?: string
   align?: 'start' | 'end'
   disabled?: boolean
@@ -172,6 +180,7 @@ export function SelectMenu<T extends string | number>({
   const menuId = React.useId()
   const chosen = options.find((option) => option.value === value)
   const close = React.useCallback(() => setOpen(false), [])
+  const name = `${label}: ${chosen?.label ?? ''}`
 
   const choose = (next: T) => {
     setOpen(false)
@@ -200,11 +209,12 @@ export function SelectMenu<T extends string | number>({
       <button
         ref={triggerRef}
         type="button"
-        className={cn('bar-button', className)}
+        className={cn(iconOnly ? 'bar-icon-button' : 'bar-button', className)}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}
-        aria-label={`${label}: ${chosen?.label ?? ''}`}
+        aria-label={name}
+        title={iconOnly ? name : undefined}
         disabled={disabled}
         onClick={() => setOpen((current) => !current)}
         onKeyDown={(event) => {
@@ -214,13 +224,19 @@ export function SelectMenu<T extends string | number>({
           }
         }}
       >
-        {icon && (
-          <span className="bar-button__icon" aria-hidden>
-            {icon}
-          </span>
+        {iconOnly ? (
+          icon
+        ) : (
+          <>
+            {icon && (
+              <span className="bar-button__icon" aria-hidden>
+                {icon}
+              </span>
+            )}
+            <span className="bar-button__label">{display ?? chosen?.label}</span>
+            <ChevronDown className="bar-button__chevron" size={16} aria-hidden />
+          </>
         )}
-        <span className="bar-button__label">{display ?? chosen?.label}</span>
-        <ChevronDown className="bar-button__chevron" size={16} aria-hidden />
       </button>
       <Popover
         open={open}
@@ -270,6 +286,15 @@ export interface MenuAction {
   readonly icon?: React.ReactNode
   readonly onSelect: () => void
   readonly disabled?: boolean
+  /** Where you are, for a menu that also navigates: checked, and announced so. */
+  readonly checked?: boolean
+  /** Shown after the label — the lock on a place that is not open yet. */
+  readonly trail?: React.ReactNode
+  /** Said on hover — why a disabled item is disabled. */
+  readonly title?: string
+  /** A hairline before this item, starting a new group. */
+  readonly separated?: boolean
+  readonly className?: string
 }
 
 /**
@@ -305,8 +330,11 @@ export function ActionMenu({
 
   const onMenuKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     const items = [
-      ...event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="menuitem"]'),
-    ].filter((item) => !item.disabled)
+      ...event.currentTarget.querySelectorAll<HTMLButtonElement>(
+        '[role="menuitem"], [role="menuitemradio"]',
+      ),
+      // An item the stylesheet folds away at this width is not there to move to.
+    ].filter((item) => !item.disabled && getComputedStyle(item).display !== 'none')
     if (items.length === 0) return
     const index = items.indexOf(document.activeElement as HTMLButtonElement)
     const move = (to: number) => {
@@ -351,22 +379,33 @@ export function ActionMenu({
       >
         <div id={menuId} onKeyDown={onMenuKeyDown}>
           {actions.map((action) => (
-            <button
-              key={action.id}
-              type="button"
-              role="menuitem"
-              tabIndex={-1}
-              disabled={action.disabled}
-              className="menu-item"
-              onClick={() => run(action)}
-            >
-              <span className="menu-item__mark" aria-hidden>
-                {action.icon}
-              </span>
-              <span className="menu-item__text">
-                <span className="menu-item__label">{action.label}</span>
-              </span>
-            </button>
+            <React.Fragment key={action.id}>
+              {action.separated && (
+                <div role="separator" className={cn('menu-separator', action.className)} />
+              )}
+              <button
+                type="button"
+                role={action.checked === undefined ? 'menuitem' : 'menuitemradio'}
+                aria-checked={action.checked}
+                tabIndex={-1}
+                disabled={action.disabled}
+                title={action.title}
+                className={cn('menu-item', action.className)}
+                onClick={() => run(action)}
+              >
+                <span className="menu-item__mark" aria-hidden>
+                  {action.icon}
+                </span>
+                <span className="menu-item__text">
+                  <span className="menu-item__label">{action.label}</span>
+                </span>
+                {(action.trail ?? action.checked) && (
+                  <span className="menu-item__trail" aria-hidden>
+                    {action.trail ?? <Check size={15} />}
+                  </span>
+                )}
+              </button>
+            </React.Fragment>
           ))}
         </div>
       </Popover>
