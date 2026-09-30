@@ -1,8 +1,8 @@
 import {
   ChartNoAxesColumnIncreasing,
-  Dumbbell,
+  Settings,
   Layers,
-  ListMusic,
+  Music,
   Route,
   Waves,
   type LucideIcon,
@@ -30,7 +30,7 @@ export interface Area {
 
 const DETAILS: Record<LearningTopic, { icon: LucideIcon; description: string }> = {
   songs: {
-    icon: ListMusic,
+    icon: Music,
     description: 'Bring in a MIDI or MusicXML file and learn it a hand at a time.',
   },
   scales: {
@@ -50,7 +50,7 @@ const DETAILS: Record<LearningTopic, { icon: LucideIcon; description: string }> 
     description: 'Chords in sequence — the way songs move.',
   },
   exercises: {
-    icon: Dumbbell,
+    icon: Settings,
     description: 'Drills for evenness, speed and independent hands.',
   },
 }

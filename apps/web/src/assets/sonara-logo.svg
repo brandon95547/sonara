@@ -1,15 +1,18 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <!-- The Sonara sigil on the app's dark, with its lines drawn heavier than the
-       logo's own: at tab size the originals are under half a pixel. -->
-  <rect width="32" height="32" rx="7" fill="#101010"/>
-  <svg x="0" y="1.5" width="32" height="29" viewBox="100 20 312 596">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="108 28 296 580" role="img" aria-label="Mystical music clef logo">
   <g fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round">
-    <circle cx="256" cy="326" r="142" stroke-width="22"/>
-    <path d="M256 70 V555" stroke-width="16"/>
+    <!-- halo -->
+    <circle cx="256" cy="326" r="142" stroke-width="10"/>
+
+    <!-- vertical mystical axis -->
+    <path d="M256 70 V555" stroke-width="8"/>
+
+    <!-- top and bottom four-point stars -->
     <path d="M256 34 C263 58 270 65 294 72 C270 79 263 86 256 110 C249 86 242 79 218 72 C242 65 249 58 256 34Z"
           fill="#fff" stroke="none"/>
     <path d="M256 526 C263 550 270 557 294 564 C270 571 263 578 256 602 C249 578 242 571 218 564 C242 557 249 550 256 526Z"
           fill="#fff" stroke="none"/>
+
+    <!-- simplified treble-clef / musical sigil -->
     <path d="
       M260 112
       C320 160 312 220 270 260
@@ -24,8 +27,9 @@
       C226 163 212 211 220 258
       C228 308 265 337 282 378
       C299 419 290 469 257 506"
-      stroke-width="40"/>
+      stroke-width="22"/>
+
+    <!-- musical note -->
     <circle cx="226" cy="481" r="22" fill="#fff" stroke="none"/>
   </g>
-  </svg>
 </svg>

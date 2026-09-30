@@ -6,13 +6,13 @@ import {
   LayoutGrid,
   Lock,
   MoreVertical,
-  Music4,
   Piano,
   SlidersHorizontal,
   Square,
   Upload,
 } from 'lucide-react'
 import { cn } from '@/lib/cn'
+import logoUrl from '@/assets/sonara-logo.svg'
 import { ActionMenu, type MenuAction } from '@/ui/Menu'
 import { useMidi } from '@/midi/MidiProvider'
 import { useLearningStore } from '@/state/learning-store'
@@ -122,9 +122,7 @@ export function TopBar() {
 function Brand({ keep }: { keep: boolean }) {
   return (
     <div className={cn('top-bar__brand', !keep && 'bar-sm')}>
-      <span className="top-bar__logo" title="Sonara" aria-hidden>
-        <Music4 size={18} />
-      </span>
+      <img className="top-bar__logo" src={logoUrl} alt="" title="Sonara" />
       <span className="top-bar__name">Sonara</span>
     </div>
   )
