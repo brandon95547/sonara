@@ -5,7 +5,7 @@
  * Its own AudioContext, deliberately apart from the piano's. The click is a
  * timing aid, not part of the performance, so it must not be caught by the
  * piano's volume, recorded into a take, or silenced when the instrument
- * reloads.
+ * reloads. The sound effects share it, for the same reasons.
  */
 let context: AudioContext | null = null
 

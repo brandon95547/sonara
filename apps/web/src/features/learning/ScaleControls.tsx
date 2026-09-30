@@ -36,6 +36,7 @@ import { SegmentedControl } from '@/ui/Controls'
 import { useLearningStore } from '@/state/learning-store'
 import { panelActions } from '@/state/panel-store'
 import { useMetronome } from '@/audio/use-metronome'
+import { playSoundEffect, stopSoundEffect } from '@/audio/sound-effects'
 import { useScaleDemo } from './use-scale-demo'
 import { MetronomeIcon } from '@/ui/MetronomeIcon'
 import { BarGlyph } from '@/ui/BarGlyph'
@@ -100,7 +101,19 @@ function rootOptions(scaleTypeId: string) {
 export function ScaleEngine() {
   const metronome = useLearningStore((state) => state.metronome)
   const bpm = useLearningStore((state) => state.targetBpm)
+  const status = useLearningStore((state) => state.session.status)
   useMetronome(metronome, bpm)
+
+  // The fanfare for a finished run: on the step from running to complete, so
+  // reopening Scales on a run that ended earlier does not play it again. A new
+  // run fades out whatever is left of it rather than playing over the start.
+  const previous = React.useRef(status)
+  React.useEffect(() => {
+    if (status === 'complete' && previous.current === 'running') playSoundEffect('success')
+    if (status === 'running') stopSoundEffect('success')
+    previous.current = status
+  }, [status])
+
   return null
 }
 

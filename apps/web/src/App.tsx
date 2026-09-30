@@ -21,6 +21,7 @@ import { useLearningStore } from '@/state/learning-store'
 import { usePanelStore } from '@/state/panel-store'
 import { usePageStore, usePageSync } from '@/state/page-store'
 import { Dashboard } from '@/features/areas/Dashboard'
+import { preloadSoundEffects } from '@/audio/sound-effects'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -58,6 +59,12 @@ function Shell() {
   const topic = useLearningStore((state) => state.topic)
   const page = usePageStore((state) => state.page)
   usePageSync()
+
+  // Every sound effect decoded before it is needed, so none waits on a fetch
+  // at the moment it is supposed to land.
+  React.useEffect(() => {
+    void preloadSoundEffects()
+  }, [])
 
   const catalogue = useQuery({
     queryKey: ['instruments'],
