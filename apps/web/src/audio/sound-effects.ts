@@ -1,4 +1,4 @@
-import success from '@/assets/sounds/success-1.mp3'
+import success from '@/assets/sounds/success-2.mp3'
 import { clickContext } from './click'
 
 /**
@@ -16,9 +16,21 @@ import { clickContext } from './click'
  *
  * Adding one is an import and a line in EFFECTS; the preload picks it up.
  */
+interface Effect {
+  readonly url: string
+  /** Playback level. Files arrive mastered at different levels; this evens them out. */
+  readonly gain: number
+  /** Seconds of silence at the head of the file to skip, so the sound starts on the moment. */
+  readonly offset: number
+}
+
 const EFFECTS = {
-  success,
-} as const
+  // success-2.mp3 peaks at -11.7 dB and opens on 0.13 s of silence. Doubled,
+  // it peaks where the first success sound did at 0.7 (about -6 dB, well clear
+  // of clipping), and it starts on its first sound rather than an eighth of a
+  // second after the last note.
+  success: { url: success, gain: 2, offset: 0.12 },
+} as const satisfies Record<string, Effect>
 
 export type SoundEffect = keyof typeof EFFECTS
 
@@ -38,7 +50,7 @@ export function preloadSoundEffects(): Promise<void> {
     await Promise.all(
       (Object.keys(EFFECTS) as SoundEffect[]).map(async (name) => {
         try {
-          const response = await fetch(EFFECTS[name])
+          const response = await fetch(EFFECTS[name].url)
           if (!response.ok) return
           // Decoding works on a context that is still suspended, so this does
           // not wait for the player to touch anything.
@@ -54,9 +66,10 @@ export function preloadSoundEffects(): Promise<void> {
 }
 
 /** Play a cue now, from the top. A cue already playing starts again rather than doubling. */
-export function playSoundEffect(name: SoundEffect, volume = 0.7) {
+export function playSoundEffect(name: SoundEffect) {
   const audio = clickContext()
   const buffer = buffers.get(name)
+  const effect = EFFECTS[name]
   if (!audio || !buffer) return
   try {
     if (audio.state === 'suspended') void audio.resume().catch(() => {})
@@ -64,12 +77,12 @@ export function playSoundEffect(name: SoundEffect, volume = 0.7) {
     const source = audio.createBufferSource()
     const gain = audio.createGain()
     source.buffer = buffer
-    gain.gain.value = volume
+    gain.gain.value = effect.gain
     source.connect(gain).connect(audio.destination)
     source.onended = () => {
       if (playing.get(name)?.source === source) playing.delete(name)
     }
-    source.start()
+    source.start(0, Math.min(effect.offset, buffer.duration))
     playing.set(name, { source, gain })
   } catch {
     // Same as a cue that did not load: silence.
