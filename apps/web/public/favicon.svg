@@ -1,50 +1,22 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <!-- The Sonara mark, keys in a ring, on the app's dark. -->
-  <rect width="32" height="32" rx="7" fill="#101010"/>
-  <svg x="3" y="3" width="26" height="26" viewBox="25 25 462 462">
-    <!-- white circular ring -->
-    <circle cx="256" cy="256" r="220"
-            fill="none" stroke="#fff" stroke-width="18"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="27 27 458 458">
+  <!-- The Sonara mark drawn for a browser tab, not scaled down from the logo.
+       At 16-32px the logo's 18-unit ring is under a pixel and its 4-unit key
+       gaps vanish, so the ring is heavier (24) and the gaps wider (12). It
+       sits on a disc of the app's dark with a rim outside it, because a
+       browser's active tab is often white and a white ring on white is lost. -->
+  <circle cx="256" cy="256" r="229" fill="#101010"/>
+  <circle cx="256" cy="256" r="208" fill="none" stroke="#fff" stroke-width="24"/>
 
-    <!-- three white keys -->
-    <g fill="#fff">
-      <path d="M120 150
-               Q120 140 130 140
-               H207
-               V365
-               Q207 380 192 380
-               H135
-               Q120 380 120 365 Z"/>
-      <path d="M211 140 H301 V365
-               Q301 380 286 380
-               H226
-               Q211 380 211 365 Z"/>
-      <path d="M305 140 H382
-               Q392 140 392 150
-               V365
-               Q392 380 377 380
-               H320
-               Q305 380 305 365 Z"/>
-    </g>
+  <!-- three white keys -->
+  <g fill="#fff">
+    <path d="M120 150 Q120 140 130 140 H203 V365 Q203 380 188 380 H135 Q120 380 120 365 Z"/>
+    <path d="M215 140 H297 V365 Q297 380 282 380 H230 Q215 380 215 365 Z"/>
+    <path d="M309 140 H382 Q392 140 392 150 V365 Q392 380 377 380 H324 Q309 380 309 365 Z"/>
+  </g>
 
-    <!-- two black keys -->
-    <g fill="#000">
-      <path d="M181 130
-               Q181 122 189 122
-               H225
-               Q233 122 233 130
-               V264
-               Q233 274 223 274
-               H191
-               Q181 274 181 264 Z"/>
-      <path d="M279 130
-               Q279 122 287 122
-               H323
-               Q331 122 331 130
-               V264
-               Q331 274 321 274
-               H289
-               Q279 274 279 264 Z"/>
-    </g>
-  </svg>
+  <!-- two black keys, over the gaps -->
+  <g fill="#000">
+    <path d="M181 130 Q181 122 189 122 H225 Q233 122 233 130 V264 Q233 274 223 274 H191 Q181 274 181 264 Z"/>
+    <path d="M279 130 Q279 122 287 122 H323 Q331 122 331 130 V264 Q331 274 321 274 H289 Q279 274 279 264 Z"/>
+  </g>
 </svg>

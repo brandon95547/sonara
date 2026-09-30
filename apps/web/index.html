@@ -2,7 +2,11 @@
 <html lang="en" data-theme="dark">
   <head>
     <meta charset="UTF-8" />
+    <!-- The .ico is for browsers without SVG favicons; sizes="32x32" stops
+         Chrome preferring it over the SVG. Both come from `npm run icons`. -->
+    <link rel="icon" href="/favicon.ico" sizes="32x32" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <!-- Dark only, deliberately. The token layer supports both themes, but this
          product ships one, and declaring it stops the browser painting a white
