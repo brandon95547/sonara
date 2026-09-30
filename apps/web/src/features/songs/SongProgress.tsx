@@ -33,7 +33,7 @@ export function SongProgress() {
     <div className="song-progress">
       <input
         type="range"
-        className="song-progress__range"
+        className="sonara-slider song-progress__range"
         min={0}
         max={1000}
         step={1}

@@ -4,6 +4,7 @@ import { useAudio } from '@/audio/AudioProvider'
 import { hitDrum } from '@/audio/drum-kit'
 import { keyboardActions } from '@/state/keyboard-store'
 import { useSongStore, type SongPart } from '@/state/song-store'
+import { click as playClick } from '@/audio/click'
 
 /**
  * Plays a song through the same engine and the same keyboard the player uses.
@@ -106,7 +107,7 @@ export function useSongPlayback(song: Song | null) {
         const beat = Math.floor(at / (60000 / current.bpm))
         if (beat !== lastBeat) {
           lastBeat = beat
-          tick(beat % Math.max(1, Math.round(current.beatsPerMeasure)) === 0)
+          playClick(beat % Math.max(1, Math.round(current.beatsPerMeasure)) === 0)
         }
       }
 
@@ -139,23 +140,4 @@ function notesBetween(song: Song, from: number, to: number, part: SongPart): Son
       note.startMs <= to &&
       (part === 'both' || note.role !== 'keyboard' || note.hand === part),
   )
-}
-
-/** A click, made rather than sampled: no asset, no load, no failure mode. */
-let clickContext: AudioContext | null = null
-function tick(accented: boolean) {
-  try {
-    clickContext ??= new AudioContext()
-    const context = clickContext
-    const oscillator = context.createOscillator()
-    const gain = context.createGain()
-    oscillator.frequency.value = accented ? 1600 : 1100
-    gain.gain.setValueAtTime(accented ? 0.16 : 0.09, context.currentTime)
-    gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.05)
-    oscillator.connect(gain).connect(context.destination)
-    oscillator.start()
-    oscillator.stop(context.currentTime + 0.06)
-  } catch {
-    // A metronome that will not start is not a reason to stop the song.
-  }
 }

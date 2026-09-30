@@ -113,6 +113,17 @@ describe('the scale on the staff', () => {
     expect(notes.every((note) => staffFor(note.note, note.hand) === 'bass')).toBe(true)
   })
 
+  it('prints the scale plainly: bar lines, but no metre, no bar numbers and no fingering', () => {
+    const { container } = render(<ScaleScore />)
+    expect(container.querySelector('.staff__time')).toBeNull()
+    expect(container.querySelector('.staff__bar-number')).toBeNull()
+    // The fingers are on the keys, where the hand is looking.
+    expect(container.querySelector('.staff__finger')).toBeNull()
+    expect(container.querySelectorAll('.staff__bar').length).toBeGreaterThan(0)
+    // Each staff on a sheet of its own.
+    expect(container.querySelectorAll('.staff-card')).toHaveLength(2)
+  })
+
   it('carries the recommended finger on every note, and one note to a beat', () => {
     const steps = scaleSteps(store().exercise!)
     expect(steps.every((step) => step.notes.every((note) => (note.finger ?? 0) >= 1))).toBe(true)

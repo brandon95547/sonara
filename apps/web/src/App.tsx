@@ -5,22 +5,20 @@ import type { Instrument } from '@sonara/shared'
 import { api, ApiClientError } from '@/lib/api'
 import { AudioProvider, useAudio } from '@/audio/AudioProvider'
 import { MidiProvider } from '@/midi/MidiProvider'
-import { AppBar } from '@/components/AppBar'
-import { EngineChip } from '@/audio/EngineChip'
-import { KeyboardStage } from '@/features/keyboard/KeyboardStage'
+import { TopBar } from '@/components/TopBar'
+import { Stage } from '@/components/Stage'
+import { SettingsDrawer } from '@/components/SettingsDrawer'
+import { SessionDrawer } from '@/components/SessionDrawer'
+import { KeyboardDock } from '@/features/keyboard/KeyboardDock'
 import { DeviceSettingsDrawer } from '@/features/devices/DeviceSettingsDrawer'
 import { RecordingOverlay, RecordingReview } from '@/features/recording/RecordControls'
-import { SongControlRow } from '@/features/songs/SongControlRow'
 import { SongLibrary } from '@/features/songs/SongLibrary'
-import { SongHandCard } from '@/features/songs/SongHandCard'
-import { OverflowMenu } from '@/components/OverflowMenu'
-import { LearningBar } from '@/features/learning/LearningBar'
-import { ScaleConfigRow } from '@/features/learning/ScaleConfigRow'
-import { LearningDashboard } from '@/features/learning/LearningDashboard'
-import { Card } from '@/ui/Surface'
-import { Chip } from '@/ui/Display'
+import { SongEngine } from '@/features/songs/SongControls'
+import { ScaleEngine } from '@/features/learning/ScaleControls'
+import { ScaleTheoryDialog } from '@/features/learning/ScaleTheoryDialog'
 import { Button } from '@/ui/Button'
-import { LEARNING_TOPIC_LABELS, useLearningStore } from '@/state/learning-store'
+import { useLearningStore } from '@/state/learning-store'
+import { usePanelStore } from '@/state/panel-store'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -52,8 +50,8 @@ export default function App() {
 
 function Shell() {
   const audio = useAudio()
-  const [settingsOpen, setSettingsOpen] = React.useState(false)
-  const [libraryOpen, setLibraryOpen] = React.useState(false)
+  const panel = usePanelStore((state) => state.panel)
+  const closePanel = usePanelStore((state) => state.close)
   const [selectedId, setSelectedId] = React.useState<string | null>(null)
   const topic = useLearningStore((state) => state.topic)
 
@@ -97,87 +95,50 @@ function Shell() {
     if (instrument) select(instrument)
   }, [instruments, selectedId, catalogue.data?.defaultInstrumentId, select])
 
+  // The FIRST failure is enough to stop saying "loading". The retry carries on
+  // quietly behind it — but a player should not have to wait out the whole
+  // retry budget to learn that something is wrong.
+  const catalogueFailed = catalogue.isError || catalogue.failureCount > 0
+
+  /*
+   * Three bands, top to bottom, filling the screen and never scrolling it: the
+   * bar with every setting, the stage with the music, the keys along the
+   * bottom. Everything else is a panel over them — opened from the bar, owning
+   * focus while it is up, and gone when it is not.
+   */
   return (
-    <div className="app-ambient relative min-h-dvh">
-      <AppBar
+    <div className="app-shell">
+      <TopBar />
+
+      {catalogue.isError ? (
+        <main className="stage stage--message">
+          <CatalogueError error={catalogue.error} onRetry={() => void catalogue.refetch()} />
+        </main>
+      ) : (
+        <>
+          <Stage />
+          <KeyboardDock />
+        </>
+      )}
+
+      {/* The engines run for their topic whatever the bar is showing: a song
+          must keep playing, and a metronome keep time, while a menu is shut. */}
+      {topic === 'scales' && <ScaleEngine />}
+      {topic === 'songs' && <SongEngine />}
+
+      <SettingsDrawer
         instruments={instruments}
         selectedId={selectedId}
         onSelectInstrument={select}
-        // The FIRST failure is enough to stop saying "loading". The retry
-        // carries on quietly behind it — but a player watching the app bar
-        // should not have to wait out the whole retry budget to learn that
-        // something is wrong.
-        catalogueFailed={catalogue.isError || catalogue.failureCount > 0}
-        statusSlot={<EngineChip />}
-        overflow={
-          <OverflowMenu
-            onKeyboardSetup={() => setSettingsOpen(true)}
-            onImport={() => setLibraryOpen(true)}
-          />
-        }
+        catalogueFailed={catalogueFailed}
       />
-
-      <main className="relative z-10 mx-auto flex max-w-[var(--ds-layout-container)] flex-col gap-4 px-[var(--ds-layout-gutter)] py-5 sm:px-[var(--ds-layout-gutter-lg)] sm:py-6">
-        {catalogue.isError ? (
-          <CatalogueError error={catalogue.error} onRetry={() => void catalogue.refetch()} />
-        ) : (
-          <>
-            {/* Above the keyboard, and in this order: what you are working on,
-                then how it is set up, then the instrument itself. Each row
-                changes what the row below it does.
-
-                One setup row per topic, never two: a scale and a song are not
-                practised in the same moment. There is no Free Play tab because
-                every tab is free play — the keyboard is always live, and
-                nothing here has ever required a run to be started first. */}
-            <LearningBar />
-            {topic === 'scales' && <ScaleConfigRow />}
-            {topic === 'songs' && <SongControlRow onBrowse={() => setLibraryOpen(true)} />}
-
-            <KeyboardStage />
-
-            {topic === 'scales' ? (
-              <LearningDashboard />
-            ) : topic === 'songs' ? (
-              <SongHandCard />
-            ) : (
-              <ComingNext />
-            )}
-          </>
-        )}
-      </main>
-
-      <DeviceSettingsDrawer open={settingsOpen} onClose={() => setSettingsOpen(false)} />
-      <SongLibrary open={libraryOpen} onClose={() => setLibraryOpen(false)} />
+      <SessionDrawer />
+      <ScaleTheoryDialog open={panel === 'theory'} onClose={closePanel} />
+      <DeviceSettingsDrawer open={panel === 'devices'} onClose={closePanel} />
+      <SongLibrary open={panel === 'library'} onClose={closePanel} />
       <RecordingOverlay />
       <RecordingReview />
     </div>
-  )
-}
-
-/**
- * Topics whose builder has not been written yet.
- *
- * Says what is actually missing rather than "coming soon". The engine, the
- * keyboard highlighting and this dashboard are all generic over
- * `Exercise` — a chord topic is a builder that returns steps of three notes
- * instead of one, and nothing else.
- */
-function ComingNext() {
-  const topic = useLearningStore((state) => state.topic)
-  return (
-    <Card className="flex flex-col items-start gap-2">
-      <div className="flex items-center gap-2">
-        <h2 className="text-h4 text-[var(--ds-fg)]">{LEARNING_TOPIC_LABELS[topic]}</h2>
-        <Chip tone="info">Next</Chip>
-      </div>
-      <p className="max-w-prose text-body-sm leading-relaxed text-[var(--ds-fg-secondary)]">
-        The Explore, Learn and Practice engine behind Scales is not scale-specific — it walks a list
-        of steps, where a step is a set of notes. {LEARNING_TOPIC_LABELS[topic]} needs a builder
-        that produces those steps, and nothing else: the keyboard highlighting, the fingering
-        badges, the scoring and this dashboard all work on them already.
-      </p>
-    </Card>
   )
 }
 

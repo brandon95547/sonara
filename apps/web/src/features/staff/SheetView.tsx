@@ -1,12 +1,13 @@
 import * as React from 'react'
 import { useElementSize } from '@/lib/hooks'
-import { HALF_HEIGHT, StaffFrame } from './staff-frame'
+import { HALF_HEIGHT, PaperCards, StaffFrame } from './staff-frame'
 import { BarLines, isLive, LiveStep, Playhead, Signatures, Step, type Role } from './score-parts'
 import {
   barLinesIn,
   breakIntoSystems,
   frameOf,
   headerEnd,
+  paperEdges,
   place,
   type Measured,
   type Placed,
@@ -82,7 +83,16 @@ export function SheetView({
       const height = frame.bottom - frame.top
       const top = y
       y += height + SYSTEM_SPACING
-      return { ...system, placed, top, height, origin: top - frame.top }
+      return {
+        ...system,
+        placed,
+        top,
+        height,
+        origin: top - frame.top,
+        paperTop: frame.top,
+        paperBottom: frame.bottom,
+        edges: paperEdges(slice),
+      }
     })
   }, [measured, fifths, pageWidth])
 
@@ -121,6 +131,13 @@ export function SheetView({
         >
           {systems.map((system) => (
             <g key={system.from} transform={`translate(0 ${system.origin})`}>
+              <PaperCards
+                width={pageWidth}
+                top={system.paperTop}
+                bottom={system.paperBottom}
+                trebleBottom={system.edges.trebleBottom}
+                bassTop={system.edges.bassTop}
+              />
               <StaffFrame width={pageWidth} />
               {/* The key is restated on every line, the way printed music does
                   it; the metre is stated once and then assumed. */}

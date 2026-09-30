@@ -36,17 +36,31 @@ export function Signatures({
   )
 }
 
-/** The bar lines of one system, each numbered the way a part is. */
-export function BarLines({ lines }: { lines: readonly { x: number; bar: number }[] }) {
+/**
+ * The bar lines of one system, each numbered the way a part is.
+ *
+ * One line per staff rather than one through both: each staff is on its own
+ * sheet of paper, and a line joining them would cross the stage between.
+ */
+export function BarLines({
+  lines,
+  numbered = true,
+}: {
+  lines: readonly { x: number; bar: number }[]
+  numbered?: boolean
+}) {
   return (
     <>
       {lines.map(({ x, bar }) => (
         <g key={x}>
-          <line x1={x} y1={yOn(10, 'treble')} x2={x} y2={yOn(-10, 'bass')} className="staff__bar" />
+          <line x1={x} y1={yOn(10, 'treble')} x2={x} y2={yOn(2, 'treble')} className="staff__bar" />
+          <line x1={x} y1={yOn(-2, 'bass')} x2={x} y2={yOn(-10, 'bass')} className="staff__bar" />
           {/* Numbered, so a player can say where they are out loud. */}
-          <text x={x + STEP * 1.4} y={yOn(14, 'treble')} className="staff__bar-number">
-            {bar}
-          </text>
+          {numbered && (
+            <text x={x + STEP * 1.4} y={yOn(14, 'treble')} className="staff__bar-number">
+              {bar}
+            </text>
+          )}
         </g>
       ))}
     </>

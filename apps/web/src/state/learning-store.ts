@@ -91,6 +91,14 @@ interface LearningState {
   /** Let a clean run raise the target and a scrappy one lower it. */
   autoTempo: boolean
   /**
+   * A click at the target tempo, for as long as it is on.
+   *
+   * The target used to be "a target, not a metronome": a number to aim at with
+   * nothing to hear it by. The click makes the number something you can play
+   * against. Not tied to a run — you set the pulse, then start when ready.
+   */
+  metronome: boolean
+  /**
    * Which step the demonstration is sounding, or null when it is not playing.
    *
    * Separate from `session.stepIndex` because the two answer different
@@ -123,6 +131,7 @@ interface LearningState {
   setShowStructure: (show: boolean) => void
   setTargetBpm: (bpm: number) => void
   setAutoTempo: (enabled: boolean) => void
+  setMetronome: (enabled: boolean) => void
   noteOn: (note: number) => void
   expireWrongNotes: () => void
 }
@@ -261,6 +270,7 @@ export const useLearningStore = create<LearningState>((set, get) => {
     annotations: buildAnnotations(initialExercise, 'learn', IDLE_SESSION),
     targetBpm: initialExercise.defaultBpm,
     autoTempo: false,
+    metronome: false,
     demoStepIndex: null,
     keyLabels: 'notes',
     showStructure: false,
@@ -319,6 +329,7 @@ export const useLearningStore = create<LearningState>((set, get) => {
     setTargetBpm: (bpm) => set({ targetBpm: clampBpm(bpm) }),
 
     setAutoTempo: (autoTempo) => set({ autoTempo }),
+    setMetronome: (metronome) => set({ metronome }),
 
     noteOn: (note) => {
       const state = get()

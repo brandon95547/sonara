@@ -71,6 +71,45 @@
      in landscape to aim at, capped on a large monitor so the keyboard stays an
      instrument on a page rather than the page itself. */
   --keybed-height: clamp(104px, 24vh, 196px);
+
+  /* --- Paper and ink ------------------------------------------------------
+     The second physical object in the app, and the same exception as the keys:
+     printed music is black ink on white paper, and a staff tinted to sit in the
+     elevation ramp is a staff nobody reads as music. Real-world values, here,
+     once. The ink is a hair off black and the lines lighter than the notes, the
+     way engraving weights them — the notes are what is read, the lines are what
+     they stand on. */
+  --c-paper: #ffffff;
+  --c-ink: #15171b;
+  --c-ink-line: #4f5561;
+  --c-ink-muted: #545b67;
+  /* What has already been played: still there, clearly behind you. 2.6:1 on the
+     paper — a mark to see past, not text to read. */
+  --c-ink-played: #a4aab4;
+
+  /* --- The practice room ---------------------------------------------------
+     A dark bar over a bright stage, with the paper in the middle, as the design
+     for this screen draws it. These come from the palette's blue ramp by name:
+     the semantic tier has no word for "the colour of the room", and the one
+     blue it does name (--ds-info) is kept for what it means — the playhead,
+     which is information about where you are. */
+  --c-bar: var(--p-info-900);
+  --c-bar-fg: #ffffff;
+  /* 8.6:1 on the bar. */
+  --c-bar-fg-muted: rgb(255 255 255 / 0.74);
+  --c-bar-hover: rgb(255 255 255 / 0.08);
+  --c-bar-pressed: rgb(255 255 255 / 0.16);
+  --c-bar-line: rgb(255 255 255 / 0.14);
+  /* A switch that is on — the metronome ticking. */
+  --c-bar-on: var(--p-info-300);
+  --c-stage: var(--p-info-500);
+
+  /* "Now": the note on the staff and the key on the keyboard you are to play,
+     one colour in both places so the eye can go from one to the other. 5.5:1
+     for white on it, which the finger numeral on a lit key needs. */
+  --c-now: var(--p-info-600);
+  --c-now-deep: var(--p-info-700);
+  --c-playhead: var(--ds-info);
 }
 
 /* ============================================================================
@@ -380,11 +419,12 @@
      target         play this, now                             (the action)
      wrong          that was not it                            (the error)
 
-   The target is the accent, and the accent is used for nothing else on the
-   keybed — the whole point of a single accent colour is that when it appears,
-   there is exactly one thing to do. The scale wash therefore has to be
-   quiet enough that the accent still reads as an instruction rather than as
-   more of the same, which is why it is a low-alpha tint rather than a fill.
+   The target is "now" blue — the same colour as the note it is on the staff —
+   and that blue is used for nothing else on the keybed: the whole point of a
+   single colour for it is that when it appears, there is exactly one thing to
+   do. The scale wash therefore has to be quiet enough that the target still
+   reads as an instruction rather than as more of the same, which is why it is
+   a low-alpha tint rather than a fill.
    ========================================================================= */
 
 .piano-key[data-role='scale'],
@@ -435,17 +475,17 @@
    above is deliberately quiet for the same reason: the accent only reads as
    "do this" if nothing else on the keybed is wearing it. */
 .piano-key--white[data-role='target']:not([data-active='true']) {
-  background-color: var(--ds-accent);
+  background-color: var(--c-now);
   box-shadow:
-    inset 0 -4px 0 var(--ds-accent-active),
-    0 0 22px -4px var(--ds-accent);
+    inset 0 -4px 0 var(--c-now-deep),
+    0 0 22px -4px var(--c-now);
 }
 .piano-key--black[data-role='target']:not([data-active='true']) {
-  background-color: var(--ds-accent-active);
+  background-color: var(--c-now-deep);
   box-shadow:
-    inset 0 6px 0 var(--ds-accent),
+    inset 0 6px 0 var(--c-now),
     inset 0 -3px 0 rgb(0 0 0 / 0.5),
-    0 0 22px -6px var(--ds-accent);
+    0 0 22px -6px var(--c-now);
 }
 .piano-key--white[data-role='target'] .piano-key__label,
 .piano-key--black[data-role='target'] .piano-key__label {
@@ -453,8 +493,9 @@
 }
 
 /* A key you are holding down in Learn, which the exercise did not object to.
-   Lighter than the instruction itself, so "do this" and "yes, that" are one
-   colour at two brightnesses rather than two colours to learn.
+   In the accent, like every key that is sounding, and like the note sounding
+   on the staff: blue is where you are, violet is what you are playing, and the
+   two mean the same thing on the paper as on the keys.
 
    No new state is needed for this. A key held in Learn is either wrong — in
    which case it is already marked — or it is right, because a wrong note is
@@ -544,9 +585,9 @@
   color: rgb(255 255 255 / 0.88);
 }
 
-/* The key underneath is filled with the accent: as the current target, or
-   because it is being held down. A dark numeral on that fill measures 3.8:1,
-   under AA at this size; white clears it at 4.8:1. */
+/* The key underneath is filled: in blue as the current target, in the accent
+   while it is held down. A dark numeral on the accent measures 3.8:1, under AA
+   at this size; white clears both, at 5.5:1 on the blue and 4.8:1 on the accent. */
 .key-badge[data-role='target'],
 .key-badge[data-active='true'] {
   color: var(--c-key-press-fg);
@@ -617,8 +658,11 @@
    window onto it and follows where you are, which is what the keyboard does
    with the keys. */
 .staff-scroll {
-  width: 100%;
-  height: 100%;
+  /* Positioned by FlowView: from the end of the clef gutter to the right edge. */
+  position: absolute;
+  inset-block: 0;
+  right: 0;
+  z-index: 1;
   overflow-x: auto;
   overflow-y: hidden;
   /* Deliberately not `scroll-behavior: smooth`. Where an engine does not
@@ -641,10 +685,11 @@
   left: 0;
   display: block;
   height: 100%;
-  /* Deliberately not `.staff`, which is 100% wide: an opaque overlay that wide
-     covers the music it is supposed to sit beside. The width comes from the
-     element's own attribute, which is the gutter's share of the drawing. */
-  background-color: var(--c-piano-body);
+  /* Deliberately not `.staff`, which is 100% wide. The width comes from the
+     element's own attribute, which is the gutter's share of the drawing.
+     Transparent over the paper: the music's window starts where this ends
+     (FlowView), so there is nothing underneath to cover. */
+  z-index: 1;
   pointer-events: none;
 }
 
@@ -692,7 +737,7 @@
 /* Staff lines: the quietest thing on the page. Hairlines that do not scale with
    the drawing, so they stay one pixel however large the panel is. */
 .staff__line {
-  stroke: var(--ds-border);
+  stroke: var(--c-ink-line);
   stroke-width: 0.9;
   vector-effect: non-scaling-stroke;
 }
@@ -701,13 +746,13 @@
    well below the notes. */
 .staff__bar,
 .staff__system-line {
-  stroke: var(--ds-border-strong);
+  stroke: var(--c-ink);
   stroke-width: 1.1;
   vector-effect: non-scaling-stroke;
 }
 
 .staff__bar-number {
-  fill: var(--ds-fg-muted);
+  fill: var(--c-ink-muted);
   font-size: 11px;
   font-weight: 600;
   text-anchor: start;
@@ -717,12 +762,12 @@
    what tells you how to read everything else. */
 .staff__brace {
   fill: none;
-  stroke: var(--ds-fg-secondary);
+  stroke: var(--c-ink);
   stroke-width: 2.4;
   stroke-linecap: round;
 }
 .staff__clef {
-  fill: var(--ds-fg);
+  fill: var(--c-ink);
   font-family: var(--font-music);
   /* A treble clef spans the whole staff and a little beyond; a bass clef sits
      inside it. Sized against the staff rather than picked by eye — five lines
@@ -733,45 +778,45 @@
   font-size: 46px;
 }
 .staff__clef-dot {
-  fill: var(--ds-fg);
+  fill: var(--c-ink);
 }
 .staff__clef-letter {
-  fill: var(--ds-fg);
+  fill: var(--c-ink);
   font-size: 15px;
   font-weight: 700;
 }
 
 /* Notation. Bright, because it is the thing being read. */
 .staff__note ellipse {
-  fill: var(--ds-fg);
+  fill: var(--c-ink);
 }
 .staff__note--hollow ellipse {
   fill: none;
-  stroke: var(--ds-fg);
+  stroke: var(--c-ink);
   stroke-width: 2.4;
   vector-effect: non-scaling-stroke;
 }
 .staff__stem {
-  stroke: var(--ds-fg);
+  stroke: var(--c-ink);
   stroke-width: 1.7;
   vector-effect: non-scaling-stroke;
 }
 .staff__flag,
 .staff__dot {
-  fill: var(--ds-fg);
+  fill: var(--c-ink);
 }
 .staff__accidental {
-  fill: var(--ds-fg);
+  fill: var(--c-ink);
   font-family: var(--font-music);
   font-size: 22px;
 }
 .staff__ledger {
-  stroke: var(--ds-fg);
+  stroke: var(--c-ink);
   stroke-width: 1.4;
   vector-effect: non-scaling-stroke;
 }
 .staff__time-digit {
-  fill: var(--ds-fg);
+  fill: var(--c-ink);
   /* Each numeral fills two spaces — 20 units — and a digit's cap height is
      about three quarters of its point size. */
   font-size: 26px;
@@ -781,7 +826,7 @@
 
 /* Fingering: wanted, but never at the expense of the note it belongs to. */
 .staff__finger {
-  fill: var(--ds-fg-muted);
+  fill: var(--c-ink-muted);
   font-size: 10px;
   font-weight: 650;
   text-anchor: middle;
@@ -794,17 +839,17 @@
    touching the keyboard, so the colour stopped saying anything. Everything else
    is white, the way printed music is black. */
 .staff__note[data-sounding='true'] :is(ellipse, .staff__accidental, .staff__dot) {
-  fill: var(--ds-accent-text);
+  fill: var(--ds-accent);
 }
 .staff__note--hollow[data-sounding='true'] ellipse {
   fill: none;
-  stroke: var(--ds-accent-text);
+  stroke: var(--ds-accent);
 }
 /* A chord too wide to close on at once is spread, and says so the way a score
    says it. Same weight as a stem: it is notation, not an annotation. */
 .staff__arpeggio {
   fill: none;
-  stroke: var(--ds-fg);
+  stroke: var(--c-ink);
   stroke-width: 1.6;
   vector-effect: non-scaling-stroke;
 }
@@ -812,26 +857,72 @@
 /* Ledger lines belong to the chord, not to one note inside it, so they carry
    the flag themselves. */
 .staff__ledger[data-sounding='true'] {
-  stroke: var(--ds-accent-text);
+  stroke: var(--ds-accent);
 }
 .staff__note[data-sounding='true'] .staff__finger {
-  fill: var(--ds-accent-text);
+  fill: var(--ds-accent);
 }
 .staff__stem[data-sounding='true'] {
-  stroke: var(--ds-accent-text);
+  stroke: var(--ds-accent);
 }
 .staff__flag[data-sounding='true'] {
-  fill: var(--ds-accent-text);
+  fill: var(--ds-accent);
 }
 
 /* The playhead. A line with a glow, not a block over the music: a translucent
    column dims the very notes it is pointing at, and the eye reads the column
    instead of them. */
 .staff__playhead {
-  stroke: var(--ds-accent-text);
-  stroke-width: 1.6;
+  stroke: var(--c-playhead);
+  stroke-width: 3.5;
+  stroke-linecap: round;
   vector-effect: non-scaling-stroke;
-  filter: drop-shadow(0 0 6px var(--ds-accent)) drop-shadow(0 0 14px var(--ds-accent));
+  filter: drop-shadow(0 0 5px var(--c-playhead)) drop-shadow(0 0 14px var(--c-playhead));
+}
+
+/* ---- Paper, and your place on it -----------------------------------------
+   The sheets the staves are drawn on (see PaperCards and FlowView). */
+.staff__paper,
+.staff-card {
+  fill: var(--c-paper);
+  background-color: var(--c-paper);
+}
+.staff-card {
+  position: absolute;
+  inset-inline: 0;
+  border-radius: 20px;
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 0.08),
+    0 10px 30px -12px rgb(0 0 0 / 0.35);
+}
+.staff__paper {
+  filter: drop-shadow(0 6px 12px rgb(0 0 0 / 0.16));
+}
+
+/* Behind you: still on the page, clearly done. */
+.staff__step[data-role='played'] :is(ellipse, .staff__accidental, .staff__dot, .staff__flag) {
+  fill: var(--c-ink-played);
+}
+.staff__step[data-role='played'] :is(.staff__stem, .staff__ledger) {
+  stroke: var(--c-ink-played);
+}
+.staff__step[data-role='played'] .staff__note--hollow ellipse {
+  fill: none;
+  stroke: var(--c-ink-played);
+}
+/* Where you are: the note to play now, in the same blue as its key. Sounding
+   still wins — the rule for held notes is later in the cascade than this. */
+.staff__step[data-role='target']
+  .staff__note:not([data-sounding='true'])
+  :is(ellipse, .staff__accidental, .staff__dot) {
+  fill: var(--c-now);
+}
+.staff__step[data-role='target'] .staff__note--hollow:not([data-sounding='true']) ellipse {
+  fill: none;
+  stroke: var(--c-now);
+}
+.staff__step[data-role='target'] :is(.staff__stem, .staff__ledger):not([data-sounding='true']) {
+  stroke: var(--c-now);
 }
 
 /* ---- Finger badges -------------------------------------------------------
@@ -878,9 +969,9 @@
   color: rgb(255 255 255 / 0.88);
 }
 
-/* The key underneath is filled with the accent: as the current target, or
-   because it is being held down. A dark numeral on that fill measures 3.8:1,
-   under AA at this size; white clears it at 4.8:1. */
+/* The key underneath is filled: in blue as the current target, in the accent
+   while it is held down. A dark numeral on the accent measures 3.8:1, under AA
+   at this size; white clears both, at 5.5:1 on the blue and 4.8:1 on the accent. */
 .key-badge[data-role='target'],
 .key-badge[data-active='true'] {
   color: var(--c-key-press-fg);
@@ -937,41 +1028,25 @@
   --key-wash: transparent;
 }
 
-/* ---- Grand staff ---------------------------------------------------------
-   A picture of what is sounding right now, not a score: no time axis, no bar
-   lines beyond the ones that close the system. */
-/* The staff sits inside the instrument panel, above the felt: one unit with the
-   keys rather than a card of its own, so hiding it gives the space straight
-   back to the keyboard. */
-.staff-panel {
-  /* Tall enough that the two staves are read rather than decoded. The drawing
-     scales with this: the viewBox keeps a fixed vertical budget, so more pixels
-     of height means wider line spacing, bigger clefs and bigger noteheads —
-     not more empty air around the same small system. */
-  height: 208px;
-  /* The keyline the staff reads against.
-     Two things decide these numbers. They sit on the 8px grid the layout
-     tokens are built from (24 and 40 are both multiples of 8), and they are
-     one step *smaller* than the page gutter at each size — the panel is
-     already inset from the page by that gutter, so repeating it inside would
-     read as a margin twice over rather than as content padding.
-     Equal on both sides: the staff is a single block of content and has no
-     reason to sit off-centre in its own surface. */
-  padding: 8px 1rem 9px;
-}
-@media (min-width: 40rem) {
-  .staff-panel {
-    padding-inline: 1.5rem;
-  }
-}
+/* ---- The staff panel -----------------------------------------------------
+   The staff on the stage: as tall as the stage allows, up to where the music is
+   read rather than stared at. The drawing scales with this height — the
+   viewBox keeps a fixed vertical budget — so a taller panel means wider line
+   spacing and bigger noteheads, not more empty paper.
 
-/* Reading from sheet music means reading ahead, and one line at a time is not
-   sheet music — it is Flow with the scrolling taken out. So the panel grows to
-   hold two or three systems. Bounded at both ends: enough for two lines on a
-   short laptop, and never so tall that the keyboard is pushed off the screen
-   it is supposed to be played on. */
+   And never taller than the screen is wide allows. The width in notes follows
+   from the height, so a phone held upright — a tall stage, a narrow one — drew
+   the staff at desktop size and fitted one note across it. */
+.staff-panel {
+  position: relative;
+  flex: 0 1 auto;
+  width: 100%;
+  height: min(100%, 440px, 64vw);
+  min-height: 150px;
+}
+/* Sheet music reads ahead, so it takes the whole stage and scrolls in it. */
 .staff-panel--sheet {
-  height: clamp(300px, 42vh, 470px);
+  height: 100%;
 }
 
 /* ---- Recording -----------------------------------------------------------
@@ -1062,16 +1137,16 @@
 /* ---- Song progress -------------------------------------------------------
    Above the staff and inside the instrument panel, so where you are in the
    piece sits with the piece rather than with the controls that change it. */
+/* A strip in the bar's navy, the same surface as the stage's pills: the blue
+   stage cannot carry small text of its own — white on it is under 4:1. */
 .song-progress {
   display: flex;
+  flex: none;
   align-items: center;
   gap: 12px;
-  padding: 10px 1rem 0;
-}
-@media (min-width: 40rem) {
-  .song-progress {
-    padding-inline: 1.5rem;
-  }
+  padding: 3px 8px 3px 14px;
+  border-radius: 999px;
+  background-color: var(--c-bar);
 }
 .song-progress__range {
   flex: 1;
@@ -1079,6 +1154,571 @@
 }
 .song-progress__label {
   flex-shrink: 0;
+  min-width: 5.5rem;
+  text-align: right;
   font-size: 12px;
+  font-weight: 600;
+  color: var(--c-bar-fg);
+}
+
+/* ============================================================================
+   THE PRACTICE SCREEN
+   Three bands that fill the viewport and never scroll it: the bar with every
+   setting, the stage with the music, the keys along the bottom. Everything
+   else is a panel over them.
+   ========================================================================= */
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  overflow: hidden;
+  background-color: var(--c-stage);
+}
+
+/* ---- The bar ------------------------------------------------------------- */
+.top-bar {
+  position: relative;
+  z-index: 30;
+  flex: none;
+  background-color: var(--c-bar);
+  color: var(--c-bar-fg);
+  box-shadow:
+    0 1px 0 rgb(0 0 0 / 0.25),
+    0 6px 18px -8px rgb(0 0 0 / 0.5);
+}
+.top-bar__row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 64px;
+  padding-inline: 12px;
+  min-width: 0;
+}
+@media (min-width: 40rem) {
+  .top-bar__row {
+    padding-inline: 16px 18px;
+  }
+}
+.top-bar__brand {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 10px;
+  margin-right: 2px;
+}
+.top-bar__logo {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-md);
+  background-color: var(--ds-accent);
+  color: var(--ds-accent-fg);
+}
+.top-bar__name {
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.top-bar__divider {
+  flex: none;
+  width: 1px;
+  height: 28px;
+  margin-inline: 3px;
+  background-color: var(--c-bar-line);
+}
+.top-bar__spacer {
+  flex: 1 1 auto;
+  min-width: 4px;
+}
+.top-bar__cluster {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+/* A setting, named by its value: "Right Hand ▾". */
+.bar-button {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  min-width: 0;
+  padding-inline: 7px;
+  border-radius: var(--radius-md);
+  color: var(--c-bar-fg);
+  font-size: var(--text-ui);
+  font-weight: 550;
+  white-space: nowrap;
+  transition: background-color var(--duration-fast) var(--ease-standard);
+}
+.bar-button:hover {
+  background-color: var(--c-bar-hover);
+}
+.bar-button[aria-expanded='true'] {
+  background-color: var(--c-bar-pressed);
+}
+.bar-button:focus-visible,
+.bar-icon-button:focus-visible,
+.bar-start:focus-visible,
+.tempo-stepper__button:focus-visible {
+  outline: 2px solid var(--c-bar-fg);
+  outline-offset: 2px;
+}
+.bar-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.bar-button__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.bar-button__icon {
+  display: inline-flex;
+  color: var(--c-bar-fg-muted);
+}
+.bar-button__chevron {
+  flex: none;
+  color: var(--c-bar-fg-muted);
+}
+/* The scale or the song: the one label that can be long, and the one that
+   gives way first when the row is tight. */
+.bar-button--scale {
+  flex: 0 1 auto;
+  min-width: 6rem;
+  max-width: 17rem;
+}
+
+.bar-icon-button {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  color: var(--c-bar-fg);
+  transition: background-color var(--duration-fast) var(--ease-standard);
+}
+.bar-icon-button:hover:not(:disabled) {
+  background-color: var(--c-bar-hover);
+}
+.bar-icon-button[aria-pressed='true'],
+.bar-icon-button[aria-expanded='true'] {
+  background-color: var(--c-bar-pressed);
+}
+.bar-icon-button[aria-pressed='true'] {
+  color: var(--c-bar-on);
+}
+.bar-icon-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+/* The same controls inside a panel, where the bar's white-on-navy would be
+   white on a dark sheet with no edge. */
+.bar-icon-button--panel {
+  border: 1px solid var(--ds-border-interactive);
+  color: var(--ds-fg);
+}
+
+/* − 72 BPM + */
+.tempo-stepper {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  margin-inline: 2px;
+}
+.tempo-stepper__button {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  background-color: rgb(255 255 255 / 0.1);
+  color: var(--c-bar-fg);
+  transition: background-color var(--duration-fast) var(--ease-standard);
+}
+.tempo-stepper__button:hover {
+  background-color: rgb(255 255 255 / 0.18);
+}
+.tempo-stepper__value {
+  min-width: 4.2em;
+  text-align: center;
+  font-size: var(--text-ui);
+  font-weight: 600;
+}
+.tempo-stepper--panel .tempo-stepper__button {
+  background-color: var(--ds-layer-hover);
+  border: 1px solid var(--ds-border-interactive);
+  color: var(--ds-fg);
+}
+.tempo-stepper--panel .tempo-stepper__value {
+  color: var(--ds-fg);
+}
+
+/* The one filled button on the screen. */
+.bar-start {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  height: 44px;
+  margin-left: 4px;
+  padding-inline: 18px 22px;
+  border-radius: var(--radius-lg);
+  background-color: var(--ds-accent);
+  color: var(--ds-accent-fg);
+  font-size: 1rem;
+  font-weight: 650;
+  white-space: nowrap;
+  box-shadow: 0 6px 16px -8px var(--ds-accent);
+  transition: background-color var(--duration-fast) var(--ease-standard);
+}
+.bar-start:hover {
+  background-color: var(--ds-accent-hover);
+}
+.bar-start--stop {
+  background-color: transparent;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.4);
+  color: var(--c-bar-fg);
+}
+.bar-start--stop:hover {
+  background-color: var(--c-bar-hover);
+}
+.bar-status {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  height: 36px;
+  margin-left: 6px;
+  padding-inline: 14px;
+  border-radius: 999px;
+  background-color: var(--c-bar-pressed);
+  color: var(--c-bar-fg);
+  font-size: var(--text-ui);
+  font-weight: 550;
+  white-space: nowrap;
+}
+
+.midi-status {
+  position: relative;
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  color: var(--c-bar-fg-muted);
+}
+.midi-status__dot {
+  position: absolute;
+  right: 6px;
+  bottom: 7px;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background-color: var(--c-bar-fg-muted);
+  box-shadow: 0 0 0 2px var(--c-bar);
+}
+.midi-status__dot[data-connected='true'] {
+  background-color: var(--ds-success);
+}
+
+/* The bar folds rather than wrapping or scrolling. Below 88rem — measured: the
+   full row with a long scale name is about 1400px — the settings after the
+   scale live in its popover; below lg the tempo, metronome and recording live
+   in Settings; on a phone the two panel buttons join the overflow. */
+@media (max-width: 87.999rem) {
+  .bar-wide {
+    display: none !important;
+  }
+}
+@media (min-width: 88rem) {
+  .popover-compact {
+    display: none !important;
+  }
+}
+@media (max-width: 63.999rem) {
+  .bar-mid {
+    display: none !important;
+  }
+}
+@media (max-width: 39.999rem) {
+  .bar-sm {
+    display: none !important;
+  }
+  .top-bar__row {
+    gap: 0;
+    padding-inline: 8px;
+  }
+  .top-bar__divider {
+    margin-inline: 2px;
+  }
+  .top-bar__spacer {
+    min-width: 0;
+  }
+  .bar-button {
+    gap: 4px;
+    padding-inline: 6px;
+  }
+  .bar-button--scale {
+    min-width: 4.5rem;
+  }
+  .bar-start {
+    gap: 6px;
+    height: 40px;
+    margin-left: 2px;
+    padding-inline: 10px 12px;
+  }
+  .bar-status {
+    padding-inline: 10px;
+  }
+}
+/* The narrowest phones: the bar's one filled button keeps its name for a
+   screen reader and gives up the word on screen. Nothing else in the bar wears
+   its icon, so the icon alone still says what it does. */
+@media (max-width: 22.999rem) {
+  .top-bar .bar-start {
+    position: relative;
+    padding-inline: 11px;
+  }
+  .top-bar .bar-start__label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+/* ---- Popovers and menus -------------------------------------------------- */
+.popover {
+  position: fixed;
+  z-index: 45;
+  min-width: 12rem;
+  max-width: calc(100vw - 16px);
+  overflow-y: auto;
+  border: 1px solid var(--ds-border);
+  border-radius: var(--radius-lg);
+  background-color: var(--ds-surface-overlay);
+  color: var(--ds-fg);
+  box-shadow: var(--ds-shadow-4);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .popover {
+    animation: scale-in 140ms var(--ease-standard) both;
+    transform-origin: top left;
+  }
+}
+.popover--menu {
+  padding: 6px;
+  min-width: 14rem;
+}
+.popover--scale {
+  width: 26rem;
+}
+.menu-item {
+  display: flex;
+  width: 100%;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: var(--radius-md);
+  color: var(--ds-fg);
+  text-align: left;
+}
+.menu-item:hover:not(:disabled),
+.menu-item:focus-visible {
+  background-color: var(--ds-layer-hover);
+  outline: none;
+}
+.menu-item:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--ds-focus-ring);
+}
+.menu-item:disabled {
   color: var(--ds-fg-muted);
+  cursor: not-allowed;
+}
+.menu-item__mark {
+  display: inline-flex;
+  flex: none;
+  width: 16px;
+  padding-top: 2px;
+  color: var(--ds-accent-text);
+}
+.menu-item:disabled .menu-item__mark {
+  color: var(--ds-fg-muted);
+}
+.menu-item__text {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+.menu-item__label {
+  font-size: var(--text-ui);
+  font-weight: 500;
+}
+.menu-item[aria-checked='true'] .menu-item__label {
+  color: var(--ds-accent-text);
+  font-weight: 600;
+}
+.menu-item__description {
+  font-size: 0.8125rem;
+  line-height: 1.35;
+  color: var(--ds-fg-muted);
+}
+
+/* A choice in a grid — a key, a scale type. */
+.choice {
+  min-height: 34px;
+  padding-inline: 6px;
+  border: 1px solid var(--ds-border-interactive);
+  border-radius: var(--radius-md);
+  color: var(--ds-fg-secondary);
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition:
+    background-color var(--duration-fast) var(--ease-standard),
+    color var(--duration-fast) var(--ease-standard);
+}
+.choice:hover {
+  background-color: var(--ds-layer-hover);
+  color: var(--ds-fg);
+}
+.choice:focus-visible {
+  outline: 2px solid var(--ds-focus-ring);
+  outline-offset: 1px;
+}
+.choice--on {
+  border-color: transparent;
+  background-color: var(--ds-accent);
+  color: var(--ds-accent-fg);
+}
+.choice--on:hover {
+  background-color: var(--ds-accent-hover);
+  color: var(--ds-accent-fg);
+}
+
+/* Bar-style menus inside a panel get an edge to read against. */
+.settings-menus {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.settings-menus .bar-button {
+  border: 1px solid var(--ds-border-interactive);
+  color: var(--ds-fg);
+}
+.settings-menus .bar-button__icon,
+.settings-menus .bar-button__chevron {
+  color: var(--ds-fg-muted);
+}
+
+/* ---- The stage ----------------------------------------------------------- */
+.stage {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  flex-direction: column;
+  justify-content: center;
+  gap: 12px;
+  padding: 20px clamp(12px, 2.5vw, 36px);
+  background-color: var(--c-stage);
+}
+.stage--message {
+  align-items: center;
+}
+.stage__notices {
+  position: absolute;
+  top: 12px;
+  right: clamp(12px, 2.5vw, 36px);
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.stage-pill {
+  display: inline-flex;
+  align-items: center;
+  height: 30px;
+  padding-inline: 12px;
+  border-radius: 999px;
+  background-color: var(--c-bar);
+  color: var(--c-bar-fg);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+.stage-pill__muted {
+  color: var(--c-bar-fg-muted);
+  font-weight: 500;
+}
+/* A status chip from elsewhere in the app, given the same navy to sit on. */
+.stage-chip {
+  display: inline-flex;
+  padding: 4px;
+  border-radius: calc(var(--radius-sm) + 4px);
+  background-color: var(--c-bar);
+}
+
+.run-complete {
+  position: absolute;
+  left: 50%;
+  bottom: 20px;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 12px 12px 12px 20px;
+  border-radius: var(--radius-xl);
+  background-color: var(--c-bar);
+  color: var(--c-bar-fg);
+  box-shadow: var(--ds-shadow-4);
+  transform: translateX(-50%);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .run-complete {
+    animation: fade-in 200ms var(--ease-standard) both;
+  }
+}
+.run-complete__title {
+  font-size: 1.0625rem;
+  font-weight: 700;
+}
+.run-complete__detail {
+  font-size: 0.875rem;
+  color: var(--c-bar-fg-muted);
+  white-space: nowrap;
+}
+
+/* ---- The keys, along the bottom ------------------------------------------ */
+.keyboard-dock {
+  position: relative;
+  flex: none;
+  background-color: var(--c-bar);
+}
+.keyboard-dock .piano-felt {
+  height: 4px;
+  background: var(--c-bar);
+}
+.keyboard-dock__sustain {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  z-index: 8;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding-inline: 10px;
+  border-radius: 999px;
+  background-color: var(--c-bar);
+  color: var(--c-bar-fg);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  pointer-events: none;
 }

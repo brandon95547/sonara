@@ -10,7 +10,7 @@ import {
 import { useKeyboardStore } from '@/state/keyboard-store'
 import { useLearningStore } from '@/state/learning-store'
 import { useElementSize } from '@/lib/hooks'
-import { StaffFrame, HALF_HEIGHT, KEY_X, keyWidth, STEP } from './staff-frame'
+import { PaperCards, StaffFrame, HALF_HEIGHT, KEY_X, keyWidth, STEP } from './staff-frame'
 import { Chord, KeySignature } from './StaffNotes'
 
 /**
@@ -126,6 +126,7 @@ export function GrandStaff() {
             : `Grand staff: ${sounding.map((note) => staffNoteName(note, spellingFor(note))).join(', ')}`
         }
       >
+        <PaperCards width={width} top={-HALF_HEIGHT} bottom={HALF_HEIGHT} />
         <StaffFrame width={width} />
         <KeySignature x={KEY_X} fifths={fifths} />
 

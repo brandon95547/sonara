@@ -19,12 +19,13 @@ export const STEP = 5
  * step); the rest is headroom for ledger lines, so the drawing never has to be
  * scaled down to fit an unusually high or low note.
  *
- * Ninety-eight rather than a rounder number because that is where the treble
- * clef ends. It is the tallest thing on a grand staff — taller than any note,
- * and drawn on every system — and at 92 the top of it was being shaved off in
- * every view in the app.
+ * A hundred and thirteen rather than a rounder number because that is where
+ * the treble clef ends. It is the tallest thing on a grand staff — taller than
+ * any note, and drawn on every system — and an inch short of it shaves the top
+ * off in every view in the app. It moves with SYSTEM_GAP: pushing the staves
+ * apart lifts the clef by the same amount.
  */
-export const HALF_HEIGHT = 98
+export const HALF_HEIGHT = 113
 
 /**
  * How far each staff is pushed away from middle C, in steps.
@@ -36,8 +37,67 @@ export const HALF_HEIGHT = 98
  *
  * Applied on the way to the page, not in the model: `staffPlacement` keeps
  * saying what note is written where, and this says how far apart to draw it.
+ *
+ * Six steps since each staff got its own sheet of paper: the two cards need a
+ * visible gap between them, and the ledger notes either hand reaches for — a
+ * right-hand scale that starts on the A below middle C — have to land on paper
+ * rather than in that gap.
  */
-export const SYSTEM_GAP = 3
+export const SYSTEM_GAP = 6
+
+/** The stage showing between the two sheets of paper, in units. */
+export const PAPER_GAP = 22
+/** The paper to either side of the staff lines. */
+export const PAPER_MARGIN = 16
+/** How round the sheets' corners are. */
+const PAPER_RADIUS = 11
+
+/**
+ * The two sheets a grand staff is drawn on — one per hand, the way the page
+ * reads: two staves, each its own line of music, with the room between them.
+ *
+ * `top` and `bottom` are the drawing's own vertical extent, so a system with
+ * ledger lines far above or below gets taller paper rather than notes hanging
+ * off the edge of it. For drawings that do not scroll; a scrolling view puts
+ * its paper behind the scroll instead (see FlowView).
+ */
+export function PaperCards({
+  x = 0,
+  width,
+  top,
+  bottom,
+  trebleBottom = -PAPER_GAP / 2,
+  bassTop = PAPER_GAP / 2,
+}: {
+  x?: number
+  width: number
+  top: number
+  bottom: number
+  /** Where the treble's sheet ends and the bass's begins — see `paperEdges`. */
+  trebleBottom?: number
+  bassTop?: number
+}) {
+  return (
+    <>
+      <rect
+        x={x}
+        y={top}
+        width={width}
+        height={trebleBottom - top}
+        rx={PAPER_RADIUS}
+        className="staff__paper"
+      />
+      <rect
+        x={x}
+        y={bassTop}
+        width={width}
+        height={bottom - bassTop}
+        rx={PAPER_RADIUS}
+        className="staff__paper"
+      />
+    </>
+  )
+}
 
 /** Vertical position of a step, once its staff has been pushed clear. */
 export const yOn = (steps: number, staff: 'treble' | 'bass') =>
@@ -81,13 +141,6 @@ export function keyWidth(fifths: number): number {
 export function StaffLines({ width, from = 20 }: { width: number; from?: number }) {
   return (
     <>
-      <line
-        x1={width - 2}
-        y1={yOn(10, 'treble')}
-        x2={width - 2}
-        y2={yOn(-10, 'bass')}
-        className="staff__system-line"
-      />
       {(['treble', 'bass'] as const).map((staff) => (
         <g key={staff}>
           {STAFF_LINES[staff].map((steps) => (
@@ -95,7 +148,7 @@ export function StaffLines({ width, from = 20 }: { width: number; from?: number 
               key={steps}
               x1={from}
               y1={yOn(steps, staff)}
-              x2={width - 2}
+              x2={width - PAPER_MARGIN}
               y2={yOn(steps, staff)}
               className="staff__line"
             />
@@ -107,26 +160,18 @@ export function StaffLines({ width, from = 20 }: { width: number; from?: number 
 }
 
 /**
- * The brace and the two clefs, with enough staff behind them to sit on.
+ * The two clefs, with enough staff behind them to sit on.
  *
  * Drawn apart from the lines because a scrolling score pins this and lets the
- * music pass underneath. A clef that scrolls off the left is a clef you cannot
- * read the music without, which is the one thing it is for.
+ * music pass it by. A clef that scrolls off the left is a clef you cannot read
+ * the music without, which is the one thing it is for.
+ *
+ * No brace. Each staff is on its own sheet of paper now, and a brace would have
+ * to cross the stage between them to join two things that are visibly apart.
  */
 export function StaffGutter() {
   return (
     <>
-      <path
-        d={`M 14 ${yOn(10, 'treble')} C 4 ${yOn(5, 'treble')}, 4 ${yOn(1, 'treble')}, 11 0 C 4 ${yOn(-1, 'bass')}, 4 ${yOn(-5, 'bass')}, 14 ${yOn(-10, 'bass')}`}
-        className="staff__brace"
-      />
-      <line
-        x1="20"
-        y1={yOn(10, 'treble')}
-        x2="20"
-        y2={yOn(-10, 'bass')}
-        className="staff__system-line"
-      />
       {(['treble', 'bass'] as const).map((staff) => (
         <g key={staff}>
           {STAFF_LINES[staff].map((steps) => (
@@ -146,7 +191,7 @@ export function StaffGutter() {
   )
 }
 
-/** Brace, clefs and lines together, for a staff that does not scroll. */
+/** Clefs and lines together, for a staff that does not scroll. */
 export function StaffFrame({ width }: { width: number }) {
   return (
     <>

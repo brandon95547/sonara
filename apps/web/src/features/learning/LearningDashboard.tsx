@@ -1,4 +1,3 @@
-import * as React from 'react'
 import { Info, Lightbulb, Minus, Plus, RotateCcw } from 'lucide-react'
 import {
   currentStep,
@@ -19,38 +18,40 @@ import { Switch } from '@/ui/Controls'
 import { cn } from '@/lib/cn'
 import { useLearningStore } from '@/state/learning-store'
 import { HandDiagram } from './HandDiagram'
-import { ScaleTheoryDialog } from './ScaleTheoryDialog'
+import { panelActions } from '@/state/panel-store'
 
 /**
- * The dashboard under the keyboard.
+ * Everything about the run in progress, for the Progress panel.
+ *
+ * It used to be a dashboard of six cards under the keyboard, which put the
+ * keyboard in the middle of the page and the scale's own facts below the fold.
+ * It is a panel now, opened from the bar: the staff and the keys take the
+ * screen, and this is one click away. Ordered for a player mid-run — where they
+ * are and how it is going first, what the scale is further down.
  *
  * It reads the exercise and the session and nothing else — no scale-specific
  * branches anywhere in this file. When chords and progressions get builders,
  * these cards render them without being touched: the title, the facts, the
  * current step and the score are all part of the generic model.
  */
-export function LearningDashboard() {
+export function SessionPanelContent() {
   const { exercise, mode, session, demoStepIndex } = useLearningStore()
 
   if (!exercise) return null
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="grid gap-4 lg:grid-cols-3">
-        <MaterialCard exercise={exercise} />
-        <CurrentStepCard
-          exercise={exercise}
-          mode={mode}
-          session={session}
-          demoStepIndex={demoStepIndex}
-        />
-        <ProgressCard exercise={exercise} mode={mode} session={session} />
-      </div>
-      <div className="grid gap-4 lg:grid-cols-3">
-        <InstructionsCard mode={mode} />
-        <HandPositionCard exercise={exercise} session={session} />
-        <PracticeControlsCard />
-      </div>
+      <CurrentStepCard
+        exercise={exercise}
+        mode={mode}
+        session={session}
+        demoStepIndex={demoStepIndex}
+      />
+      <ProgressCard exercise={exercise} mode={mode} session={session} />
+      <PracticeControlsCard />
+      <HandPositionCard exercise={exercise} session={session} />
+      <MaterialCard exercise={exercise} />
+      <InstructionsCard mode={mode} />
     </div>
   )
 }
@@ -69,8 +70,6 @@ export function LearningDashboard() {
  * play.
  */
 function MaterialCard({ exercise }: { exercise: Exercise }) {
-  const [explain, setExplain] = React.useState(false)
-
   return (
     <Card variant="elevated" className="flex flex-col gap-4">
       <div className="flex items-start gap-3">
@@ -84,7 +83,7 @@ function MaterialCard({ exercise }: { exercise: Exercise }) {
           className="-mr-1 shrink-0"
           label="Understand this scale"
           icon={<Info />}
-          onClick={() => setExplain(true)}
+          onClick={() => panelActions.open('theory')}
         />
       </div>
 
@@ -131,8 +130,6 @@ function MaterialCard({ exercise }: { exercise: Exercise }) {
           </div>
         </>
       )}
-
-      <ScaleTheoryDialog open={explain} onClose={() => setExplain(false)} />
     </Card>
   )
 }

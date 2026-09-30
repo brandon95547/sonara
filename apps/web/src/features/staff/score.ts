@@ -14,7 +14,7 @@ import {
   type Staff,
   type WrittenValue,
 } from '@sonara/shared'
-import { HALF_HEIGHT, KEY_X, keyWidth, STEP, yOn } from './staff-frame'
+import { HALF_HEIGHT, KEY_X, keyWidth, PAPER_GAP, STEP, yOn } from './staff-frame'
 import { chordExtent, staffOf, type DrawnNote } from './StaffNotes'
 import type { SongPart } from '@/state/song-store'
 
@@ -89,6 +89,12 @@ export interface ScoreSource {
   readonly key?: { readonly fifths: number } | null
   /** The bars as a file laid them out. Without them, a bar is `measureMs` long. */
   readonly measures?: Song['measures']
+  /**
+   * How much room a bar gets before clamping, in units. A song keeps the
+   * default; a scale — even steps, no rhythm to show — asks for less, so a
+   * two-octave run fits the paper instead of scrolling a third of itself away.
+   */
+  readonly barWidth?: number
 }
 
 /**
@@ -212,7 +218,7 @@ export function measureScore(
     let gap = 0
     if (index > 0) {
       const elapsed = step.startMs - steps[index - 1]!.startMs
-      const rhythmic = Math.min(MAX_GAP, (elapsed / measureMs) * MEASURE_WIDTH)
+      const rhythmic = Math.min(MAX_GAP, (elapsed / measureMs) * (song?.barWidth ?? MEASURE_WIDTH))
       gap = Math.max(MIN_GAP, rhythmic, previous + extent.left + AIR)
     }
     previous = extent.right
@@ -274,6 +280,35 @@ export function frameOf(measured: readonly Measured[]): { top: number; bottom: n
     bottom = Math.max(bottom, extent.bottom)
   }
   return { top: Math.floor(top), bottom: Math.ceil(bottom) }
+}
+
+/**
+ * How far each sheet of paper has to reach into the gap between them.
+ *
+ * The treble's paper ends above the gap and the bass's begins below it — until a
+ * note needs the room. A right-hand scale from the A below middle C, or a left
+ * hand climbing past it, writes on ledger lines out in the space between the
+ * staves, and paper that stops where it always stops leaves those noteheads on
+ * the stage. So each edge follows the notes nearest it, with room for a sharp:
+ * the tallest mark a notehead carries beside it.
+ */
+const EDGE_INK = STEP * 3
+
+export function paperEdges(measured: readonly Measured[]): {
+  trebleBottom: number
+  bassTop: number
+} {
+  let trebleBottom = -PAPER_GAP / 2
+  let bassTop = PAPER_GAP / 2
+  for (const { notes } of measured) {
+    for (const note of notes) {
+      const staff = staffOf(note)
+      const y = yOn(staffPlacement(note.note, note.spelling, staff).steps, staff)
+      if (staff === 'treble') trebleBottom = Math.max(trebleBottom, y + EDGE_INK)
+      else bassTop = Math.min(bassTop, y - EDGE_INK)
+    }
+  }
+  return { trebleBottom, bassTop }
 }
 
 export interface Placed extends Measured {

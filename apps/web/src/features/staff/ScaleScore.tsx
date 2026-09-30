@@ -41,6 +41,8 @@ const BEAT_MS = 500
 const BEATS_PER_BAR = 4
 /** How many steps ahead keep a marking, matching the keyboard in Learn. */
 const LOOKAHEAD = 6
+/** The notes whose fingering the staff prints: none of them. See below. */
+const NO_FINGERING: ReadonlySet<SongNote> = new Set()
 
 /** How the exercise writes this note — the spelling it chose for its key. */
 function spellingOf(exercise: Exercise, note: number): Spelling | undefined {
@@ -90,8 +92,15 @@ export const ScaleScore = React.memo(function ScaleScore() {
       bpm: 60000 / BEAT_MS,
       measureMs: BEAT_MS * BEATS_PER_BAR,
       key: { fifths },
+      // A crotchet at the least gap any note gets: even steps, packed as tight
+      // as the ink allows, the way a scale book sets a run.
+      barWidth: 160,
     }
-    return measureScore(source, scaleSteps(exercise))
+    // Fingering is carried on every note but printed on none: a scale is one
+    // line of single notes, and the numbers belong on the keys (Key labels ▸
+    // Fingers) where the finger actually lands. On the staff they were a row of
+    // digits under a row of notes, doubling the ink for what the eye has to read.
+    return measureScore(source, scaleSteps(exercise), NO_FINGERING)
   }, [exercise, fifths])
 
   /**
@@ -123,6 +132,11 @@ export const ScaleScore = React.memo(function ScaleScore() {
       beats={BEATS_PER_BAR}
       beatType={4}
       roleFor={roleFor}
+      // A scale has no metre to state and is too short to need its bars
+      // numbered; the bar lines stay, because they are what the accidentals
+      // are counted against.
+      withTime={false}
+      numbered={false}
       label={`${exercise.title}, ${exercise.subtitle}: ${exercise.steps.map((step) => step.label).join(' ')}`}
     />
   )

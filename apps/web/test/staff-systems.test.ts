@@ -6,9 +6,11 @@ import {
   breakIntoSystems,
   headerEnd,
   measureScore,
+  paperEdges,
   place,
   type Measured,
 } from '@/features/staff/score'
+import { PAPER_GAP, STEP, yOn } from '@/features/staff/staff-frame'
 
 /**
  * Where the lines break, and what breaking them is not allowed to change.
@@ -185,5 +187,43 @@ describe('switching between the views', () => {
     expect(after.staffView).toBe('sheet')
     for (const [key, value] of Object.entries(before))
       expect(after[key as keyof typeof before]).toBe(value)
+  })
+})
+
+/** One note, alone, in the hand given. */
+function single(note: number, hand: 'left' | 'right') {
+  return measureScore(null, [
+    {
+      startMs: 0,
+      notes: [{ note, velocity: 80, startMs: 0, durationMs: 400, hand, role: 'keyboard' }],
+    },
+  ])
+}
+
+/**
+ * Each staff is on its own sheet of paper, with the stage showing between
+ * them — until a note is written out in that gap. A right-hand scale from the
+ * A below middle C does exactly that, and paper that stopped where it always
+ * stops left its first notes hanging on the stage.
+ */
+describe('the paper under the staves', () => {
+  const apart = { trebleBottom: -PAPER_GAP / 2, bassTop: PAPER_GAP / 2 }
+
+  it('leaves the stage showing between the sheets when every note sits on its staff', () => {
+    expect(paperEdges(demo().measured)).toEqual(apart)
+  })
+
+  it('reaches down under a right-hand note written below the treble', () => {
+    // A3: two ledger lines under the treble staff, two steps below middle C.
+    const edges = paperEdges(single(57, 'right'))
+    expect(edges.trebleBottom).toBeGreaterThan(yOn(-2, 'treble') + STEP)
+    expect(edges.bassTop).toBe(apart.bassTop)
+  })
+
+  it('reaches up over a left-hand note written above the bass', () => {
+    // D4: a step above middle C, on ledger lines over the bass staff.
+    const edges = paperEdges(single(62, 'left'))
+    expect(edges.bassTop).toBeLessThan(yOn(1, 'bass') - STEP)
+    expect(edges.trebleBottom).toBe(apart.trebleBottom)
   })
 })
