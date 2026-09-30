@@ -74,7 +74,14 @@ export function BarLines({
  * it is pointing at, and the eye reads the block instead of them. Drawn under
  * the notes for the same reason — its glow laid over a note hanging off the
  * paper washed the notehead out until a crotchet read as a minim.
+ *
+ * Not drawn yet: it belongs to interactive playback, which is still to come,
+ * and until then a line with nothing driving it is a promise the page cannot
+ * keep. Your place is still marked on the notes themselves (see `Role`). Both
+ * views check this one switch, so turning it back on is one line.
  */
+export const PLAYHEAD_SHOWN = false
+
 export function Playhead({ x }: { x: number }) {
   return (
     <line x1={x} y1={yOn(12, 'treble')} x2={x} y2={yOn(-12, 'bass')} className="staff__playhead" />

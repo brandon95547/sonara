@@ -1,7 +1,16 @@
 import * as React from 'react'
 import { useElementSize } from '@/lib/hooks'
 import { GUTTER, STAFF_BANDS, STAFF_START, StaffGutter, StaffLines } from './staff-frame'
-import { BarLines, isLive, LiveStep, Playhead, Signatures, Step, type Role } from './score-parts'
+import {
+  BarLines,
+  isLive,
+  LiveStep,
+  Playhead,
+  PLAYHEAD_SHOWN,
+  Signatures,
+  Step,
+  type Role,
+} from './score-parts'
 import { barLinesIn, frameOf, headerEnd, place, type Measured, type Placed } from './score'
 
 /**
@@ -134,7 +143,7 @@ export function FlowView({
           <StaffLines from={GUTTER} to={totalWidth} />
           <Signatures fifths={fifths} beats={beats} beatType={beatType} withTime={withTime} />
           <BarLines lines={barLinesIn(placed)} numbered={numbered} />
-          {placed[here] && <Playhead x={placed[here]!.x} />}
+          {PLAYHEAD_SHOWN && placed[here] && <Playhead x={placed[here]!.x} />}
           {placed.map((entry) => (
             <StepAt key={entry.index} placed={entry} role={roleFor(entry.index)} fifths={fifths} />
           ))}

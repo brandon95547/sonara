@@ -1,7 +1,16 @@
 import * as React from 'react'
 import { useElementSize } from '@/lib/hooks'
 import { HALF_HEIGHT, PaperCards, StaffFrame } from './staff-frame'
-import { BarLines, isLive, LiveStep, Playhead, Signatures, Step, type Role } from './score-parts'
+import {
+  BarLines,
+  isLive,
+  LiveStep,
+  Playhead,
+  PLAYHEAD_SHOWN,
+  Signatures,
+  Step,
+  type Role,
+} from './score-parts'
 import {
   barLinesIn,
   breakIntoSystems,
@@ -138,7 +147,9 @@ export function SheetView({
                 withTime={system.from === 0}
               />
               <BarLines lines={barLinesIn(system.placed)} />
-              {system === current && <Playhead x={system.placed[here - system.from]!.x} />}
+              {PLAYHEAD_SHOWN && system === current && (
+                <Playhead x={system.placed[here - system.from]!.x} />
+              )}
               {system.placed.map((entry) => (
                 <StepAt
                   key={entry.index}

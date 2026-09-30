@@ -82,7 +82,8 @@ describe('the scale on the staff', () => {
   it('marks your place the way the keyboard does, and moves with you', () => {
     const { container } = render(<ScaleScore />)
     expect(rolesOf(container).slice(0, 3)).toEqual(['target', 'upcoming', 'upcoming'])
-    expect(container.querySelector('.staff__playhead')).not.toBeNull()
+    // The notes carry your place; the playhead line waits for interactive playback.
+    expect(container.querySelector('.staff__playhead')).toBeNull()
 
     act(() => {
       store().start()
