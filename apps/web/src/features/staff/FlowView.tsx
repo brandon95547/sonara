@@ -41,6 +41,7 @@ export function FlowView({
   label,
   withTime = true,
   numbered = true,
+  watchAll = false,
 }: {
   measured: readonly Measured[]
   here: number
@@ -53,6 +54,17 @@ export function FlowView({
   withTime?: boolean
   /** Bar numbers, so a player can say where they are. A scale is too short to need them. */
   numbered?: boolean
+  /**
+   * Every chord lights when its keys go down, not only the few near your place.
+   *
+   * A song keeps to the window: it has hundreds of chords and plays middle C
+   * fifty times, so lighting all of them costs a redraw of the piece and says
+   * nothing about where you are. A scale has a couple of dozen notes and each
+   * pitch at most twice, and a player running up it before pressing Start — or
+   * past the window after — expects the note they are holding to light where
+   * it is written.
+   */
+  watchAll?: boolean
 }) {
   const [frameRef, size] = useElementSize<HTMLDivElement>()
   const scrollRef = React.useRef<HTMLDivElement>(null)
@@ -144,18 +156,37 @@ export function FlowView({
           <Signatures fifths={fifths} beats={beats} beatType={beatType} withTime={withTime} />
           <BarLines lines={barLinesIn(placed)} numbered={numbered} />
           {PLAYHEAD_SHOWN && placed[here] && <Playhead x={placed[here]!.x} />}
-          {placed.map((entry) => (
-            <StepAt key={entry.index} placed={entry} role={roleFor(entry.index)} fifths={fifths} />
-          ))}
+          {placed.map((entry) => {
+            const role = roleFor(entry.index)
+            return (
+              <StepAt
+                key={entry.index}
+                placed={entry}
+                role={role}
+                live={watchAll || isLive(role)}
+                fifths={fifths}
+              />
+            )
+          })}
         </svg>
       </div>
     </div>
   )
 }
 
-/** Watched if it is near the playhead, drawn once and left alone if it is not. */
-function StepAt({ placed, role, fifths }: { placed: Placed; role: Role; fifths: number }) {
-  return isLive(role) ? (
+/** Watched if it is live, drawn once and left alone if it is not. */
+function StepAt({
+  placed,
+  role,
+  live,
+  fifths,
+}: {
+  placed: Placed
+  role: Role
+  live: boolean
+  fifths: number
+}) {
+  return live ? (
     <LiveStep placed={placed} role={role} fifths={fifths} />
   ) : (
     <Step placed={placed} role={role} fifths={fifths} lit="" />

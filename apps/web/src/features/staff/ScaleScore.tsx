@@ -137,6 +137,9 @@ export const ScaleScore = React.memo(function ScaleScore() {
       // are counted against.
       withTime={false}
       numbered={false}
+      // Short enough to watch every note, so any key of the scale lights where
+      // it is written — started or not, near your place or not.
+      watchAll
       label={`${exercise.title}, ${exercise.subtitle}: ${exercise.steps.map((step) => step.label).join(' ')}`}
     />
   )

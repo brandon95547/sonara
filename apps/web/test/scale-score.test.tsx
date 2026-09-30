@@ -2,6 +2,7 @@ import { act, cleanup, render } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_SCALE_SPEC, staffFor } from '@sonara/shared'
 import { useLearningStore } from '@/state/learning-store'
+import { useKeyboardStore } from '@/state/keyboard-store'
 import { STAFF_BANDS, STAFF_START } from '@/features/staff/staff-frame'
 
 /**
@@ -59,6 +60,9 @@ const { ScaleScore, scaleSteps } = await import('@/features/staff/ScaleScore')
 const store = () => useLearningStore.getState()
 const drawnSteps = (root: HTMLElement) => [...root.querySelectorAll<SVGGElement>('.staff__step')]
 const rolesOf = (root: HTMLElement) => drawnSteps(root).map((step) => step.dataset.role)
+/** Which drawn steps have a note lit because its key is down. */
+const litSteps = (root: HTMLElement) =>
+  drawnSteps(root).flatMap((step, i) => (step.querySelector('[data-sounding="true"]') ? [i] : []))
 const label = (root: HTMLElement) => root.querySelector('svg.staff')?.getAttribute('aria-label')
 
 beforeEach(() => {
@@ -68,7 +72,10 @@ beforeEach(() => {
   store().updateSpec(DEFAULT_SCALE_SPEC)
   store().setMode('learn')
 })
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  useKeyboardStore.getState().panic()
+})
 
 describe('the scale on the staff', () => {
   it('writes out every note of the exercise, before anything is played', () => {
@@ -90,6 +97,19 @@ describe('the scale on the staff', () => {
       store().noteOn(store().exercise!.steps[0]!.notes[0]!)
     })
     expect(rolesOf(container).slice(0, 3)).toEqual(['played', 'target', 'upcoming'])
+  })
+
+  it('lights any note of the scale you hold, however far from your place', () => {
+    const { container } = render(<ScaleScore />)
+    const steps = store().exercise!.steps
+    // The second octave's E: well past the handful after your place, before
+    // Start has been pressed.
+    const far = steps[11]!.notes[0]!
+    act(() => useKeyboardStore.getState().noteOn(far, 90, 'midi'))
+    expect(litSteps(container)).toEqual([11])
+
+    act(() => useKeyboardStore.getState().noteOff(far))
+    expect(litSteps(container)).toEqual([])
   })
 
   it('in Explore, writes the whole scale plainly and claims no place in it', () => {
