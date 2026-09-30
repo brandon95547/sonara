@@ -1223,8 +1223,8 @@
   gap: 10px;
   margin-right: 2px;
 }
-/* The mark: a flat grand piano, white on the bar with its keys cut through.
-   As tall as the bar's controls, since the key gaps close up much smaller. */
+/* The mark: three keys in a ring, white on the bar. As tall as the bar's
+   controls, since the gaps between the keys close up much smaller. */
 .top-bar__logo {
   display: block;
   flex: none;
