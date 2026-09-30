@@ -1223,8 +1223,8 @@
   gap: 10px;
   margin-right: 2px;
 }
-/* The mark: a flat grand piano, white on the bar. As tall as the bar's
-   controls, since its legs and pedals are fine detail that fills in smaller. */
+/* The mark: a flat grand piano, white on the bar with its keys cut through.
+   As tall as the bar's controls, since the key gaps close up much smaller. */
 .top-bar__logo {
   display: block;
   flex: none;

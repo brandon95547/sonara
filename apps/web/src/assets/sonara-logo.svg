@@ -1,64 +1,71 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="68 78 399 384">
-  <g fill="#fff">
-    <!-- Piano body -->
-    <path d="M78 283
-             V178
-             C78 119 120 82 177 82
-             C239 82 270 119 306 166
-             C339 209 368 230 414 236
-             C443 240 457 254 457 279
-             V292
-             H78 Z"/>
+<defs>
+  <mask id="pianoMask">
+    <rect width="512" height="512" fill="black"/>
 
-    <!-- Keyboard frame -->
-    <path d="M72 292 H463 V355 H72 Z"/>
+    <!-- Main piano silhouette -->
+    <path fill="white" d="
+      M78 283V178
+      C78 119 120 82 177 82
+      C239 82 270 119 306 166
+      C339 209 368 230 414 236
+      C443 240 457 254 457 279
+      V292H78Z
 
-    <!-- White keys -->
-    <path d="M82 298 H119 V347 H82 Z
-             M124 298 H161 V347 H124 Z
-             M166 298 H203 V347 H166 Z
-             M208 298 H245 V347 H208 Z
-             M250 298 H287 V347 H250 Z
-             M292 298 H329 V347 H292 Z
-             M334 298 H371 V347 H334 Z
-             M376 298 H413 V347 H376 Z
-             M418 298 H453 V347 H418 Z"/>
+      M72 292H463V371
+      C463 378 458 383 451 383
+      H84C77 383 72 378 72 371Z
 
-    <!-- Base rail -->
-    <path d="M72 355 H463 V371
-             C463 378 458 383 451 383
-             H84 C77 383 72 378 72 371 Z"/>
+      M92 380H119L113 445
+      C112 453 107 458 100 458
+      C93 458 89 453 90 445Z
 
-    <!-- Legs -->
-    <path d="M92 380 H119 L113 445
-             C112 453 107 458 100 458
-             C93 458 89 453 90 445 Z"/>
-    <path d="M416 380 H443 L445 445
-             C446 453 441 458 434 458
-             C427 458 422 453 421 445 Z"/>
+      M416 380H443L445 445
+      C446 453 441 458 434 458
+      C427 458 422 453 421 445Z
 
-    <!-- Pedal support -->
-    <path d="M251 380 H278 V420 H251 Z"/>
-    <path d="M259 414 H267 V440 H259 Z"/>
-    <ellipse cx="247" cy="444" rx="13" ry="7"/>
-    <ellipse cx="264" cy="446" rx="13" ry="7"/>
-    <ellipse cx="281" cy="444" rx="13" ry="7"/>
-  </g>
+      M251 380H278V420H251Z"/>
 
-  <!-- Transparent key cutouts -->
-  <mask id="keyMask">
-    <rect width="512" height="512" fill="white"/>
+    <!-- Transparent separation above keyboard -->
+    <rect x="78" y="288" width="379" height="7" fill="black"/>
+
+    <!-- Keyboard opening / individual key divisions -->
+    <rect x="82" y="300" width="371" height="49" rx="2" fill="white"/>
+
+    <!-- vertical gaps between white keys -->
     <g fill="black">
-      <rect x="110" y="298" width="13" height="30" rx="2"/>
-      <rect x="152" y="298" width="13" height="30" rx="2"/>
-      <rect x="194" y="298" width="13" height="30" rx="2"/>
-      <rect x="236" y="298" width="13" height="30" rx="2"/>
-      <rect x="278" y="298" width="13" height="30" rx="2"/>
-      <rect x="320" y="298" width="13" height="30" rx="2"/>
-      <rect x="362" y="298" width="13" height="30" rx="2"/>
-      <rect x="404" y="298" width="13" height="30" rx="2"/>
+      <rect x="122" y="300" width="5" height="49"/>
+      <rect x="163" y="300" width="5" height="49"/>
+      <rect x="204" y="300" width="5" height="49"/>
+      <rect x="245" y="300" width="5" height="49"/>
+      <rect x="286" y="300" width="5" height="49"/>
+      <rect x="327" y="300" width="5" height="49"/>
+      <rect x="368" y="300" width="5" height="49"/>
+      <rect x="409" y="300" width="5" height="49"/>
+
+      <!-- black-key shapes as transparent negative space -->
+      <rect x="111" y="300" width="14" height="28" rx="2"/>
+      <rect x="152" y="300" width="14" height="28" rx="2"/>
+      <rect x="193" y="300" width="14" height="28" rx="2"/>
+      <rect x="234" y="300" width="14" height="28" rx="2"/>
+      <rect x="275" y="300" width="14" height="28" rx="2"/>
+      <rect x="316" y="300" width="14" height="28" rx="2"/>
+      <rect x="357" y="300" width="14" height="28" rx="2"/>
+      <rect x="398" y="300" width="14" height="28" rx="2"/>
     </g>
   </mask>
-  <path mask="url(#keyMask)" fill="#fff"
-        d="M72 292 H463 V355 H72 Z"/>
+</defs>
+
+<!-- Entire mark is white; key details are actual transparency -->
+<rect width="512" height="512" fill="white" mask="url(#pianoMask)"/>
+
+<!-- pedals -->
+<g fill="white">
+  <path d="M257 414H264V438H257Z"/>
+  <path d="M270 414H277V438H270Z"/>
+  <path d="M244 414H251V438H244Z"/>
+  <ellipse cx="247" cy="444" rx="13" ry="7"/>
+  <ellipse cx="264" cy="446" rx="13" ry="7"/>
+  <ellipse cx="281" cy="444" rx="13" ry="7"/>
+</g>
 </svg>
