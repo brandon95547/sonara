@@ -90,10 +90,10 @@
 
   /* --- The practice room ---------------------------------------------------
      A dark bar over a bright stage, with the paper in the middle, as the design
-     for this screen draws it. These come from the palette's blue ramp by name:
-     the semantic tier has no word for "the colour of the room", and the one
-     blue it does name (--ds-info) is kept for what it means — the playhead,
-     which is information about where you are. */
+     for this screen draws it. The bar comes from the palette's blue ramp by
+     name: the semantic tier has no word for "the colour of the room", and the
+     one blue it does name (--ds-info) is kept for what it means — the playhead,
+     which is information about where you are. The stage is a set lavender. */
   --c-bar: var(--p-info-900);
   --c-bar-fg: #ffffff;
   /* 8.6:1 on the bar. */
@@ -103,7 +103,7 @@
   --c-bar-line: rgb(255 255 255 / 0.14);
   /* A switch that is on — the metronome ticking. */
   --c-bar-on: var(--p-info-300);
-  --c-stage: var(--p-info-500);
+  --c-stage: #b2aaec;
 
   /* "Now": the note on the staff and the key on the keyboard you are to play,
      one colour in both places so the eye can go from one to the other. 5.5:1
@@ -753,7 +753,7 @@
 }
 
 /* Above the staff, so on the stage rather than the paper: full ink, which
-   measures 4.6:1 on the blue and 17.9:1 on white. */
+   measures 8.4:1 on the stage and 17.9:1 on white. */
 .staff__bar-number {
   fill: var(--c-ink);
   font-size: 11px;
@@ -824,7 +824,7 @@
 
 /* Fingering: wanted, but never at the expense of the note it belongs to —
    which is size and weight here, not a paler ink. A number above or below the
-   staff is off the paper, and grey on the blue stage measures 1.8:1. */
+   staff is off the paper, and grey on the stage measures 1.1:1. */
 .staff__finger {
   fill: var(--c-ink);
   font-size: 10px;
@@ -896,7 +896,7 @@
 
 /* Off the paper. A note on ledger lines stands on the stage, and both colours
    that mark a note — the blue of where you are, the violet of what is sounding
-   — all but vanish against it, at 1.4:1 and 1.2:1. A hairline of paper round
+   — all but vanish against it, at 2.6:1 and 2.3:1. A hairline of paper round
    them keeps them readable there; on the paper it is white on white. */
 .staff__step[data-role='target'] :is(.staff__note, .staff__stem, .staff__flag),
 :is(.staff__note, .staff__stem, .staff__flag)[data-sounding='true'] {
@@ -1141,8 +1141,8 @@
 /* ---- Song progress -------------------------------------------------------
    Above the staff and inside the instrument panel, so where you are in the
    piece sits with the piece rather than with the controls that change it. */
-/* A strip in the bar's navy, the same surface as the stage's pills: the blue
-   stage cannot carry small text of its own — white on it is under 4:1. */
+/* A strip in the bar's navy, the same surface as the stage's pills: the
+   stage cannot carry small text of its own — white on it is 2.1:1. */
 .song-progress {
   display: flex;
   flex: none;
