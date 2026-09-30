@@ -1223,8 +1223,8 @@
   gap: 10px;
   margin-right: 2px;
 }
-/* The mark: a figure flowing into a note, white on the bar. As tall as the
-   bar's controls, since its orbit lines are thin and vanish much smaller. */
+/* The mark: a grand piano, white on the bar. As tall as the bar's controls,
+   since its keys and pedal lyre are fine detail that fills in much smaller. */
 .top-bar__logo {
   display: block;
   flex: none;

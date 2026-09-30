@@ -1,48 +1,22 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="71 92 350 334">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="80 72 332 352">
   <g fill="#fff">
-    <!-- stylized face and flowing neck -->
-    <path d="M77 250
-      C96 239 110 222 117 199
-      C124 176 128 151 146 128
-      C136 164 142 199 165 224
-      C186 247 206 264 229 276
-      C251 288 273 290 294 283
-      C277 302 254 313 229 311
-      C204 309 184 299 165 285
-      C151 275 139 270 126 270
-      C115 270 107 273 98 276
-      C88 279 80 274 78 266
-      C76 260 80 255 87 251
-      C81 251 78 251 77 250 Z"/>
-
-    <!-- flowing lower ribbons -->
-    <path d="M125 269 C158 286 174 320 163 357 C156 381 140 402 116 420
-             C132 391 134 362 122 337 C111 314 103 291 107 275 Z"/>
-    <path d="M151 284 C184 310 212 334 252 344 C288 353 325 349 365 366
-             C331 363 300 371 266 366 C216 359 180 330 151 284 Z"/>
-    <path d="M166 301 C205 334 240 360 290 371 C322 378 347 390 365 414
-             C338 395 310 392 277 389 C226 384 190 350 166 301 Z"/>
-
-    <!-- central musical note -->
-    <ellipse cx="260" cy="255" rx="31" ry="26"/>
-    <path d="M284 253 L311 100
-             C328 108 341 124 356 134
-             C373 146 392 146 414 135
-             C401 154 382 164 362 164
-             C345 164 332 158 321 149
-             L299 264 Z"/>
-
-    <!-- orbit arcs -->
-    <path d="M154 192 A124 124 0 0 1 291 108" fill="none" stroke="#fff" stroke-width="8" stroke-linecap="round"/>
-    <path d="M171 211 A102 102 0 0 1 289 132" fill="none" stroke="#fff" stroke-width="7" stroke-linecap="round"/>
-    <path d="M303 145 A118 118 0 0 1 360 291" fill="none" stroke="#fff" stroke-width="8" stroke-linecap="round"/>
-    <path d="M331 189 A92 92 0 0 1 321 318" fill="none" stroke="#fff" stroke-width="7" stroke-linecap="round"/>
-    <path d="M194 301 A108 108 0 0 0 310 322" fill="none" stroke="#fff" stroke-width="7" stroke-linecap="round"/>
-
-    <!-- orbit nodes -->
-    <circle cx="151" cy="113" r="15"/>
-    <circle cx="184" cy="171" r="10"/>
-    <circle cx="365" cy="244" r="16"/>
-    <circle cx="351" cy="310" r="10"/>
+    <!-- lid and case -->
+    <path d="M103 277C154 263 203 235 245 198C292 157 333 111 400 80C368 116 347 153 345 191C343 224 354 246 374 269L401 278C409 281 410 290 402 295L378 307L130 291C116 290 106 286 103 277Z"/>
+    <path d="M91 268C112 218 162 197 215 174C276 147 315 106 365 76C306 91 264 122 218 153C166 188 116 203 91 235C82 247 82 259 91 268Z"/>
+    <!-- keybed and keys -->
+    <path d="M92 303L375 320L366 353L93 332Z"/>
+    <path d="M108 304L143 306L137 327L102 324Z"/>
+    <path d="M148 307L183 309L177 330L142 328Z"/>
+    <path d="M188 309L223 311L217 333L182 330Z"/>
+    <path d="M228 312L263 314L257 336L222 333Z"/>
+    <path d="M268 314L303 316L297 339L262 336Z"/>
+    <path d="M308 317L343 319L337 342L302 339Z"/>
+    <!-- legs and pedal lyre -->
+    <path d="M112 330L137 332L128 416L113 416Z"/>
+    <path d="M338 346L363 348L359 420L344 420Z"/>
+    <path d="M233 341L247 342L247 392L233 392Z"/>
+    <ellipse cx="224" cy="399" rx="15" ry="7"/>
+    <ellipse cx="243" cy="401" rx="15" ry="7"/>
+    <ellipse cx="262" cy="399" rx="15" ry="7"/>
   </g>
 </svg>
