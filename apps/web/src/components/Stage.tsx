@@ -70,7 +70,7 @@ function EngineNotice() {
   const steady =
     status.unlocked && !status.loadingSamples && !status.fallbackReason && status.kind === 'sampled'
   if (!status.instrumentId || steady) return null
-  // On the bar's navy, like the stage's other notices. The chip's own tints are
+  // On the bar's colour, like the stage's other notices. The chip's own tints are
   // made for the app's dark surfaces, and its text on the bright stage measures
   // under 2:1.
   return (

@@ -90,13 +90,14 @@
 
   /* --- The practice room ---------------------------------------------------
      A dark bar over a bright stage, with the paper in the middle, as the design
-     for this screen draws it. The bar comes from the palette's blue ramp by
-     name: the semantic tier has no word for "the colour of the room", and the
-     one blue it does name (--ds-info) is kept for what it means — the playhead,
-     which is information about where you are. The stage is a set lavender. */
-  --c-bar: var(--p-info-900);
+     for this screen draws it. Both are set values rather than ramp steps: a
+     charcoal bar and a lavender stage. The one blue the semantic tier names
+     (--ds-info) is kept for what it means — the playhead, which is information
+     about where you are. Everything on the stage that needs a dark surface to
+     carry small text (pills, the run meter, the keys' felt) uses the bar's. */
+  --c-bar: #2b2b2b;
   --c-bar-fg: #ffffff;
-  /* 8.6:1 on the bar. */
+  /* 8.5:1 on the bar. */
   --c-bar-fg-muted: rgb(255 255 255 / 0.74);
   --c-bar-hover: rgb(255 255 255 / 0.08);
   --c-bar-pressed: rgb(255 255 255 / 0.16);
@@ -1141,7 +1142,7 @@
 /* ---- Song progress -------------------------------------------------------
    Above the staff and inside the instrument panel, so where you are in the
    piece sits with the piece rather than with the controls that change it. */
-/* A strip in the bar's navy, the same surface as the stage's pills: the
+/* A strip in the bar's colour, the same surface as the stage's pills: the
    stage cannot carry small text of its own — white on it is 2.1:1. */
 .song-progress {
   display: flex;
@@ -1312,7 +1313,7 @@
   cursor: not-allowed;
 }
 /* A setting's value, printed on the corner of its icon: the key, "R", "2",
-   the tempo. White on the navy it sits in, with a ring of the bar round it so
+   the tempo. White on the bar it sits in, with a ring of the bar round it so
    it reads as a tag on the icon rather than a second glyph beside it. */
 .bar-glyph {
   position: relative;
@@ -1342,7 +1343,7 @@
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--c-bar-fg) 12%, var(--c-bar));
 }
 
-/* The same controls inside a panel, where the bar's white-on-navy would be
+/* The same controls inside a panel, where the bar's white-on-charcoal would be
    white on a dark sheet with no edge. */
 .bar-icon-button--panel {
   border: 1px solid var(--ds-border-interactive);
@@ -1838,9 +1839,9 @@ button.area-card:focus-visible {
   font-weight: 500;
 }
 /* ---- The run meter -------------------------------------------------------
-   A game's progress bar: a recessed track in the bar's navy, a glossy fill
+   A game's progress bar: a recessed track in the bar's colour, a glossy fill
    that springs a little past each step and settles, one segment per note, and
-   a flash at the leading edge as each one lands. On the navy for the same
+   a flash at the leading edge as each one lands. On the bar's colour for the same
    reason as the pills — the lavender carries no small text. */
 .run-meter {
   display: flex;
@@ -1980,7 +1981,7 @@ button.area-card:focus-visible {
   }
 }
 
-/* A status chip from elsewhere in the app, given the same navy to sit on. */
+/* A status chip from elsewhere in the app, given the bar's colour to sit on. */
 .stage-chip {
   display: inline-flex;
   padding: 4px;
