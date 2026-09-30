@@ -1,9 +1,9 @@
-import { Hand, ListMusic, Pause, Play, RotateCcw, SkipBack, SkipForward, Timer } from 'lucide-react'
+import { Hand, ListMusic, Pause, Play, SkipBack, SkipForward, Timer } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { SelectMenu } from '@/ui/Menu'
 import { MetronomeIcon } from '@/ui/MetronomeIcon'
 import { BarGlyph } from '@/ui/BarGlyph'
-import { MODE_ICONS } from '@/features/learning/ScaleControls'
+import { MODE_ICONS, StartStopButton } from '@/features/learning/ScaleControls'
 import { useCurrentSong, useSongStore, type SongPart } from '@/state/song-store'
 import { panelActions } from '@/state/panel-store'
 import { useSongPlayback } from './use-song-playback'
@@ -175,22 +175,7 @@ export function SongTransport() {
   }
 
   if (mode === 'learn') {
-    return learning ? (
-      <button
-        type="button"
-        className="bar-start bar-start--stop"
-        title="Stop"
-        onClick={resetLearning}
-      >
-        <RotateCcw size={18} aria-hidden />
-        <span className="bar-start__label">Stop</span>
-      </button>
-    ) : (
-      <button type="button" className="bar-start" title="Start" onClick={startLearning}>
-        <Play size={18} aria-hidden />
-        <span className="bar-start__label">Start</span>
-      </button>
-    )
+    return <StartStopButton running={learning} onStart={startLearning} onStop={resetLearning} />
   }
 
   const skip = (measures: number) =>

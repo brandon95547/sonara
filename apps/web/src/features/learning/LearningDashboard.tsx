@@ -1,4 +1,4 @@
-import { Info, Lightbulb, Minus, Plus, RotateCcw } from 'lucide-react'
+import { Info, Lightbulb, Minus, Play, Plus, RotateCcw } from 'lucide-react'
 import {
   currentStep,
   accuracy,
@@ -173,7 +173,12 @@ function CurrentStepCard({
         <CompleteBody session={session} exercise={exercise} />
       ) : !running && !demoing ? (
         <p className="py-6 text-body text-[var(--ds-fg-muted)]">
-          Press <span className="text-[var(--ds-fg)]">Start</span> when you are ready.
+          Press{' '}
+          <span className="inline-flex items-center gap-1 align-[-0.125em] text-[var(--ds-fg)]">
+            <Play size={14} aria-hidden />
+            Start
+          </span>{' '}
+          when you are ready.
         </p>
       ) : (
         <div className="flex items-center gap-4">

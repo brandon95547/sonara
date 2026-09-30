@@ -1426,6 +1426,13 @@
 .bar-start--stop:hover {
   background-color: var(--c-bar-hover);
 }
+/* Learn's Start and Stop: the icon alone, square, so the two states are the
+   same size and pressing one does not move the rest of the bar. */
+.bar-start--icon {
+  justify-content: center;
+  width: 44px;
+  padding-inline: 0;
+}
 .bar-status {
   display: inline-flex;
   flex: none;
@@ -1517,6 +1524,10 @@
     height: 40px;
     margin-left: 2px;
     padding-inline: 10px 12px;
+  }
+  .bar-start--icon {
+    width: 40px;
+    padding-inline: 0;
   }
   .bar-status {
     padding-inline: 10px;

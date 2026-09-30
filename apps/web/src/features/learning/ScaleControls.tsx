@@ -553,15 +553,44 @@ export function StartButton() {
     )
   }
 
+  return <StartStopButton running={running} onStart={start} onStop={reset} />
+}
+
+/**
+ * The learn-mode Start, as an icon: play to begin, back-to-the-top while the
+ * run is going. Both states are the same square, so pressing it does not shift
+ * the rest of the bar. Not a stop square: Record, one button along, turns into
+ * one while it records, and two of them side by side ask which one ends what.
+ * Shared with Songs, whose Learn works the same way.
+ */
+export function StartStopButton({
+  running,
+  onStart,
+  onStop,
+}: {
+  running: boolean
+  onStart: () => void
+  onStop: () => void
+}) {
   return running ? (
-    <button type="button" className="bar-start bar-start--stop" title="Stop" onClick={reset}>
+    <button
+      type="button"
+      className="bar-start bar-start--icon bar-start--stop"
+      aria-label="Stop"
+      title="Stop"
+      onClick={onStop}
+    >
       <RotateCcw size={18} aria-hidden />
-      <span className="bar-start__label">Stop</span>
     </button>
   ) : (
-    <button type="button" className="bar-start" title="Start" onClick={start}>
+    <button
+      type="button"
+      className="bar-start bar-start--icon"
+      aria-label="Start"
+      title="Start"
+      onClick={onStart}
+    >
       <Play size={18} aria-hidden />
-      <span className="bar-start__label">Start</span>
     </button>
   )
 }
