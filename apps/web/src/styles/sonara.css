@@ -12,6 +12,15 @@
    piano nobody recognises. So the key faces are real-world values, defined
    here, once, with the reasoning attached; everything about them that is UI —
    the pressed state, the focus ring, the frame they sit in — is semantic.
+   The dashboard is the second exception, for the same kind of reason: it is
+   matched to a photographic mock, not built from the ramp.
+
+   Every colour, shadow, gradient, radius and layer a rule uses is a token in
+   the :root block below, in this order: the keys (faces, pressed, body, light
+   and shade, washes), notation and paper, the practice room (bar, stage, now,
+   playhead), the bar's controls, the run meter, type, shape and layers, the
+   dashboard, the areas. A rule names a token; it does not carry a value. The
+   exceptions are a component's stacking inside itself and plain transparency.
    ========================================================================= */
 
 :root {
@@ -112,6 +121,116 @@
   --c-now: var(--p-info-600);
   --c-now-deep: var(--p-info-700);
   --c-playhead: var(--ds-info);
+
+  /* --- Keys: light and shade -----------------------------------------------
+     The bevels and shadows that make a flat key read as a real one, and the
+     inks printed on keys. Black and white at an alpha, because they are light
+     and shadow rather than colours: each sits over whatever fills the key. */
+  --c-key-bevel: rgb(0 0 0 / 0.55); /* a black key's front edge, at rest */
+  --c-key-bevel-lit: rgb(0 0 0 / 0.5); /* ...and filled: pressed, target */
+  --c-key-bevel-wrong: rgb(0 0 0 / 0.35); /* a white key's edge, marked wrong */
+  --c-key-drop: rgb(0 0 0 / 0.7); /* a black key's shadow on the whites */
+  --c-key-veil: rgb(255 255 255 / 0.55); /* velocity: pales a soft note */
+  --c-key-label: rgb(0 0 0 / 0.42); /* the note name on an ivory key */
+  --c-key-label-pressed: rgb(255 255 255 / 0.85);
+  --c-key-label-on-fill: rgb(255 255 255 / 0.9); /* target blue, wrong red */
+  --c-key-label-on-accent: rgb(0 0 0 / 0.8); /* a held key in Learn: 4.7:1 */
+  --c-key-numeral: rgb(0 0 0 / 0.78); /* the finger number */
+  --c-key-numeral-black: rgb(255 255 255 / 0.88);
+  --c-key-cue: rgb(0 0 0 / 0.55); /* "thumb under" */
+
+  /* --- Key washes ----------------------------------------------------------
+     The tints a key wears for what it means. Channels rather than colours,
+     because each role sets its own strength — `rgb(var(--c-wash-white) / 0.13)`
+     — and the black keys take a lighter violet so a wash still reads on a
+     near-black face. The upper tetrachord has its own hue: the two halves of a
+     scale are equal, so they differ in colour, not in strength. */
+  --c-wash-white: 112 111 211;
+  --c-wash-black: 150 149 240;
+  --c-wash-upper: 51 217 178;
+
+  /* --- Paper's shadows -------------------------------------------------- */
+  --shadow-staff-card: 0 1px 2px rgb(0 0 0 / 0.1), 0 6px 16px -8px rgb(0 0 0 / 0.3);
+  --shadow-paper: 0 3px 6px rgb(0 0 0 / 0.14); /* for a drop-shadow() filter */
+
+  /* --- The bar's controls, and what the bar and stage cast -------------- */
+  --c-bar-control: rgb(255 255 255 / 0.1); /* a filled round button */
+  --c-bar-control-hover: rgb(255 255 255 / 0.18);
+  --c-bar-outline: rgb(255 255 255 / 0.4); /* Stop's ring */
+  --shadow-bar: 0 1px 0 rgb(0 0 0 / 0.25), 0 6px 18px -8px rgb(0 0 0 / 0.5);
+  /* Anything floating on the stage in the bar's colour: the run meter. */
+  --shadow-stage-float: 0 6px 16px -8px rgb(0 0 0 / 0.55);
+
+  /* --- The run meter ---------------------------------------------------- */
+  --c-meter-track: rgb(0 0 0 / 0.42);
+  --shadow-meter-track: inset 0 1px 3px rgb(0 0 0 / 0.6), 0 0 0 1px rgb(255 255 255 / 0.14);
+  --shadow-meter-fill: inset 0 2px 0 rgb(255 255 255 / 0.35), inset 0 -2px 0 rgb(0 0 0 / 0.18);
+  --c-meter-spark: rgb(255 255 255 / 0.95);
+  --c-meter-gleam: rgb(255 255 255 / 0.4);
+
+  /* --- Type ------------------------------------------------------------- */
+  --font-display: 'Playfair Display Variable', Georgia, serif;
+
+  /* --- Shape and layers ----------------------------------------------------
+     The Bible's radii run xs to 3xl; a pill is the one shape they leave out.
+     Layers are for things that sit over other components — a component's own
+     stacking inside itself stays a plain number next to its rule. */
+  --radius-pill: 999px;
+  --z-bar: 30;
+  --z-popover: 45; /* above the page, under a dialog (Tailwind z-50) */
+  --z-overlay: 60; /* the recording count-in and banner, over everything */
+
+  /* --- The dashboard -------------------------------------------------------
+     Matched to its mock (reference.png) rather than taken from the ramp — the
+     same exception the keys are: the page is a photograph of a room, and its
+     cards are dark glass over photographs. Values sampled from the mock. */
+  --c-dash-ink: #ffffff;
+  --c-dash-body: #d0cdc9;
+  --c-dash-quiet: #aeafaf;
+  --c-dash-room: #111214; /* under the photograph, while it loads */
+  --c-dash-shade: 8 8 10; /* channels: the room's darkening */
+  --c-dash-card-rgb: 14 15 17; /* channels: the card and its scrim */
+  --c-dash-card: rgb(var(--c-dash-card-rgb));
+  --c-dash-card-edge: rgb(255 255 255 / 0.13);
+  --c-dash-tile: #0b0b0d; /* the icon tile, before its accent is mixed in */
+  --c-dash-locked-ring: rgb(255 255 255 / 0.28);
+  --c-dash-locked-arrow: rgb(255 255 255 / 0.7);
+  --dash-room-fade: linear-gradient(
+    180deg,
+    rgb(var(--c-dash-shade) / 0.35),
+    rgb(var(--c-dash-shade) / 0.15) 35%,
+    rgb(var(--c-dash-shade) / 0.6)
+  );
+  /* Below 80rem the heading lands on the lit window; this shades it. */
+  --dash-room-side-shade: linear-gradient(
+    90deg,
+    rgb(var(--c-dash-shade) / 0.72),
+    rgb(var(--c-dash-shade) / 0.2) 70%
+  );
+  /* Near-solid under the words on the left, clear over the photograph on the
+     right, and darkened along the bottom under the footer. */
+  --dash-card-scrim:
+    linear-gradient(
+      90deg,
+      rgb(var(--c-dash-card-rgb) / 0.97) 0%,
+      rgb(var(--c-dash-card-rgb) / 0.9) 40%,
+      rgb(var(--c-dash-card-rgb) / 0.5) 70%,
+      rgb(var(--c-dash-card-rgb) / 0.3) 100%
+    ),
+    linear-gradient(0deg, rgb(var(--c-dash-card-rgb) / 0.75), transparent 45%);
+  --shadow-dash-card: 0 22px 44px -22px rgb(0 0 0 / 0.85);
+  --shadow-dash-card-hover: 0 28px 52px -22px rgb(0 0 0 / 0.9);
+  --shadow-dash-title: 0 2px 16px rgb(0 0 0 / 0.6);
+  --shadow-dash-lede: 0 1px 10px rgb(0 0 0 / 0.8);
+
+  /* --- The areas -----------------------------------------------------------
+     One accent each, on the dashboard card's icon, rule and arrow ring. */
+  --c-area-songs: #e2a877;
+  --c-area-scales: #a18af5;
+  --c-area-chords: #e6b07a;
+  --c-area-arpeggios: #5fb3f5;
+  --c-area-progressions: #e9a46a;
+  --c-area-exercises: #7fd48a;
 }
 
 /* ============================================================================
@@ -228,8 +347,8 @@
      the body does not, which is all the depth a flat design needs. */
   box-shadow:
     inset 0 6px 0 var(--c-key-black),
-    inset 0 -3px 0 rgb(0 0 0 / 0.55),
-    0 2px 4px -1px rgb(0 0 0 / 0.7);
+    inset 0 -3px 0 var(--c-key-bevel),
+    0 2px 4px -1px var(--c-key-drop);
 }
 @media (hover: hover) {
   .piano-key--black:hover:not([data-active='true']) {
@@ -240,7 +359,7 @@
   background-color: var(--c-key-press-black);
   box-shadow:
     inset 0 6px 0 var(--ds-accent),
-    inset 0 -3px 0 rgb(0 0 0 / 0.5);
+    inset 0 -3px 0 var(--c-key-bevel-lit);
 }
 
 /* --- Velocity ------------------------------------------------------------
@@ -253,7 +372,7 @@
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  background: rgb(255 255 255 / 0.55);
+  background: var(--c-key-veil);
   opacity: calc((1 - var(--key-velocity, 0.75)) * 0.5);
   pointer-events: none;
 }
@@ -267,11 +386,11 @@
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.02em;
-  color: rgb(0 0 0 / 0.42);
+  color: var(--c-key-label);
   pointer-events: none;
 }
 .piano-key--white[data-active='true'] .piano-key__label {
-  color: rgb(255 255 255 / 0.85);
+  color: var(--c-key-label-pressed);
 }
 .piano-key__label--anchor {
   color: var(--ds-accent-active);
@@ -348,7 +467,7 @@
 
 .sonara-slider::-webkit-slider-runnable-track {
   height: 4px;
-  border-radius: 99px;
+  border-radius: var(--radius-pill);
   /* Two boundaries rather than one, so a bipolar control (transpose, pan) can
      fill outward from its centre. A left-anchored fill on a -12..+12 slider
      reads as "half on" when the value is zero. */
@@ -362,7 +481,7 @@
 }
 .sonara-slider::-moz-range-track {
   height: 4px;
-  border-radius: 99px;
+  border-radius: var(--radius-pill);
   /* Two boundaries rather than one, so a bipolar control (transpose, pan) can
      fill outward from its centre. A left-anchored fill on a -12..+12 slider
      reads as "half on" when the value is zero. */
@@ -381,7 +500,7 @@
   height: 16px;
   width: 16px;
   margin-top: -6px;
-  border-radius: 99px;
+  border-radius: var(--radius-pill);
   background: var(--ds-fg);
   border: 2px solid var(--ds-canvas);
   box-shadow: var(--ds-shadow-1);
@@ -390,7 +509,7 @@
 .sonara-slider::-moz-range-thumb {
   height: 16px;
   width: 16px;
-  border-radius: 99px;
+  border-radius: var(--radius-pill);
   background: var(--ds-fg);
   border: 2px solid var(--ds-canvas);
   box-shadow: var(--ds-shadow-1);
@@ -437,7 +556,7 @@
   background-image: linear-gradient(var(--key-wash), var(--key-wash));
 }
 .piano-key--white[data-role='scale'] {
-  --key-wash: rgb(112 111 211 / 0.13);
+  --key-wash: rgb(var(--c-wash-white) / 0.13);
 }
 
 /* Explore has no target on the keybed, so the wash has nothing to defer to and
@@ -446,29 +565,29 @@
    different amount of room — which is why this is keyed to the mode rather
    than baked into the role. */
 .keybed[data-mode='explore'] .piano-key--white[data-role='scale'] {
-  --key-wash: rgb(112 111 211 / 0.27);
+  --key-wash: rgb(var(--c-wash-white) / 0.27);
 }
 .keybed[data-mode='explore'] .piano-key--white[data-role='root'] {
-  --key-wash: rgb(112 111 211 / 0.52);
+  --key-wash: rgb(var(--c-wash-white) / 0.52);
 }
 .keybed[data-mode='explore'] .piano-key--black[data-role='scale'] {
-  --key-wash: rgb(150 149 240 / 0.4);
+  --key-wash: rgb(var(--c-wash-black) / 0.4);
 }
 .keybed[data-mode='explore'] .piano-key--black[data-role='root'] {
-  --key-wash: rgb(150 149 240 / 0.66);
+  --key-wash: rgb(var(--c-wash-black) / 0.66);
 }
 .piano-key--white[data-role='upcoming'] {
-  --key-wash: rgb(112 111 211 / 0.28);
+  --key-wash: rgb(var(--c-wash-white) / 0.28);
 }
 .piano-key--white[data-role='root'] {
-  --key-wash: rgb(112 111 211 / 0.3);
+  --key-wash: rgb(var(--c-wash-white) / 0.3);
 }
 .piano-key--black[data-role='scale'] {
-  --key-wash: rgb(150 149 240 / 0.2);
+  --key-wash: rgb(var(--c-wash-black) / 0.2);
 }
 .piano-key--black[data-role='upcoming'],
 .piano-key--black[data-role='root'] {
-  --key-wash: rgb(150 149 240 / 0.4);
+  --key-wash: rgb(var(--c-wash-black) / 0.4);
 }
 
 /* The one key to play now.
@@ -486,12 +605,12 @@
   background-color: var(--c-now-deep);
   box-shadow:
     inset 0 6px 0 var(--c-now),
-    inset 0 -3px 0 rgb(0 0 0 / 0.5),
+    inset 0 -3px 0 var(--c-key-bevel-lit),
     0 0 22px -6px var(--c-now);
 }
 .piano-key--white[data-role='target'] .piano-key__label,
 .piano-key--black[data-role='target'] .piano-key__label {
-  color: rgb(255 255 255 / 0.9);
+  color: var(--c-key-label-on-fill);
 }
 
 /* A key you are holding down in Learn, which the exercise did not object to.
@@ -517,13 +636,13 @@
 .keybed[data-mode='learn']
   .piano-key--white[data-active='true']:not([data-role='wrong'])
   .piano-key__label {
-  color: rgb(0 0 0 / 0.8);
+  color: var(--c-key-label-on-accent);
 }
 .keybed[data-mode='learn'] .piano-key--black[data-active='true']:not([data-role='wrong']) {
   background-color: var(--ds-accent);
   box-shadow:
     inset 0 6px 0 var(--ds-accent-hover),
-    inset 0 -3px 0 rgb(0 0 0 / 0.5),
+    inset 0 -3px 0 var(--c-key-bevel-lit),
     0 0 26px -4px var(--ds-accent-hover);
 }
 
@@ -532,7 +651,7 @@
 .piano-key--white[data-role='wrong'],
 .piano-key--white[data-role='wrong'][data-active='true'] {
   background-color: var(--ds-danger-active);
-  box-shadow: inset 0 -4px 0 rgb(0 0 0 / 0.35);
+  box-shadow: inset 0 -4px 0 var(--c-key-bevel-wrong);
 }
 .piano-key--black[data-role='wrong'],
 .piano-key--black[data-role='wrong'][data-active='true'] {
@@ -540,110 +659,7 @@
   box-shadow: inset 0 6px 0 var(--ds-danger);
 }
 .piano-key[data-role='wrong'] .piano-key__label {
-  color: rgb(255 255 255 / 0.9);
-}
-
-/* ---- Finger badges -------------------------------------------------------
-   In their own layer above every key. A badge drawn inside a white key would
-   be hidden by the black keys that overlap it, and a badge inside a black key
-   would be 12px wide. */
-.key-badges {
-  position: absolute;
-  inset-inline: 0;
-  top: 0;
-  height: 100%;
-  pointer-events: none;
-  z-index: 6;
-}
-
-.key-badge {
-  position: absolute;
-  /* Down on the part of the key a finger actually lands on, clear of the black
-     keys — which end at 62% — and above the note name. Up at the top the number
-     floated in the black-key band, reading as a label for the keyboard rather
-     than for one key. A percentage because the keybed's height follows its
-     width, so this holds its place on a phone and on a wide desktop.
-
-     Not flush under the black keys either: sitting right against their ends
-     made the number look attached to the black key above it. */
-  top: 70%;
-  transform: translate(-50%, -50%);
-  font-size: 13px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  line-height: 1;
-  /* A numeral on the key, not a pill on top of it. */
-  color: rgb(0 0 0 / 0.78);
-  transition: color var(--duration-fast) var(--ease-standard);
-}
-
-/* A black key's number cannot follow the white ones down: at 70% it would have
-   left the bottom of its own key and be sitting in the gap between the two
-   white keys it divides, next to their numbers and claimed by neither. It goes
-   low on the black key instead — same idea, the key it has. */
-.key-badge[data-black='true'] {
-  top: 50%;
-  font-size: 11px;
-  color: rgb(255 255 255 / 0.88);
-}
-
-/* The key underneath is filled: in blue as the current target, in the accent
-   while it is held down. A dark numeral on the accent measures 3.8:1, under AA
-   at this size; white clears both, at 5.5:1 on the blue and 4.8:1 on the accent. */
-.key-badge[data-role='target'],
-.key-badge[data-active='true'] {
-  color: var(--c-key-press-fg);
-}
-
-/* The cue that arrives with the note it applies to. Anchored to the key rather
-   than parked in a panel, because "thumb under" is about THIS key and reading
-   it three inches away at the wrong moment is no use. */
-.key-cue {
-  position: absolute;
-  /* Between its number and the note name. Both cues are two words, so it wraps
-     to two lines inside the key's width rather than spilling over the
-     neighbours the way a nowrap pill did. */
-  top: 81.5%;
-  transform: translate(-50%, -50%);
-  width: 5ch;
-  text-align: center;
-  white-space: normal;
-  text-wrap: balance;
-  padding: 0;
-  font-size: 9px;
-  font-weight: 600;
-  line-height: 1.15;
-  letter-spacing: 0.01em;
-  background: none;
-  color: rgb(0 0 0 / 0.55);
-  box-shadow: none;
-}
-
-/* ---- Tetrachords ---------------------------------------------------------
-   Asked for from the theory dialog, and off again afterwards. The keybed
-   already says which notes are in the scale; this says how those notes divide
-   into the two four-note groups the scale is built from, for as long as the
-   question is being asked.
-
-   Two hues rather than two intensities, because the point is that the groups
-   are *equal* — the same shape twice. One washed darker than the other would
-   say one of them mattered more. */
-.keybed[data-structure='on'] .piano-key--white[data-group='lower'] {
-  --key-wash: rgb(112 111 211 / 0.34);
-}
-.keybed[data-structure='on'] .piano-key--black[data-group='lower'] {
-  --key-wash: rgb(150 149 240 / 0.5);
-}
-.keybed[data-structure='on'] .piano-key--white[data-group='upper'] {
-  --key-wash: rgb(51 217 178 / 0.32);
-}
-.keybed[data-structure='on'] .piano-key--black[data-group='upper'] {
-  --key-wash: rgb(51 217 178 / 0.46);
-}
-/* Anything outside the two groups steps back, so the split is the thing you
-   see rather than one more colour among several. */
-.keybed[data-structure='on'] .piano-key:not([data-group]) {
-  --key-wash: transparent;
+  color: var(--c-key-label-on-fill);
 }
 
 /* ---- Grand staff ---------------------------------------------------------
@@ -887,12 +903,10 @@
   position: absolute;
   inset-inline: 0;
   border-radius: 2px;
-  box-shadow:
-    0 1px 2px rgb(0 0 0 / 0.1),
-    0 6px 16px -8px rgb(0 0 0 / 0.3);
+  box-shadow: var(--shadow-staff-card);
 }
 .staff__paper {
-  filter: drop-shadow(0 3px 6px rgb(0 0 0 / 0.14));
+  filter: drop-shadow(var(--shadow-paper));
 }
 
 /* Off the paper. A note on ledger lines stands on the stage, and both colours
@@ -960,7 +974,7 @@
   font-variant-numeric: tabular-nums;
   line-height: 1;
   /* A numeral on the key, not a pill on top of it. */
-  color: rgb(0 0 0 / 0.78);
+  color: var(--c-key-numeral);
   transition: color var(--duration-fast) var(--ease-standard);
 }
 
@@ -971,7 +985,7 @@
 .key-badge[data-black='true'] {
   top: 50%;
   font-size: 11px;
-  color: rgb(255 255 255 / 0.88);
+  color: var(--c-key-numeral-black);
 }
 
 /* The key underneath is filled: in blue as the current target, in the accent
@@ -1002,7 +1016,7 @@
   line-height: 1.15;
   letter-spacing: 0.01em;
   background: none;
-  color: rgb(0 0 0 / 0.55);
+  color: var(--c-key-cue);
   box-shadow: none;
 }
 
@@ -1016,16 +1030,16 @@
    are *equal* — the same shape twice. One washed darker than the other would
    say one of them mattered more. */
 .keybed[data-structure='on'] .piano-key--white[data-group='lower'] {
-  --key-wash: rgb(112 111 211 / 0.34);
+  --key-wash: rgb(var(--c-wash-white) / 0.34);
 }
 .keybed[data-structure='on'] .piano-key--black[data-group='lower'] {
-  --key-wash: rgb(150 149 240 / 0.5);
+  --key-wash: rgb(var(--c-wash-black) / 0.5);
 }
 .keybed[data-structure='on'] .piano-key--white[data-group='upper'] {
-  --key-wash: rgb(51 217 178 / 0.32);
+  --key-wash: rgb(var(--c-wash-upper) / 0.32);
 }
 .keybed[data-structure='on'] .piano-key--black[data-group='upper'] {
-  --key-wash: rgb(51 217 178 / 0.46);
+  --key-wash: rgb(var(--c-wash-upper) / 0.46);
 }
 /* Anything outside the two groups steps back, so the split is the thing you
    see rather than one more colour among several. */
@@ -1061,7 +1075,7 @@
 .record-scrim {
   position: fixed;
   inset: 0;
-  z-index: 60;
+  z-index: var(--z-overlay);
   display: grid;
   place-items: center;
   background: var(--ds-layer-scrim);
@@ -1101,7 +1115,7 @@
 }
 .record-banner {
   position: fixed;
-  z-index: 60;
+  z-index: var(--z-overlay);
   right: 16px;
   bottom: 16px;
   display: inline-flex;
@@ -1119,7 +1133,7 @@
 .record-banner__dot {
   height: 8px;
   width: 8px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--ds-danger);
 }
 @media (prefers-reduced-motion: no-preference) {
@@ -1136,7 +1150,7 @@
    than merely selected. */
 .is-recording {
   background: var(--ds-danger) !important;
-  color: var(--ds-danger-fg, #fff) !important;
+  color: var(--ds-danger-fg) !important;
 }
 
 /* ---- Song progress -------------------------------------------------------
@@ -1150,7 +1164,7 @@
   align-items: center;
   gap: 12px;
   padding: 3px 8px 3px 14px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background-color: var(--c-bar);
 }
 .song-progress__range {
@@ -1183,13 +1197,11 @@
 /* ---- The bar ------------------------------------------------------------- */
 .top-bar {
   position: relative;
-  z-index: 30;
+  z-index: var(--z-bar);
   flex: none;
   background-color: var(--c-bar);
   color: var(--c-bar-fg);
-  box-shadow:
-    0 1px 0 rgb(0 0 0 / 0.25),
-    0 6px 18px -8px rgb(0 0 0 / 0.5);
+  box-shadow: var(--shadow-bar);
 }
 .top-bar__row {
   display: flex;
@@ -1293,7 +1305,7 @@
   place-items: center;
   width: 40px;
   height: 40px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   color: var(--c-bar-fg);
   transition: background-color var(--duration-fast) var(--ease-standard);
 }
@@ -1326,7 +1338,7 @@
   min-width: 15px;
   height: 15px;
   padding-inline: 3px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background-color: var(--c-bar-fg);
   box-shadow: 0 0 0 2px var(--c-bar);
   color: var(--c-bar);
@@ -1362,13 +1374,13 @@
   place-items: center;
   width: 30px;
   height: 30px;
-  border-radius: 999px;
-  background-color: rgb(255 255 255 / 0.1);
+  border-radius: var(--radius-pill);
+  background-color: var(--c-bar-control);
   color: var(--c-bar-fg);
   transition: background-color var(--duration-fast) var(--ease-standard);
 }
 .tempo-stepper__button:hover {
-  background-color: rgb(255 255 255 / 0.18);
+  background-color: var(--c-bar-control-hover);
 }
 .tempo-stepper__value {
   min-width: 4.2em;
@@ -1408,7 +1420,7 @@
 }
 .bar-start--stop {
   background-color: transparent;
-  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.4);
+  box-shadow: inset 0 0 0 1px var(--c-bar-outline);
   color: var(--c-bar-fg);
 }
 .bar-start--stop:hover {
@@ -1421,7 +1433,7 @@
   height: 36px;
   margin-left: 6px;
   padding-inline: 14px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background-color: var(--c-bar-pressed);
   color: var(--c-bar-fg);
   font-size: var(--text-ui);
@@ -1444,7 +1456,7 @@
   bottom: 7px;
   width: 8px;
   height: 8px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background-color: var(--c-bar-fg-muted);
   box-shadow: 0 0 0 2px var(--c-bar);
 }
@@ -1531,7 +1543,7 @@
 /* ---- Popovers and menus -------------------------------------------------- */
 .popover {
   position: fixed;
-  z-index: 45;
+  z-index: var(--z-popover);
   min-width: 12rem;
   max-width: calc(100vw - 16px);
   overflow-y: auto;
@@ -1680,10 +1692,6 @@
    under the name, the ring round the arrow. It scrolls, the one page that
    may: there are no keys along the bottom to keep in view. */
 .dashboard {
-  --dash-ink: #ffffff;
-  --dash-body: #d0cdc9;
-  --dash-quiet: #aeafaf;
-  --dash-card: #0e0f11;
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
@@ -1691,10 +1699,10 @@
   /* The room, darkened toward the bottom where the cards sit. The image stays
      put as the page scrolls: it is the background of the scroller itself. */
   background:
-    linear-gradient(180deg, rgb(8 8 10 / 0.35), rgb(8 8 10 / 0.15) 35%, rgb(8 8 10 / 0.6)),
+    var(--dash-room-fade),
     url('../assets/dashboard/room.webp') left center / cover no-repeat,
-    #111214;
-  color: var(--dash-ink);
+    var(--c-dash-room);
+  color: var(--c-dash-ink);
 }
 /* Narrower than the room is wide, the heading lands on the lit window at its
    left edge, and the grey caption under it all but vanished there. So the
@@ -1702,10 +1710,10 @@
 @media (max-width: 79.999rem) {
   .dashboard {
     background:
-      linear-gradient(90deg, rgb(8 8 10 / 0.72), rgb(8 8 10 / 0.2) 70%),
-      linear-gradient(180deg, rgb(8 8 10 / 0.35), rgb(8 8 10 / 0.15) 35%, rgb(8 8 10 / 0.6)),
+      var(--dash-room-side-shade),
+      var(--dash-room-fade),
       url('../assets/dashboard/room.webp') left center / cover no-repeat,
-      #111214;
+      var(--c-dash-room);
   }
 }
 .dashboard__inner {
@@ -1722,20 +1730,20 @@
   gap: 12px;
 }
 .dashboard__title {
-  font-family: 'Playfair Display Variable', Georgia, serif;
+  font-family: var(--font-display);
   font-size: clamp(2rem, 3.2vw, 2.5rem);
   font-weight: 500;
   line-height: 1.1;
   letter-spacing: -0.005em;
-  text-shadow: 0 2px 16px rgb(0 0 0 / 0.6);
+  text-shadow: var(--shadow-dash-title);
 }
 .dashboard__lede {
-  text-shadow: 0 1px 10px rgb(0 0 0 / 0.8);
+  text-shadow: var(--shadow-dash-lede);
   font-size: 0.875rem;
   font-weight: 500;
   letter-spacing: 0.38em;
   text-transform: uppercase;
-  color: var(--dash-quiet);
+  color: var(--c-dash-quiet);
 }
 .area-grid {
   display: grid;
@@ -1745,27 +1753,27 @@
 
 /* Each area's accent and photograph. */
 .area-card[data-area='songs'] {
-  --accent: #e2a877;
+  --accent: var(--c-area-songs);
   --card-image: url('../assets/dashboard/songs.webp');
 }
 .area-card[data-area='scales'] {
-  --accent: #a18af5;
+  --accent: var(--c-area-scales);
   --card-image: url('../assets/dashboard/scales.webp');
 }
 .area-card[data-area='chords'] {
-  --accent: #e6b07a;
+  --accent: var(--c-area-chords);
   --card-image: url('../assets/dashboard/chords.webp');
 }
 .area-card[data-area='arpeggios'] {
-  --accent: #5fb3f5;
+  --accent: var(--c-area-arpeggios);
   --card-image: url('../assets/dashboard/arpeggios.webp');
 }
 .area-card[data-area='progressions'] {
-  --accent: #e9a46a;
+  --accent: var(--c-area-progressions);
   --card-image: url('../assets/dashboard/progressions.webp');
 }
 .area-card[data-area='exercises'] {
-  --accent: #7fd48a;
+  --accent: var(--c-area-exercises);
   --card-image: url('../assets/dashboard/exercises.webp');
 }
 
@@ -1779,12 +1787,12 @@
   overflow: hidden;
   /* The Bible's default card: 20px against a 16px radius. */
   padding: 20px;
-  border: 1px solid rgb(255 255 255 / 0.13);
+  border: 1px solid var(--c-dash-card-edge);
   border-radius: var(--radius-xl);
-  background-color: var(--dash-card);
-  color: var(--dash-ink);
+  background-color: var(--c-dash-card);
+  color: var(--c-dash-ink);
   text-align: left;
-  box-shadow: 0 22px 44px -22px rgb(0 0 0 / 0.85);
+  box-shadow: var(--shadow-dash-card);
   transition:
     border-color var(--duration-fast) var(--ease-standard),
     transform 200ms var(--ease-standard),
@@ -1806,19 +1814,11 @@
   position: absolute;
   inset: 0;
   z-index: -1;
-  background:
-    linear-gradient(
-      90deg,
-      rgb(14 15 17 / 0.97) 0%,
-      rgb(14 15 17 / 0.9) 40%,
-      rgb(14 15 17 / 0.5) 70%,
-      rgb(14 15 17 / 0.3) 100%
-    ),
-    linear-gradient(0deg, rgb(14 15 17 / 0.75), transparent 45%);
+  background: var(--dash-card-scrim);
 }
 button.area-card:hover {
   border-color: color-mix(in srgb, var(--accent) 45%, transparent);
-  box-shadow: 0 28px 52px -22px rgb(0 0 0 / 0.9);
+  box-shadow: var(--shadow-dash-card-hover);
   transform: translateY(-3px);
 }
 button.area-card:hover::before {
@@ -1838,12 +1838,12 @@ button.area-card:focus-visible {
   height: 44px;
   border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent);
   border-radius: var(--radius-md);
-  background-color: color-mix(in srgb, var(--accent) 7%, #0b0b0d);
+  background-color: color-mix(in srgb, var(--accent) 7%, var(--c-dash-tile));
   color: var(--accent);
 }
 .area-card__name {
   margin-top: 14px;
-  font-family: 'Playfair Display Variable', Georgia, serif;
+  font-family: var(--font-display);
   font-size: 1.5rem;
   font-weight: 500;
   line-height: 1.1;
@@ -1861,7 +1861,7 @@ button.area-card:focus-visible {
   font-size: 0.9375rem;
   line-height: 1.45;
   text-wrap: pretty;
-  color: var(--dash-body);
+  color: var(--c-dash-body);
 }
 .area-card__foot {
   display: flex;
@@ -1884,13 +1884,13 @@ button.area-card:focus-visible {
   text-transform: uppercase;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--dash-quiet);
+  color: var(--c-dash-quiet);
 }
 .area-card__status--open {
   font-size: 1rem;
   letter-spacing: 0.16em;
   text-transform: none;
-  color: var(--dash-ink);
+  color: var(--c-dash-ink);
 }
 .area-card__go {
   display: grid;
@@ -1899,8 +1899,8 @@ button.area-card:focus-visible {
   width: 40px;
   height: 40px;
   border: 1.5px solid var(--accent);
-  border-radius: 999px;
-  color: var(--dash-ink);
+  border-radius: var(--radius-pill);
+  color: var(--c-dash-ink);
   transition: background-color var(--duration-fast) var(--ease-standard);
 }
 button.area-card:hover .area-card__go {
@@ -1912,8 +1912,8 @@ button.area-card:hover .area-card__go {
   cursor: not-allowed;
 }
 .area-card[data-locked='true'] .area-card__go {
-  border-color: rgb(255 255 255 / 0.28);
-  color: rgb(255 255 255 / 0.7);
+  border-color: var(--c-dash-locked-ring);
+  color: var(--c-dash-locked-arrow);
 }
 
 /* ---- The stage ----------------------------------------------------------- */
@@ -1956,7 +1956,7 @@ button.area-card:hover .area-card__go {
   align-items: center;
   height: 30px;
   padding-inline: 12px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background-color: var(--c-bar);
   color: var(--c-bar-fg);
   font-size: 0.875rem;
@@ -1978,10 +1978,10 @@ button.area-card:hover .area-card__go {
   width: clamp(14rem, 30vw, 22rem);
   height: 36px;
   padding-inline: 12px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background-color: var(--c-bar);
   color: var(--c-bar-fg);
-  box-shadow: 0 6px 16px -8px rgb(0 0 0 / 0.55);
+  box-shadow: var(--shadow-stage-float);
 }
 /* Across the top of a song, where the scrubber is in Explore. */
 .run-meter--wide {
@@ -1994,11 +1994,9 @@ button.area-card:hover .area-card__go {
   flex: 1 1 auto;
   height: 14px;
   overflow: hidden;
-  border-radius: 999px;
-  background-color: rgb(0 0 0 / 0.42);
-  box-shadow:
-    inset 0 1px 3px rgb(0 0 0 / 0.6),
-    0 0 0 1px rgb(255 255 255 / 0.14);
+  border-radius: var(--radius-pill);
+  background-color: var(--c-meter-track);
+  box-shadow: var(--shadow-meter-track);
 }
 .run-meter__fill {
   position: absolute;
@@ -2006,9 +2004,7 @@ button.area-card:hover .area-card__go {
   width: var(--fill);
   border-radius: inherit;
   background: linear-gradient(90deg, var(--ds-accent), var(--c-bar-on));
-  box-shadow:
-    inset 0 2px 0 rgb(255 255 255 / 0.35),
-    inset 0 -2px 0 rgb(0 0 0 / 0.18);
+  box-shadow: var(--shadow-meter-fill);
 }
 /* The segment gaps, cut through fill and track alike, so an empty bar already
    shows how many notes there are to play. */
@@ -2033,8 +2029,8 @@ button.area-card:hover .area-card__go {
   width: 28px;
   height: 28px;
   margin: -14px 0 0 -14px;
-  border-radius: 999px;
-  background: radial-gradient(circle, rgb(255 255 255 / 0.95), rgb(255 255 255 / 0) 65%);
+  border-radius: var(--radius-pill);
+  background: radial-gradient(circle, var(--c-meter-spark), transparent 65%);
 }
 .run-meter__hit {
   inset: 0;
@@ -2066,12 +2062,7 @@ button.area-card:hover .area-card__go {
     position: absolute;
     inset: 0;
     border-radius: inherit;
-    background: linear-gradient(
-      100deg,
-      transparent 30%,
-      rgb(255 255 255 / 0.4) 50%,
-      transparent 70%
-    );
+    background: linear-gradient(100deg, transparent 30%, var(--c-meter-gleam) 50%, transparent 70%);
     background-size: 220% 100%;
     animation: run-meter-gleam 2.6s ease-in-out infinite;
   }
@@ -2167,7 +2158,7 @@ button.area-card:hover .area-card__go {
   gap: 6px;
   height: 26px;
   padding-inline: 10px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background-color: var(--c-bar);
   color: var(--c-bar-fg);
   font-size: 0.8125rem;
