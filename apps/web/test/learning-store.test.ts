@@ -127,14 +127,42 @@ describe('practice mode', () => {
 })
 
 describe('changing the exercise', () => {
-  it('ends the run rather than carrying the score across', () => {
+  it('starts the run again on the new scale rather than carrying the score across', () => {
     store().start()
     store().noteOn(notes()[0]!)
     expect(store().session.completedSteps).toBe(1)
 
     store().updateSpec({ rootPitchClass: 0 })
-    expect(store().session.status).toBe('idle')
+    expect(store().session.status).toBe('running')
     expect(store().session.completedSteps).toBe(0)
+    expect(store().session.stepIndex).toBe(0)
+  })
+
+  it('counts a run finished after the direction is turned round mid-run', () => {
+    // The reported bug: switch to descending partway up, play the scale down,
+    // and the run never knew you had finished — every note after the switch
+    // went to a run that had silently stopped.
+    store().start()
+    for (const note of notes().slice(0, 4)) store().noteOn(note)
+
+    store().updateSpec({ direction: 'down' })
+    for (const step of store().exercise!.steps) store().noteOn(step.notes[0]!)
+
+    expect(store().session.status).toBe('complete')
+    expect(store().session.completedSteps).toBe(store().exercise!.steps.length)
+  })
+
+  it('leaves a run that was not going alone', () => {
+    store().updateSpec({ direction: 'down' })
+    expect(store().session.status).toBe('idle')
+
+    store().start()
+    for (const step of store().exercise!.steps) store().noteOn(step.notes[0]!)
+    expect(store().session.status).toBe('complete')
+    // A finished run is looked at, not restarted: changing the scale after it
+    // waits for Start like any other.
+    store().updateSpec({ direction: 'up' })
+    expect(store().session.status).toBe('idle')
   })
 
   it('ends the run when the guidance level changes', () => {

@@ -288,7 +288,16 @@ export const useLearningStore = create<LearningState>((set, get) => {
     updateSpec: (patch) =>
       set((state) => {
         const spec = { ...state.spec, ...patch }
-        return { spec, ...rebuild(state.topic, spec, state.mode, IDLE_SESSION) }
+        // A new scale is a new run: the score does not carry across. But a run
+        // that was going keeps going, on the new scale from its first note.
+        // Dropping to idle instead looked the same from the keys — the scale is
+        // still lit — so a player who turned the direction round mid-run and
+        // played on had every note ignored, and finished with nothing counted.
+        const session =
+          state.session.status === 'running'
+            ? sessionReducer(IDLE_SESSION, { type: 'start', at: Date.now() }, null)
+            : IDLE_SESSION
+        return { spec, ...rebuild(state.topic, spec, state.mode, session) }
       }),
 
     start: () =>
