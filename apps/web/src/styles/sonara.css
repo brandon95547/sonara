@@ -1223,8 +1223,8 @@
   gap: 10px;
   margin-right: 2px;
 }
-/* The mark: two notes in a swirl, white on the bar. As tall as the bar's
-   controls, since its swirls taper to thin tails that vanish much smaller. */
+/* The mark: a flat grand piano, white on the bar. As tall as the bar's
+   controls, since its legs and pedals are fine detail that fills in smaller. */
 .top-bar__logo {
   display: block;
   flex: none;
