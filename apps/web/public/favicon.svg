@@ -1,19 +1,50 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
   <!-- The Sonara mark, keys in a ring, on the app's dark. -->
   <rect width="32" height="32" rx="7" fill="#101010"/>
-  <svg x="3" y="3" width="26" height="26" viewBox="69 63 1114 1114">
-    <!-- ring -->
-    <circle cx="626" cy="620" r="533.5" fill="none" stroke="#fff" stroke-width="39"/>
-    <!-- white keys -->
+  <svg x="3" y="3" width="26" height="26" viewBox="25 25 462 462">
+    <!-- white circular ring -->
+    <circle cx="256" cy="256" r="220"
+            fill="none" stroke="#fff" stroke-width="18"/>
+
+    <!-- three white keys -->
     <g fill="#fff">
-      <rect x="281.5" y="319.5" width="206.5" height="631" rx="36"/>
-      <rect x="504" y="319.5" width="244" height="631" rx="36"/>
-      <rect x="764" y="319.5" width="206.5" height="631" rx="36"/>
+      <path d="M120 150
+               Q120 140 130 140
+               H207
+               V365
+               Q207 380 192 380
+               H135
+               Q120 380 120 365 Z"/>
+      <path d="M211 140 H301 V365
+               Q301 380 286 380
+               H226
+               Q211 380 211 365 Z"/>
+      <path d="M305 140 H382
+               Q392 140 392 150
+               V365
+               Q392 380 377 380
+               H320
+               Q305 380 305 365 Z"/>
     </g>
-    <!-- black keys -->
+
+    <!-- two black keys -->
     <g fill="#000">
-      <rect x="414.5" y="291.5" width="146" height="397" rx="24"/>
-      <rect x="691.5" y="291.5" width="146" height="397" rx="24"/>
+      <path d="M181 130
+               Q181 122 189 122
+               H225
+               Q233 122 233 130
+               V264
+               Q233 274 223 274
+               H191
+               Q181 274 181 264 Z"/>
+      <path d="M279 130
+               Q279 122 287 122
+               H323
+               Q331 122 331 130
+               V264
+               Q331 274 321 274
+               H289
+               Q279 274 279 264 Z"/>
     </g>
   </svg>
 </svg>
