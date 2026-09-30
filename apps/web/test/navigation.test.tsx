@@ -1,0 +1,82 @@
+import { cleanup, render, renderHook, screen, waitFor } from '@testing-library/react'
+import { afterEach, describe, expect, it } from 'vitest'
+import { pageActions, usePageStore, usePageSync } from '@/state/page-store'
+import { useLearningStore } from '@/state/learning-store'
+import { useSongStore } from '@/state/song-store'
+import { RunMeter } from '@/features/learning/RunMeter'
+
+/**
+ * The dashboard is the front door, and the address bar is where you are.
+ *
+ * Pinned because the page is held in the URL rather than in state alone: Back
+ * has to leave an area for the dashboard, and leaving must not leave a song
+ * that set itself playing again on the way back in.
+ */
+
+afterEach(() => {
+  cleanup()
+  globalThis.location.hash = ''
+})
+
+describe('moving between the dashboard and the areas', () => {
+  it('opens on the dashboard', () => {
+    expect(usePageStore.getState().page).toBe('dashboard')
+  })
+
+  it('opens an area by its address, and comes back to the dashboard', async () => {
+    renderHook(() => usePageSync())
+
+    pageActions.openArea('songs')
+    await waitFor(() => expect(usePageStore.getState().page).toBe('area'))
+    expect(globalThis.location.hash).toBe('#/songs')
+    expect(useLearningStore.getState().topic).toBe('songs')
+
+    pageActions.openDashboard()
+    await waitFor(() => expect(usePageStore.getState().page).toBe('dashboard'))
+  })
+
+  it('stops a song that is playing when you leave for the dashboard', async () => {
+    renderHook(() => usePageSync())
+    pageActions.openArea('songs')
+    await waitFor(() => expect(usePageStore.getState().page).toBe('area'))
+    useSongStore.getState().setPlaying(true)
+
+    pageActions.openDashboard()
+    await waitFor(() => expect(usePageStore.getState().page).toBe('dashboard'))
+    expect(useSongStore.getState().playing).toBe(false)
+  })
+
+  it('treats an area that is not open yet as the dashboard', async () => {
+    renderHook(() => usePageSync())
+    pageActions.openArea('songs')
+    await waitFor(() => expect(usePageStore.getState().page).toBe('area'))
+
+    globalThis.location.hash = '#/chords'
+    await waitFor(() => expect(usePageStore.getState().page).toBe('dashboard'))
+  })
+})
+
+describe('the run meter', () => {
+  it('reports its progress as a progress bar, one segment per note', () => {
+    const { container } = render(<RunMeter done={6} total={15} label="the scale" />)
+    const bar = screen.getByRole('progressbar', { name: 'Progress through the scale' })
+    expect(bar.getAttribute('aria-valuenow')).toBe('6')
+    expect(bar.getAttribute('aria-valuemax')).toBe('15')
+    expect(bar.style.getPropertyValue('--fill')).toBe('40%')
+    const segments = container.querySelector<HTMLElement>('.run-meter__segments')
+    expect(segments?.style.getPropertyValue('--segments')).toBe('15')
+    expect(container.textContent).toContain('6/15')
+  })
+
+  it('keeps count of mistakes after the bar, and says nothing when there are none', () => {
+    const { rerender } = render(<RunMeter done={2} total={15} label="the scale" />)
+    expect(screen.queryByLabelText(/mistake/)).toBeNull()
+    rerender(<RunMeter done={2} total={15} mistakes={1} label="the scale" />)
+    expect(screen.getByLabelText('1 mistake').getAttribute('title')).toBe('1 mistake')
+  })
+
+  it('drops the segments on a run too long for them to read', () => {
+    const { container } = render(<RunMeter done={10} total={240} label="the song" />)
+    expect(container.querySelector('.run-meter__segments')).toBeNull()
+  })
+})

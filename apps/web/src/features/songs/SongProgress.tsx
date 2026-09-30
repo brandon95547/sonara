@@ -1,4 +1,5 @@
 import { useCurrentSong, useSongStore } from '@/state/song-store'
+import { RunMeter } from '@/features/learning/RunMeter'
 
 /**
  * Where you are in the piece, above the staff.
@@ -7,8 +8,8 @@ import { useCurrentSong, useSongStore } from '@/state/song-store'
  * almost always to go back to the bit that went wrong. Bars rather than
  * seconds under it: that is the number on the page in front of you.
  *
- * In Learn it tracks the step you have reached rather than a clock, since
- * nothing is playing and the only progress there is is yours.
+ * In Learn it is the run meter instead: nothing is playing, the only progress
+ * there is is yours, and it cannot be dragged.
  */
 export function SongProgress() {
   const song = useCurrentSong()
@@ -20,14 +21,16 @@ export function SongProgress() {
   if (!song) return null
 
   const learning = mode === 'learn'
-  const fraction = learning
-    ? stepCount > 0
-      ? stepIndex / stepCount
-      : 0
-    : song.durationMs > 0
-      ? positionMs / song.durationMs
-      : 0
+  const fraction = song.durationMs > 0 ? positionMs / song.durationMs : 0
   const bar = Math.min(song.measureCount, Math.floor(positionMs / song.measureMs) + 1)
+
+  // Learn cannot be scrubbed — it advances by playing — so it gets the same
+  // meter a scale run does rather than a slider that will not move.
+  if (learning) {
+    return (
+      <RunMeter done={stepIndex} total={stepCount} label="the song" className="run-meter--wide" />
+    )
+  }
 
   return (
     <div className="song-progress">
@@ -39,9 +42,7 @@ export function SongProgress() {
         step={1}
         value={Math.round(Math.min(1, Math.max(0, fraction)) * 1000)}
         aria-label="Position in the song"
-        aria-valuetext={learning ? `${Math.round(fraction * 100)}% learned` : `Bar ${bar}`}
-        // Learn advances by playing, not by dragging.
-        disabled={learning}
+        aria-valuetext={`Bar ${bar}`}
         onChange={(event) => seek((Number(event.target.value) / 1000) * song.durationMs)}
         style={
           {
@@ -51,7 +52,7 @@ export function SongProgress() {
         }
       />
       <span className="song-progress__label" data-tabular>
-        {learning ? `${stepIndex} / ${stepCount || '—'}` : `Bar ${bar} / ${song.measureCount}`}
+        Bar {bar} / {song.measureCount}
       </span>
     </div>
   )

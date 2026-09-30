@@ -7,6 +7,7 @@ import { GrandStaff } from '@/features/staff/GrandStaff'
 import { ScaleScore } from '@/features/staff/ScaleScore'
 import { SongScore } from '@/features/staff/SongScore'
 import { SongProgress } from '@/features/songs/SongProgress'
+import { RunMeter } from '@/features/learning/RunMeter'
 import { useLearningStore } from '@/state/learning-store'
 import { useCurrentSong, useSongStore } from '@/state/song-store'
 import { useViewStore } from '@/state/view-store'
@@ -85,15 +86,12 @@ function RunStatus() {
   const total = useLearningStore((state) => state.exercise?.steps.length ?? 0)
   if (session.status !== 'running') return null
   return (
-    <span className="stage-pill" role="status" data-tabular>
-      {session.completedSteps} / {total}
-      {session.mistakes > 0 && (
-        <span className="stage-pill__muted">
-          {' · '}
-          {session.mistakes} {session.mistakes === 1 ? 'mistake' : 'mistakes'}
-        </span>
-      )}
-    </span>
+    <RunMeter
+      done={session.completedSteps}
+      total={total}
+      mistakes={session.mistakes}
+      label="the scale"
+    />
   )
 }
 

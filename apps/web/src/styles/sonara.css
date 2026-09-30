@@ -1802,14 +1802,25 @@ button.area-card:focus-visible {
 .stage--message {
   align-items: center;
 }
+/* Bounded on both sides and free to wrap: on a phone the run meter and the
+   audio notice do not fit side by side, and unbounded the notice slid off the
+   left edge. The box spans the stage, so it lets clicks through to what is
+   under it and only its notices take them. */
 .stage__notices {
   position: absolute;
   top: 12px;
   right: clamp(12px, 2.5vw, 36px);
+  left: clamp(12px, 2.5vw, 36px);
   z-index: 2;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-end;
   gap: 8px;
+  pointer-events: none;
+}
+.stage__notices > * {
+  pointer-events: auto;
 }
 .stage-pill {
   display: inline-flex;
@@ -1826,6 +1837,149 @@ button.area-card:focus-visible {
   color: var(--c-bar-fg-muted);
   font-weight: 500;
 }
+/* ---- The run meter -------------------------------------------------------
+   A game's progress bar: a recessed track in the bar's navy, a glossy fill
+   that springs a little past each step and settles, one segment per note, and
+   a flash at the leading edge as each one lands. On the navy for the same
+   reason as the pills — the lavender carries no small text. */
+.run-meter {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: clamp(14rem, 30vw, 22rem);
+  height: 36px;
+  padding-inline: 12px;
+  border-radius: 999px;
+  background-color: var(--c-bar);
+  color: var(--c-bar-fg);
+  box-shadow: 0 6px 16px -8px rgb(0 0 0 / 0.55);
+}
+/* Across the top of a song, where the scrubber is in Explore. */
+.run-meter--wide {
+  flex: none;
+  width: auto;
+}
+.run-meter__track {
+  --fill: 0%;
+  position: relative;
+  flex: 1 1 auto;
+  height: 14px;
+  overflow: hidden;
+  border-radius: 999px;
+  background-color: rgb(0 0 0 / 0.42);
+  box-shadow:
+    inset 0 1px 3px rgb(0 0 0 / 0.6),
+    0 0 0 1px rgb(255 255 255 / 0.14);
+}
+.run-meter__fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--fill);
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--ds-accent), var(--c-bar-on));
+  box-shadow:
+    inset 0 2px 0 rgb(255 255 255 / 0.35),
+    inset 0 -2px 0 rgb(0 0 0 / 0.18);
+}
+/* The segment gaps, cut through fill and track alike, so an empty bar already
+   shows how many notes there are to play. */
+.run-meter__segments {
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    90deg,
+    transparent 0 calc(100% / var(--segments) - 2px),
+    var(--c-bar) calc(100% / var(--segments) - 2px) calc(100% / var(--segments))
+  );
+}
+.run-meter__spark,
+.run-meter__hit {
+  position: absolute;
+  pointer-events: none;
+  opacity: 0;
+}
+.run-meter__spark {
+  top: 50%;
+  left: var(--fill);
+  width: 28px;
+  height: 28px;
+  margin: -14px 0 0 -14px;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgb(255 255 255 / 0.95), rgb(255 255 255 / 0) 65%);
+}
+.run-meter__hit {
+  inset: 0;
+  background-color: var(--ds-danger);
+}
+.run-meter__count {
+  flex: none;
+  min-width: 3.4em;
+  text-align: right;
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+.run-meter__misses {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+  color: var(--ds-danger-text);
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .run-meter__fill {
+    transition: width 320ms cubic-bezier(0.34, 1.4, 0.64, 1);
+  }
+  /* A slow gleam across the fill, so a bar that is filling looks alive. */
+  .run-meter__fill::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(
+      100deg,
+      transparent 30%,
+      rgb(255 255 255 / 0.4) 50%,
+      transparent 70%
+    );
+    background-size: 220% 100%;
+    animation: run-meter-gleam 2.6s ease-in-out infinite;
+  }
+  .run-meter__spark {
+    animation: run-meter-spark 480ms ease-out;
+  }
+  .run-meter__hit {
+    animation: run-meter-hit 360ms ease-out;
+  }
+}
+@keyframes run-meter-gleam {
+  from {
+    background-position: 120% 0;
+  }
+  to {
+    background-position: -120% 0;
+  }
+}
+@keyframes run-meter-spark {
+  0% {
+    opacity: 1;
+    transform: scale(0.4);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.6);
+  }
+}
+@keyframes run-meter-hit {
+  0% {
+    opacity: 0.7;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
 /* A status chip from elsewhere in the app, given the same navy to sit on. */
 .stage-chip {
   display: inline-flex;
