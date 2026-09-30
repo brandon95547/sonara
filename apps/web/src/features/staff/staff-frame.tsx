@@ -38,70 +38,53 @@ export const HALF_HEIGHT = 113
  * Applied on the way to the page, not in the model: `staffPlacement` keeps
  * saying what note is written where, and this says how far apart to draw it.
  *
- * Six steps since each staff got its own sheet of paper: the two cards need a
- * visible gap between them, and the ledger notes either hand reaches for — a
- * right-hand scale that starts on the A below middle C — have to land on paper
- * rather than in that gap.
+ * Six steps: each staff is its own strip of paper, and the room between them
+ * is where the ledger notes either hand reaches for are written — a right-hand
+ * scale from the A below middle C, a left hand climbing past it.
  */
 export const SYSTEM_GAP = 6
-
-/** The stage showing between the two sheets of paper, in units. */
-export const PAPER_GAP = 22
-/** The paper to either side of the staff lines. */
-export const PAPER_MARGIN = 16
-/** How round the sheets' corners are. */
-const PAPER_RADIUS = 11
-
-/**
- * The two sheets a grand staff is drawn on — one per hand, the way the page
- * reads: two staves, each its own line of music, with the room between them.
- *
- * `top` and `bottom` are the drawing's own vertical extent, so a system with
- * ledger lines far above or below gets taller paper rather than notes hanging
- * off the edge of it. For drawings that do not scroll; a scrolling view puts
- * its paper behind the scroll instead (see FlowView).
- */
-export function PaperCards({
-  x = 0,
-  width,
-  top,
-  bottom,
-  trebleBottom = -PAPER_GAP / 2,
-  bassTop = PAPER_GAP / 2,
-}: {
-  x?: number
-  width: number
-  top: number
-  bottom: number
-  /** Where the treble's sheet ends and the bass's begins — see `paperEdges`. */
-  trebleBottom?: number
-  bassTop?: number
-}) {
-  return (
-    <>
-      <rect
-        x={x}
-        y={top}
-        width={width}
-        height={trebleBottom - top}
-        rx={PAPER_RADIUS}
-        className="staff__paper"
-      />
-      <rect
-        x={x}
-        y={bassTop}
-        width={width}
-        height={bottom - bassTop}
-        rx={PAPER_RADIUS}
-        className="staff__paper"
-      />
-    </>
-  )
-}
 
 /** Vertical position of a step, once its staff has been pushed clear. */
 export const yOn = (steps: number, staff: 'treble' | 'bass') =>
   -(steps + (staff === 'treble' ? SYSTEM_GAP : -SYSTEM_GAP)) * STEP
+
+/** Where the staff lines begin, in units from the drawing's left edge. */
+export const STAFF_START = 20
+/** How far short of a drawing's right edge its staff lines stop. */
+export const PAPER_MARGIN = STAFF_START
+
+/**
+ * The paper under each staff: from its top line to its bottom line, and no
+ * further.
+ *
+ * The white is the staff, the way a practice app draws it rather than the way
+ * a page does. What reaches past the five lines — the treble clef above and
+ * below them, a note on ledger lines — stands on the stage instead of on a
+ * margin of paper, so the staff reads as a band the music is hung on.
+ */
+export const STAFF_BANDS = {
+  treble: { top: yOn(10, 'treble'), bottom: yOn(2, 'treble') },
+  bass: { top: yOn(-2, 'bass'), bottom: yOn(-10, 'bass') },
+} as const
+
+/** The two strips of paper, for a drawing that does not scroll. See `STAFF_BANDS`. */
+export function PaperCards({ width }: { width: number }) {
+  return (
+    <>
+      {(['treble', 'bass'] as const).map((staff) => (
+        <rect
+          key={staff}
+          x={STAFF_START}
+          y={STAFF_BANDS[staff].top}
+          width={Math.max(0, width - PAPER_MARGIN - STAFF_START)}
+          height={STAFF_BANDS[staff].bottom - STAFF_BANDS[staff].top}
+          rx={1}
+          className="staff__paper"
+        />
+      ))}
+    </>
+  )
+}
 
 /**
  * Vertical position of a step on the staff it belongs to.
@@ -137,8 +120,8 @@ export function keyWidth(fifths: number): number {
   return marks === 0 ? 0 : (marks - 1) * KEY_SPACING + SHARP_WIDTH
 }
 
-/** The ten lines, and the bar line that closes them. */
-export function StaffLines({ width, from = 20 }: { width: number; from?: number }) {
+/** The ten lines, from `from` to `to`. */
+export function StaffLines({ from, to }: { from: number; to: number }) {
   return (
     <>
       {(['treble', 'bass'] as const).map((staff) => (
@@ -148,7 +131,7 @@ export function StaffLines({ width, from = 20 }: { width: number; from?: number 
               key={steps}
               x1={from}
               y1={yOn(steps, staff)}
-              x2={width - PAPER_MARGIN}
+              x2={to}
               y2={yOn(steps, staff)}
               className="staff__line"
             />
@@ -166,8 +149,8 @@ export function StaffLines({ width, from = 20 }: { width: number; from?: number 
  * music pass it by. A clef that scrolls off the left is a clef you cannot read
  * the music without, which is the one thing it is for.
  *
- * No brace. Each staff is on its own sheet of paper now, and a brace would have
- * to cross the stage between them to join two things that are visibly apart.
+ * No brace. Each staff is on its own strip of paper, and a brace would have to
+ * cross the stage between them to join two things that are visibly apart.
  */
 export function StaffGutter() {
   return (
@@ -177,7 +160,7 @@ export function StaffGutter() {
           {STAFF_LINES[staff].map((steps) => (
             <line
               key={steps}
-              x1="20"
+              x1={STAFF_START}
               y1={yOn(steps, staff)}
               x2={GUTTER}
               y2={yOn(steps, staff)}
@@ -196,9 +179,51 @@ export function StaffFrame({ width }: { width: number }) {
   return (
     <>
       <StaffGutter />
-      <StaffLines width={width} from={GUTTER} />
+      <StaffLines from={GUTTER} to={width - PAPER_MARGIN} />
     </>
   )
+}
+
+const CLEF_GLYPHS = { treble: '\u{1D11E}', bass: '\u{1D122}' } as const
+
+/**
+ * How tall each clef's ink is drawn, in units.
+ *
+ * A treble clef stands a space and a half proud of its staff at both ends —
+ * seven spaces in all — and a bass clef, dots included, is a little over three.
+ * Set as ink rather than as a font size because the fonts that carry these
+ * glyphs disagree by half again about how big a given size is: the one macOS
+ * falls back to draws a 58px treble clef barely as tall as the staff.
+ */
+const CLEF_INK = { treble: STEP * 14, bass: STEP * 6.4 } as const
+
+/** Where a clef is drawn: its font size, and the baseline that puts its ink where it belongs. */
+export interface ClefFit {
+  readonly size: number
+  readonly baseline: number
+}
+
+/**
+ * Size a clef to `CLEF_INK` and centre its ink on its staff.
+ *
+ * Takes the glyph's ink above and below the baseline, measured at 100px — the
+ * only numbers that differ from one machine's music font to the next.
+ */
+export function fitClef(
+  staff: 'treble' | 'bass',
+  ink: { ascent: number; descent: number },
+): ClefFit {
+  const size = (CLEF_INK[staff] / (ink.ascent + ink.descent)) * 100
+  const middle = (STAFF_BANDS[staff].top + STAFF_BANDS[staff].bottom) / 2
+  // The ink runs from `ascent` above the baseline to `descent` below it, so its
+  // middle is half their difference above the baseline.
+  return { size, baseline: middle + ((ink.ascent - ink.descent) / 2) * (size / 100) }
+}
+
+/** Where the clefs go before they have been measured, or where they cannot be. */
+const UNMEASURED: Record<'treble' | 'bass', ClefFit> = {
+  treble: { size: 58, baseline: yOn(5.4, 'treble') },
+  bass: { size: 46, baseline: yOn(-5.6, 'bass') },
 }
 
 /**
@@ -210,11 +235,11 @@ export function StaffFrame({ width }: { width: number }) {
  * marker on the line the clef names stands in when it is missing.
  */
 function Clef({ staff }: { staff: 'treble' | 'bass' }) {
-  const supported = useMusicGlyphs()
+  const fits = useClefFits()
   // Each clef names a line: G above middle C, F below it.
   const line = staff === 'treble' ? 4 : -4
 
-  if (!supported) {
+  if (fits === 'missing') {
     return (
       <>
         <circle cx="32" cy={yOn(line, staff)} r={STEP * 0.8} className="staff__clef-dot" />
@@ -228,31 +253,52 @@ function Clef({ staff }: { staff: 'treble' | 'bass' }) {
   return (
     <text
       x="30"
-      y={yOn(staff === 'treble' ? 5.4 : -5.6, staff)}
-      className={`staff__clef staff__clef--${staff}`}
+      y={fits[staff].baseline}
+      className="staff__clef"
+      style={{ fontSize: fits[staff].size }}
     >
-      {staff === 'treble' ? '\u{1D11E}' : '\u{1D122}'}
+      {CLEF_GLYPHS[staff]}
     </text>
   )
 }
 
-/** Measured once per session: the answer cannot change while the page is open. */
-let glyphSupport: boolean | null = null
+type ClefFits = Record<'treble' | 'bass', ClefFit> | 'missing'
 
-function useMusicGlyphs(): boolean {
-  const [supported, setSupported] = React.useState(glyphSupport ?? true)
+/** Measured once per session: the answer cannot change while the page is open. */
+let measured: ClefFits | null = null
+
+function useClefFits(): ClefFits {
+  const [fits, setFits] = React.useState<ClefFits>(measured ?? UNMEASURED)
 
   React.useEffect(() => {
-    if (glyphSupport !== null) return
-    const context = document.createElement('canvas').getContext('2d')
-    if (!context) return
-    context.font = '48px serif'
-    // A private-use codepoint no font fills, so anything measuring the same as
-    // it is the same missing-glyph box.
-    const missing = context.measureText('\u{F0000}').width
-    glyphSupport = context.measureText('\u{1D11E}').width !== missing
-    setSupported(glyphSupport)
+    if (measured === null) measured = measureClefs()
+    setFits(measured)
   }, [])
 
-  return supported
+  return fits
+}
+
+/** The clefs as this browser's music font draws them. */
+function measureClefs(): ClefFits {
+  const context = document.createElement('canvas').getContext('2d')
+  if (!context) return UNMEASURED
+  // The same stack the staff draws with, so it is the same font's ink.
+  const family =
+    getComputedStyle(document.documentElement).getPropertyValue('--font-music').trim() || 'serif'
+  context.font = `100px ${family}`
+  // A private-use codepoint no font fills, so anything measuring the same as
+  // it is the same missing-glyph box.
+  const missing = context.measureText('\u{F0000}').width
+  if (context.measureText(CLEF_GLYPHS.treble).width === missing) return 'missing'
+
+  const fit = (staff: 'treble' | 'bass') => {
+    const metrics = context.measureText(CLEF_GLYPHS[staff])
+    const ink = {
+      ascent: metrics.actualBoundingBoxAscent,
+      descent: metrics.actualBoundingBoxDescent,
+    }
+    // An engine without ink metrics reports nothing to centre; leave it where it was.
+    return ink.ascent + ink.descent > 0 ? fitClef(staff, ink) : UNMEASURED[staff]
+  }
+  return { treble: fit('treble'), bass: fit('bass') }
 }

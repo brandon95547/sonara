@@ -2,6 +2,7 @@ import { act, cleanup, render } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_SCALE_SPEC, staffFor } from '@sonara/shared'
 import { useLearningStore } from '@/state/learning-store'
+import { STAFF_BANDS, STAFF_START } from '@/features/staff/staff-frame'
 
 /**
  * The Scales tab writes the scale out.
@@ -122,6 +123,23 @@ describe('the scale on the staff', () => {
     expect(container.querySelectorAll('.staff__bar').length).toBeGreaterThan(0)
     // Each staff on a sheet of its own.
     expect(container.querySelectorAll('.staff-card')).toHaveLength(2)
+  })
+
+  it('lays the paper exactly under each staff, the clefs and ledger notes hanging off it', () => {
+    const { container } = render(<ScaleScore />)
+    const viewBox = container.querySelector('svg.staff')!.getAttribute('viewBox')!
+    const [, top, , height] = viewBox.split(' ').map(Number) as [number, number, number, number]
+    const scale = PANEL.height / height
+    const cards = [...container.querySelectorAll<HTMLElement>('.staff-card')]
+    for (const [card, staff] of [
+      [cards[0]!, 'treble'],
+      [cards[1]!, 'bass'],
+    ] as const) {
+      const band = STAFF_BANDS[staff]
+      expect(parseFloat(card.style.top)).toBeCloseTo((band.top - top) * scale, 6)
+      expect(parseFloat(card.style.height)).toBeCloseTo((band.bottom - band.top) * scale, 6)
+      expect(parseFloat(card.style.left)).toBeCloseTo(STAFF_START * scale, 6)
+    }
   })
 
   it('carries the recommended finger on every note, and one note to a beat', () => {

@@ -7,7 +7,6 @@ import {
   breakIntoSystems,
   frameOf,
   headerEnd,
-  paperEdges,
   place,
   type Measured,
   type Placed,
@@ -89,9 +88,6 @@ export function SheetView({
         top,
         height,
         origin: top - frame.top,
-        paperTop: frame.top,
-        paperBottom: frame.bottom,
-        edges: paperEdges(slice),
       }
     })
   }, [measured, fifths, pageWidth])
@@ -131,13 +127,7 @@ export function SheetView({
         >
           {systems.map((system) => (
             <g key={system.from} transform={`translate(0 ${system.origin})`}>
-              <PaperCards
-                width={pageWidth}
-                top={system.paperTop}
-                bottom={system.paperBottom}
-                trebleBottom={system.edges.trebleBottom}
-                bassTop={system.edges.bassTop}
-              />
+              <PaperCards width={pageWidth} />
               <StaffFrame width={pageWidth} />
               {/* The key is restated on every line, the way printed music does
                   it; the metre is stated once and then assumed. */}
@@ -148,6 +138,7 @@ export function SheetView({
                 withTime={system.from === 0}
               />
               <BarLines lines={barLinesIn(system.placed)} />
+              {system === current && <Playhead x={system.placed[here - system.from]!.x} />}
               {system.placed.map((entry) => (
                 <StepAt
                   key={entry.index}
@@ -156,7 +147,6 @@ export function SheetView({
                   fifths={fifths}
                 />
               ))}
-              {system === current && <Playhead x={system.placed[here - system.from]!.x} />}
             </g>
           ))}
         </svg>

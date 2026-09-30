@@ -69,8 +69,10 @@
 
   /* Keybed height. Viewport-relative with hard limits: tall enough on a phone
      in landscape to aim at, capped on a large monitor so the keyboard stays an
-     instrument on a page rather than the page itself. */
-  --keybed-height: clamp(104px, 24vh, 196px);
+     instrument on a page rather than the page itself. Four fifths of what it
+     was when the keys had the screen's bottom to themselves: docked under the
+     stage, they share the height with the music. */
+  --keybed-height: clamp(83px, 19.2vh, 157px);
 
   /* --- Paper and ink ------------------------------------------------------
      The second physical object in the app, and the same exception as the keys:
@@ -82,7 +84,6 @@
   --c-paper: #ffffff;
   --c-ink: #15171b;
   --c-ink-line: #4f5561;
-  --c-ink-muted: #545b67;
   /* What has already been played: still there, clearly behind you. 2.6:1 on the
      paper — a mark to see past, not text to read. */
   --c-ink-played: #a4aab4;
@@ -658,7 +659,7 @@
    window onto it and follows where you are, which is what the keyboard does
    with the keys. */
 .staff-scroll {
-  /* Positioned by FlowView: from the end of the clef gutter to the right edge. */
+  /* Positioned by FlowView: from the end of the clef gutter to where the paper ends. */
   position: absolute;
   inset-block: 0;
   right: 0;
@@ -751,8 +752,10 @@
   vector-effect: non-scaling-stroke;
 }
 
+/* Above the staff, so on the stage rather than the paper: full ink, which
+   measures 4.6:1 on the blue and 17.9:1 on white. */
 .staff__bar-number {
-  fill: var(--c-ink-muted);
+  fill: var(--c-ink);
   font-size: 11px;
   font-weight: 600;
   text-anchor: start;
@@ -766,16 +769,11 @@
   stroke-width: 2.4;
   stroke-linecap: round;
 }
+/* Sized and placed by measuring the glyph's ink (see `fitClef`), since the
+   fonts that carry it disagree about how big a font size is. */
 .staff__clef {
   fill: var(--c-ink);
   font-family: var(--font-music);
-  /* A treble clef spans the whole staff and a little beyond; a bass clef sits
-     inside it. Sized against the staff rather than picked by eye — five lines
-     is 40 units, and the glyph's drawn height is about 1.4 of that. */
-  font-size: 58px;
-}
-.staff__clef--bass {
-  font-size: 46px;
 }
 .staff__clef-dot {
   fill: var(--c-ink);
@@ -824,20 +822,21 @@
   text-anchor: middle;
 }
 
-/* Fingering: wanted, but never at the expense of the note it belongs to. */
+/* Fingering: wanted, but never at the expense of the note it belongs to —
+   which is size and weight here, not a paler ink. A number above or below the
+   staff is off the paper, and grey on the blue stage measures 1.8:1. */
 .staff__finger {
-  fill: var(--c-ink-muted);
+  fill: var(--c-ink);
   font-size: 10px;
   font-weight: 650;
   text-anchor: middle;
 }
 
 /* The notes under a finger right now.
-   Purple is spent on two things and nothing else: the playhead, and the notes
-   actually sounding. Not the next note to play — that is where it was, and it
-   meant the page always had a purple chord on it whether or not anybody was
-   touching the keyboard, so the colour stopped saying anything. Everything else
-   is white, the way printed music is black. */
+   The accent is spent on these and nothing else. Not the next note to play —
+   that is the blue it shares with its key — and not the playhead, which is
+   cyan: a colour that turned up whether or not anybody was touching the
+   keyboard would stop saying anything. Everything else is ink. */
 .staff__note[data-sounding='true'] :is(ellipse, .staff__accidental, .staff__dot) {
   fill: var(--ds-accent);
 }
@@ -854,14 +853,8 @@
   vector-effect: non-scaling-stroke;
 }
 
-/* Ledger lines belong to the chord, not to one note inside it, so they carry
-   the flag themselves. */
-.staff__ledger[data-sounding='true'] {
-  stroke: var(--ds-accent);
-}
-.staff__note[data-sounding='true'] .staff__finger {
-  fill: var(--ds-accent);
-}
+/* Ledger lines stay ink whatever their note is doing: they are where a note
+   leaves the paper, and only black reads on both the paper and the stage. */
 .staff__stem[data-sounding='true'] {
   stroke: var(--ds-accent);
 }
@@ -881,7 +874,9 @@
 }
 
 /* ---- Paper, and your place on it -----------------------------------------
-   The sheets the staves are drawn on (see PaperCards and FlowView). */
+   One strip per staff, from its top line to its bottom line (see STAFF_BANDS).
+   Square-ended, because the outer lines are its edges and a rounded corner
+   would bend them away. */
 .staff__paper,
 .staff-card {
   fill: var(--c-paper);
@@ -890,13 +885,22 @@
 .staff-card {
   position: absolute;
   inset-inline: 0;
-  border-radius: 20px;
+  border-radius: 2px;
   box-shadow:
-    0 1px 2px rgb(0 0 0 / 0.08),
-    0 10px 30px -12px rgb(0 0 0 / 0.35);
+    0 1px 2px rgb(0 0 0 / 0.1),
+    0 6px 16px -8px rgb(0 0 0 / 0.3);
 }
 .staff__paper {
-  filter: drop-shadow(0 6px 12px rgb(0 0 0 / 0.16));
+  filter: drop-shadow(0 3px 6px rgb(0 0 0 / 0.14));
+}
+
+/* Off the paper. A note on ledger lines stands on the stage, and both colours
+   that mark a note — the blue of where you are, the violet of what is sounding
+   — all but vanish against it, at 1.4:1 and 1.2:1. A hairline of paper round
+   them keeps them readable there; on the paper it is white on white. */
+.staff__step[data-role='target'] :is(.staff__note, .staff__stem, .staff__flag),
+:is(.staff__note, .staff__stem, .staff__flag)[data-sounding='true'] {
+  filter: drop-shadow(0 0 0.6px var(--c-paper)) drop-shadow(0 0 0.6px var(--c-paper));
 }
 
 /* Behind you: still on the page, clearly done. */
@@ -921,7 +925,7 @@
   fill: none;
   stroke: var(--c-now);
 }
-.staff__step[data-role='target'] :is(.staff__stem, .staff__ledger):not([data-sounding='true']) {
+.staff__step[data-role='target'] .staff__stem:not([data-sounding='true']) {
   stroke: var(--c-now);
 }
 

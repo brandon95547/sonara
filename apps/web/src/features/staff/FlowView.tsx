@@ -1,16 +1,8 @@
 import * as React from 'react'
 import { useElementSize } from '@/lib/hooks'
-import { GUTTER, StaffGutter, StaffLines } from './staff-frame'
+import { GUTTER, STAFF_BANDS, STAFF_START, StaffGutter, StaffLines } from './staff-frame'
 import { BarLines, isLive, LiveStep, Playhead, Signatures, Step, type Role } from './score-parts'
-import {
-  barLinesIn,
-  frameOf,
-  headerEnd,
-  paperEdges,
-  place,
-  type Measured,
-  type Placed,
-} from './score'
+import { barLinesIn, frameOf, headerEnd, place, type Measured, type Placed } from './score'
 
 /**
  * The music as one endless system, running past a fixed clef.
@@ -21,11 +13,13 @@ import {
  * in front of them — and it suits nobody who can already read a song, which is
  * what Sheet is for.
  *
- * Three layers. The paper is at the back and does not scroll: two sheets the
- * width of the stage, one per staff, however short the music on them is. The
- * clefs are pinned over its left edge. And the music scrolls in a window that
- * starts where the clefs end — so a note leaving the left of the view goes out
- * at that edge, rather than sliding under an opaque cover laid over the clefs.
+ * Three layers. The paper is at the back and does not scroll: two strips the
+ * width of the stage, each exactly as tall as its staff, however short the
+ * music on them is. The clefs are pinned over their left end, standing out
+ * above and below them. And the music scrolls in a window that starts where
+ * the clefs end and stops where the strips do — so a note leaving the view goes
+ * out at an edge, rather than sliding under an opaque cover laid over the
+ * clefs.
  */
 
 export function FlowView({
@@ -59,9 +53,7 @@ export function FlowView({
     [measured, fifths, withTime],
   )
   const frame = React.useMemo(() => frameOf(measured), [measured])
-  const edges = React.useMemo(() => paperEdges(measured), [measured])
   const height = frame.bottom - frame.top
-  const totalWidth = Math.max((placed.at(-1)?.x ?? 0) + 60, 320)
 
   // The drawing scales with the panel's height, so the width in pixels follows
   // from it — which is what makes the container scroll by the right amount.
@@ -72,6 +64,12 @@ export function FlowView({
   // where the two join.
   const scale = size.height > 0 ? size.height / height : 1
   const gutterPx = GUTTER * scale
+  const insetPx = STAFF_START * scale
+  /** The music's window, in pixels: between the clefs and the strips' right end. */
+  const visible = size.width - gutterPx - insetPx
+  // At least as wide as the window, so the lines run the length of the paper
+  // under them even when the music stops short of it.
+  const totalWidth = Math.max((placed.at(-1)?.x ?? 0) + 60, GUTTER + Math.max(0, visible) / scale)
   const musicWidth = totalWidth - GUTTER
   const pixelWidth = musicWidth * scale
 
@@ -87,7 +85,6 @@ export function FlowView({
     // and is the right one, and still measures nothing — so the guard below
     // rejected every scroll and the score silently never followed. The observer
     // that already sizes the drawing knows the answer.
-    const visible = size.width - gutterPx
     if (!box || !current || visible <= 0) return
     const x = (current.x - GUTTER) * scale
     const margin = visible * 0.35
@@ -98,17 +95,20 @@ export function FlowView({
       // abruptly beats not arriving.
       box.scrollLeft = Math.max(0, x - margin)
     }
-  }, [here, placed, scale, size.width, gutterPx])
+  }, [here, placed, scale, visible])
 
   // Where the paper goes, in pixels: the same bands PaperCards draws in units.
-  const toPx = (y: number) => (y - frame.top) * scale
-  const trebleHeight = toPx(edges.trebleBottom)
-  const bassTop = toPx(edges.bassTop)
+  const band = (staff: 'treble' | 'bass') => ({
+    top: (STAFF_BANDS[staff].top - frame.top) * scale,
+    height: (STAFF_BANDS[staff].bottom - STAFF_BANDS[staff].top) * scale,
+    left: insetPx,
+    right: insetPx,
+  })
 
   return (
     <div ref={frameRef} className="staff-fit staff-score">
-      <div className="staff-card" style={{ top: 0, height: trebleHeight }} aria-hidden />
-      <div className="staff-card" style={{ top: bassTop, bottom: 0 }} aria-hidden />
+      <div className="staff-card" style={band('treble')} aria-hidden />
+      <div className="staff-card" style={band('bass')} aria-hidden />
 
       <svg
         className="staff-gutter"
@@ -121,7 +121,7 @@ export function FlowView({
         <StaffGutter />
       </svg>
 
-      <div ref={scrollRef} className="staff-scroll" style={{ left: gutterPx }}>
+      <div ref={scrollRef} className="staff-scroll" style={{ left: gutterPx, right: insetPx }}>
         <svg
           viewBox={`${GUTTER} ${frame.top} ${musicWidth} ${height}`}
           width={pixelWidth || undefined}
@@ -131,13 +131,13 @@ export function FlowView({
           role="img"
           aria-label={label}
         >
-          <StaffLines width={totalWidth} from={GUTTER} />
+          <StaffLines from={GUTTER} to={totalWidth} />
           <Signatures fifths={fifths} beats={beats} beatType={beatType} withTime={withTime} />
           <BarLines lines={barLinesIn(placed)} numbered={numbered} />
+          {placed[here] && <Playhead x={placed[here]!.x} />}
           {placed.map((entry) => (
             <StepAt key={entry.index} placed={entry} role={roleFor(entry.index)} fifths={fifths} />
           ))}
-          {placed[here] && <Playhead x={placed[here]!.x} />}
         </svg>
       </div>
     </div>

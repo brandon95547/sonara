@@ -71,7 +71,9 @@ export function BarLines({
  * Where you are.
  *
  * A line, not a column: a translucent block over the music dims the very notes
- * it is pointing at, and the eye reads the block instead of them.
+ * it is pointing at, and the eye reads the block instead of them. Drawn under
+ * the notes for the same reason — its glow laid over a note hanging off the
+ * paper washed the notehead out until a crotchet read as a minim.
  */
 export function Playhead({ x }: { x: number }) {
   return (

@@ -126,7 +126,7 @@ export function GrandStaff() {
             : `Grand staff: ${sounding.map((note) => staffNoteName(note, spellingFor(note))).join(', ')}`
         }
       >
-        <PaperCards width={width} top={-HALF_HEIGHT} bottom={HALF_HEIGHT} />
+        <PaperCards width={width} />
         <StaffFrame width={width} />
         <KeySignature x={KEY_X} fifths={fifths} />
 
