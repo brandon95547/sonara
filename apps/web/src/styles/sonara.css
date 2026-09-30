@@ -1223,8 +1223,8 @@
   gap: 10px;
   margin-right: 2px;
 }
-/* The sigil: white line-work on the bar, drawn tall — it is a clef on an
-   axis, and at the old 36px square its halo lines were under half a pixel. */
+/* The mark: a figure flowing into a note, white on the bar. As tall as the
+   bar's controls, since its orbit lines are thin and vanish much smaller. */
 .top-bar__logo {
   display: block;
   flex: none;
