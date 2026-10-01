@@ -193,7 +193,7 @@ export const EXERCISE_NOUNS: Record<ExerciseKind, string> = {
   scale: 'scale',
   chord: 'chords',
   arpeggio: 'arpeggio',
-  progression: 'progression',
+  progression: 'cadence',
   exercise: 'exercise',
 }
 

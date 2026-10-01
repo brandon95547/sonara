@@ -21,7 +21,11 @@ import { pageActions, usePageStore } from '@/state/page-store'
 import { useRecordingStore } from '@/state/recording-store'
 import { AREAS, COMING_NEXT } from '@/features/areas/areas'
 import { LastTakeButton, RecordButton } from '@/features/recording/RecordControls'
-import { ArpeggioSettings, ChordSettings } from '@/features/learning/ChordControls'
+import {
+  ArpeggioSettings,
+  ChordSettings,
+  ProgressionSettings,
+} from '@/features/learning/ChordControls'
 import {
   DemoButton,
   DirectionMenu,
@@ -92,10 +96,16 @@ export function TopBar() {
           </>
         )}
 
-        {(area === 'chords' || area === 'arpeggios') && (
+        {(area === 'chords' || area === 'arpeggios' || area === 'progressions') && (
           <>
             <span className="top-bar__divider bar-sm" aria-hidden />
-            {area === 'chords' ? <ChordSettings /> : <ArpeggioSettings />}
+            {area === 'chords' ? (
+              <ChordSettings />
+            ) : area === 'arpeggios' ? (
+              <ArpeggioSettings />
+            ) : (
+              <ProgressionSettings />
+            )}
 
             <span className="top-bar__spacer" />
 

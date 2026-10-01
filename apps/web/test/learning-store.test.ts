@@ -183,7 +183,7 @@ describe('changing the exercise', () => {
   })
 
   it('clears the keyboard when the topic has no builder yet', () => {
-    store().setTopic('progressions')
+    store().setTopic('exercises')
     expect(store().exercise).toBeNull()
     expect(Object.keys(store().annotations)).toHaveLength(0)
   })
@@ -561,5 +561,35 @@ describe('thirds, octaves and the cadence', () => {
     for (const each of steps) for (const note of new Set(each.notes)) store().noteOn(note)
     expect(store().session.status).toBe('complete')
     expect(store().session.mistakes).toBe(0)
+  })
+})
+
+describe('the Progressions area', () => {
+  beforeEach(() => store().setTopic('progressions'))
+
+  it('opens on the cadence of C major in its three positions', () => {
+    expect(store().exercise?.kind).toBe('progression')
+    expect(store().exercise?.title).toBe('C Major Cadence')
+    expect(store().exercise?.steps).toHaveLength(15)
+  })
+
+  it('keeps its own settings, apart from the other areas', () => {
+    store().updateProgressionSpec({ rootPitchClass: 9, mode: 'minor', position: 0 })
+    expect(store().exercise?.title).toBe('A Minor Cadence')
+    expect(store().exercise?.steps).toHaveLength(5)
+
+    store().setTopic('chords')
+    expect(store().chordSpec.rootPitchClass).toBe(0)
+    store().setTopic('progressions')
+    expect(store().exercise?.title).toBe('A Minor Cadence')
+  })
+
+  it('lights each chord as the target, every key with its own note name', () => {
+    store().setMode('learn')
+    const first = store().exercise!.steps[0]!
+    for (const [index, note] of first.notes.entries()) {
+      expect(store().annotations[note]?.role).toBe('target')
+      expect(store().annotations[note]?.label).toBe(first.noteLabels![index])
+    }
   })
 })

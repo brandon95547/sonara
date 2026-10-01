@@ -12,6 +12,10 @@ import {
 } from 'lucide-react'
 import {
   ARPEGGIO_CHORDS,
+  CADENCE_DOMINANTS,
+  CADENCE_FORM_LABELS,
+  CADENCE_FORMS,
+  CADENCE_POSITION_NAMES,
   CHORD_FORMS,
   CHORD_KIND_LABELS,
   CHORD_STYLE_LABELS,
@@ -28,9 +32,12 @@ import {
   SCALE_TYPES,
   spellScale,
   type ArpeggioChord,
+  type CadenceDominant,
+  type CadenceForm,
   type ChordForm,
   type ChordStyle,
   type KeyMode,
+  type ProgressionSpec,
   type ScaleDirection,
   type ScaleHands,
 } from '@sonara/shared'
@@ -41,27 +48,31 @@ import { useLearningStore } from '@/state/learning-store'
 import { CompactField, RadioGrid } from './ScaleControls'
 
 /**
- * The Chords and Arpeggios controls, as they sit in the app bar.
+ * The Chords, Arpeggios and Progressions controls, as they sit in the app bar.
  *
- * Built the way the Scales controls are, so the three areas read as one
+ * Built the way the Scales controls are, so the areas read as one
  * instrument: the key first, behind an icon that carries its name; then what
  * is played and which hand plays it, each an icon with its value on a badge.
  * On a narrow screen everything after the key folds into the key's own
  * popover.
  */
 
-type Area = 'chords' | 'arpeggios'
+type Area = 'chords' | 'arpeggios' | 'progressions'
 
 /** The area's settings and the action that changes them, whichever area it is. */
 function useKey(area: Area) {
   const chord = useLearningStore((state) => state.chordSpec)
   const arpeggio = useLearningStore((state) => state.arpeggioSpec)
+  const progression = useLearningStore((state) => state.progressionSpec)
   const updateChord = useLearningStore((state) => state.updateChordSpec)
   const updateArpeggio = useLearningStore((state) => state.updateArpeggioSpec)
-  const spec = area === 'chords' ? chord : arpeggio
-  // The fields the two areas share. Each action takes its own area's patch;
-  // a key, a mode and a hand are part of both.
-  const update = (area === 'chords' ? updateChord : updateArpeggio) as (patch: {
+  const updateProgression = useLearningStore((state) => state.updateProgressionSpec)
+  const spec = area === 'chords' ? chord : area === 'arpeggios' ? arpeggio : progression
+  // The fields the areas share. Each action takes its own area's patch; a key,
+  // a mode and a hand are part of all of them.
+  const update = (
+    area === 'chords' ? updateChord : area === 'arpeggios' ? updateArpeggio : updateProgression
+  ) as (patch: {
     rootPitchClass?: number
     tonic?: string
     mode?: KeyMode
@@ -115,7 +126,16 @@ const POSITION_BADGES = ['R', '1', '2', '3']
  * `children` is the rest of the area's bar, for when the bar is too narrow to
  * hold it.
  */
-function KeyPicker({ area, children }: { area: Area; children: React.ReactNode }) {
+function KeyPicker({
+  area,
+  children,
+  hands = true,
+}: {
+  area: Area
+  children: React.ReactNode
+  /** False where the setting above it has already decided which hands play. */
+  hands?: boolean
+}) {
   const { spec, update } = useKey(area)
   const title = useLearningStore((state) => state.exercise?.title ?? 'Choose a key')
   const [open, setOpen] = React.useState(false)
@@ -187,18 +207,20 @@ function KeyPicker({ area, children }: { area: Area; children: React.ReactNode }
           {/* The rest of the bar, for when the bar is too narrow to hold it. */}
           <div className="popover-compact flex flex-col gap-3 border-t border-[var(--ds-border-subtle)] pt-4">
             {children}
-            <CompactField label="Hand">
-              <SegmentedControl<ScaleHands>
-                label="Hand"
-                value={spec.hand}
-                onChange={(hand) => update({ hand })}
-                options={[
-                  { value: 'right', label: 'Right' },
-                  { value: 'left', label: 'Left' },
-                  { value: 'both', label: 'Both' },
-                ]}
-              />
-            </CompactField>
+            {hands && (
+              <CompactField label="Hand">
+                <SegmentedControl<ScaleHands>
+                  label="Hand"
+                  value={spec.hand}
+                  onChange={(hand) => update({ hand })}
+                  options={[
+                    { value: 'right', label: 'Right' },
+                    { value: 'left', label: 'Left' },
+                    { value: 'both', label: 'Both' },
+                  ]}
+                />
+              </CompactField>
+            )}
           </div>
         </div>
       </Popover>
@@ -379,6 +401,148 @@ export function ArpeggioSettings() {
         icon={<Arrow size={18} aria-hidden />}
         className="bar-wide"
       />
+    </>
+  )
+}
+
+const FORM_BADGES: Record<CadenceForm, string> = {
+  positions: '3',
+  'root-in-bass': 'B',
+  'root-in-treble': 'T',
+}
+const FORM_DESCRIPTIONS: Record<CadenceForm, string> = {
+  positions: 'The chords in both hands, from each position of the tonic.',
+  'root-in-bass': 'Right hand on the chords, left hand on the root of each.',
+  'root-in-treble': 'Left hand on the chords, right hand on the root of each.',
+}
+
+type CadencePosition = ProgressionSpec['position']
+const POSITION_OPTIONS: readonly { value: CadencePosition; label: string; badge: string }[] = [
+  { value: 'all', label: 'All Three', badge: 'All' },
+  ...CADENCE_POSITION_NAMES.map((label, index) => ({
+    value: index as CadencePosition,
+    label,
+    badge: POSITION_BADGES[index]!,
+  })),
+]
+
+const DOMINANT_LABELS: Record<CadenceDominant, string> = {
+  V: 'Dominant triad',
+  V7: 'Dominant seventh',
+}
+
+/** The left of the bar in the Progressions area. */
+export function ProgressionSettings() {
+  const spec = useLearningStore((state) => state.progressionSpec)
+  const update = useLearningStore((state) => state.updateProgressionSpec)
+  // The rooted forms are two-handed by nature and play one position, with both
+  // dominants in turn: those three settings belong to the three positions only.
+  const positions = spec.form === 'positions'
+  const position = POSITION_OPTIONS.find((option) => option.value === spec.position)!
+  const notForThis = `For ${CADENCE_FORM_LABELS.positions}.`
+
+  return (
+    <>
+      <KeyPicker area="progressions" hands={positions}>
+        <CompactField label="Cadence">
+          <Select
+            size="sm"
+            aria-label="Cadence"
+            value={spec.form}
+            onChange={(event) => update({ form: event.target.value as CadenceForm })}
+            options={CADENCE_FORMS.map((form) => ({
+              value: form,
+              label: CADENCE_FORM_LABELS[form],
+            }))}
+          />
+        </CompactField>
+        {positions && (
+          <>
+            <CompactField label="Position">
+              <Select
+                size="sm"
+                aria-label="Position"
+                value={String(spec.position)}
+                onChange={(event) =>
+                  update({
+                    position:
+                      event.target.value === 'all'
+                        ? 'all'
+                        : (Number(event.target.value) as CadencePosition),
+                  })
+                }
+                options={POSITION_OPTIONS.map((option) => ({
+                  value: String(option.value),
+                  label: option.label,
+                }))}
+              />
+            </CompactField>
+            <CompactField label="Dominant">
+              <SegmentedControl<CadenceDominant>
+                label="Dominant"
+                value={spec.dominant}
+                onChange={(dominant) => update({ dominant })}
+                options={CADENCE_DOMINANTS.map((chord) => ({
+                  value: chord,
+                  label: numeral(chord),
+                }))}
+              />
+            </CompactField>
+          </>
+        )}
+      </KeyPicker>
+      <SelectMenu<CadenceForm>
+        label="Cadence"
+        value={spec.form}
+        options={CADENCE_FORMS.map((form) => ({
+          value: form,
+          label: CADENCE_FORM_LABELS[form],
+          description: FORM_DESCRIPTIONS[form],
+        }))}
+        onChange={(form) => update({ form })}
+        iconOnly
+        icon={<BarGlyph icon={<Layers size={18} />} badge={FORM_BADGES[spec.form]} />}
+        className="bar-wide"
+      />
+      <SelectMenu<CadencePosition>
+        label="Position"
+        value={spec.position}
+        options={POSITION_OPTIONS.map((option) => ({
+          value: option.value,
+          label: option.label,
+          description: positions
+            ? option.value === 'all'
+              ? 'The cadence from each position of the tonic chord, in turn.'
+              : undefined
+            : notForThis,
+          disabled: !positions,
+        }))}
+        onChange={(next) => update({ position: next })}
+        iconOnly
+        icon={
+          <BarGlyph icon={<ListOrdered size={18} />} badge={positions ? position.badge : 'R'} />
+        }
+        className="bar-wide"
+      />
+      <SelectMenu<CadenceDominant>
+        label="Dominant"
+        value={spec.dominant}
+        options={CADENCE_DOMINANTS.map((chord) => ({
+          value: chord,
+          label: DOMINANT_LABELS[chord],
+          description: positions
+            ? chord === 'V'
+              ? 'I – IV – I – V – I.'
+              : 'I – IV – I – V7 – I.'
+            : 'This form plays both: V, then V7.',
+          disabled: !positions,
+        }))}
+        onChange={(dominant) => update({ dominant })}
+        iconOnly
+        icon={<BarGlyph icon={<Rows3 size={18} />} badge={positions ? spec.dominant : 'V·7'} />}
+        className="bar-wide"
+      />
+      {positions && <HandsMenu area="progressions" />}
     </>
   )
 }

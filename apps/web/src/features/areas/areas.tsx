@@ -47,7 +47,7 @@ const DETAILS: Record<LearningTopic, { icon: LucideIcon; description: string }> 
   },
   progressions: {
     icon: Route,
-    description: 'Chords in sequence — the way songs move.',
+    description: 'The cadence of every key, in three positions: I – IV – I – V – I.',
   },
   exercises: {
     icon: Settings,
