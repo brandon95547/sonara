@@ -78,6 +78,7 @@ export const ScaleScore = React.memo(function ScaleScore() {
   const mode = useLearningStore((state) => state.mode)
   const stepIndex = useLearningStore((state) => state.session.stepIndex)
   const demoStepIndex = useLearningStore((state) => state.demoStepIndex)
+  const running = useLearningStore((state) => state.session.status === 'running')
 
   /*
    * The key the scale is written in. Null where no signature fits — a chromatic
@@ -112,6 +113,18 @@ export const ScaleScore = React.memo(function ScaleScore() {
    */
   const here = demoStepIndex ?? (mode === 'explore' ? -1 : stepIndex)
 
+  /**
+   * Where somebody is actually known to be, which is not the same question.
+   *
+   * `here` is where the page is turned to: a scale waiting for Start shows its
+   * first note as the one to play, and nobody is on it. The playback head is
+   * somewhere, and so is a run; a player trying the scale out before starting
+   * is wherever their hands are, which only the keys can say.
+   *
+   * It decides which writing of a held pitch lights — see `litNotes`.
+   */
+  const position = demoStepIndex ?? (running ? stepIndex : -1)
+
   const roleFor = React.useCallback(
     (index: number): Role => {
       if (here < 0) return 'ahead'
@@ -137,9 +150,10 @@ export const ScaleScore = React.memo(function ScaleScore() {
       // are counted against.
       withTime={false}
       numbered={false}
-      // Short enough to watch every note, so any key of the scale lights where
+      // Short enough to watch every note, so a key of the scale lights where
       // it is written — started or not, near your place or not.
       watchAll
+      position={position}
       label={`${exercise.title}, ${exercise.subtitle}: ${exercise.steps.map((step) => step.label).join(' ')}`}
     />
   )

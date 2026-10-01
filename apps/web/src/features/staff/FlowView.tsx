@@ -9,7 +9,9 @@ import {
   PLAYHEAD_SHOWN,
   Signatures,
   Step,
+  watchedIn,
   type Role,
+  type Watched,
 } from './score-parts'
 import { barLinesIn, frameOf, headerEnd, place, type Measured, type Placed } from './score'
 
@@ -42,6 +44,7 @@ export function FlowView({
   withTime = true,
   numbered = true,
   watchAll = false,
+  position = here,
 }: {
   measured: readonly Measured[]
   here: number
@@ -55,16 +58,24 @@ export function FlowView({
   /** Bar numbers, so a player can say where they are. A scale is too short to need them. */
   numbered?: boolean
   /**
-   * Every chord lights when its keys go down, not only the few near your place.
+   * Every chord watches the keys, not only the few near your place.
    *
    * A song keeps to the window: it has hundreds of chords and plays middle C
-   * fifty times, so lighting all of them costs a redraw of the piece and says
-   * nothing about where you are. A scale has a couple of dozen notes and each
-   * pitch at most twice, and a player running up it before pressing Start — or
-   * past the window after — expects the note they are holding to light where
-   * it is written.
+   * fifty times, so watching all of them costs a redraw of the piece and says
+   * nothing about where you are. A scale has a couple of dozen notes, and a
+   * player running up it before pressing Start — or past the window after —
+   * expects the note they are holding to light where it is written.
    */
   watchAll?: boolean
+  /**
+   * The step the player is known to be on, where that is not `here`.
+   *
+   * `here` is where the page is turned to, and a scale that has not been
+   * started is turned to its first note without anybody being on it. A held
+   * pitch lights at its writing nearest this, so it is negative when nobody is
+   * anywhere and the keys are left to say where they are.
+   */
+  position?: number
 }) {
   const [frameRef, size] = useElementSize<HTMLDivElement>()
   const scrollRef = React.useRef<HTMLDivElement>(null)
@@ -75,6 +86,12 @@ export function FlowView({
   )
   const frame = React.useMemo(() => frameOf(measured), [measured])
   const height = frame.bottom - frame.top
+  // The chords listening to the keys, so each can tell whether a pitch it is
+  // holding is being played here or somewhere else it is written.
+  const watched = React.useMemo(
+    () => watchedIn(measured, (index) => watchAll || isLive(roleFor(index))),
+    [measured, watchAll, roleFor],
+  )
 
   // The drawing scales with the panel's height, so the width in pixels follows
   // from it — which is what makes the container scroll by the right amount.
@@ -165,6 +182,8 @@ export function FlowView({
                 role={role}
                 live={watchAll || isLive(role)}
                 fifths={fifths}
+                watched={watched}
+                position={position}
               />
             )
           })}
@@ -180,14 +199,18 @@ function StepAt({
   role,
   live,
   fifths,
+  watched,
+  position,
 }: {
   placed: Placed
   role: Role
   live: boolean
   fifths: number
+  watched: readonly Watched[]
+  position: number
 }) {
   return live ? (
-    <LiveStep placed={placed} role={role} fifths={fifths} />
+    <LiveStep placed={placed} role={role} fifths={fifths} watched={watched} position={position} />
   ) : (
     <Step placed={placed} role={role} fifths={fifths} lit="" />
   )

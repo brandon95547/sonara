@@ -9,7 +9,9 @@ import {
   PLAYHEAD_SHOWN,
   Signatures,
   Step,
+  watchedIn,
   type Role,
+  type Watched,
 } from './score-parts'
 import {
   barLinesIn,
@@ -101,6 +103,14 @@ export function SheetView({
     })
   }, [measured, fifths, pageWidth])
 
+  // Across the whole page rather than a line at a time: the chords near the
+  // playhead run over a line break, and a pitch written either side of one is
+  // still written twice.
+  const watched = React.useMemo(
+    () => watchedIn(measured, (index) => isLive(roleFor(index))),
+    [measured, roleFor],
+  )
+
   const last = systems.at(-1)
   const pageHeight = last ? last.top + last.height : HALF_HEIGHT * 2
   const current = systems.find((system) => here >= system.from && here < system.to)
@@ -156,6 +166,8 @@ export function SheetView({
                   placed={entry}
                   role={roleFor(entry.index)}
                   fifths={fifths}
+                  watched={watched}
+                  position={here}
                 />
               ))}
             </g>
@@ -167,9 +179,21 @@ export function SheetView({
 }
 
 /** Watched if it is near the playhead, drawn once and left alone if it is not. */
-function StepAt({ placed, role, fifths }: { placed: Placed; role: Role; fifths: number }) {
+function StepAt({
+  placed,
+  role,
+  fifths,
+  watched,
+  position,
+}: {
+  placed: Placed
+  role: Role
+  fifths: number
+  watched: readonly Watched[]
+  position: number
+}) {
   return isLive(role) ? (
-    <LiveStep placed={placed} role={role} fifths={fifths} />
+    <LiveStep placed={placed} role={role} fifths={fifths} watched={watched} position={position} />
   ) : (
     <Step placed={placed} role={role} fifths={fifths} lit="" />
   )

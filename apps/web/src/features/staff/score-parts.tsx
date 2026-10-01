@@ -2,7 +2,7 @@ import * as React from 'react'
 import { KEY_X, STEP, yOn } from './staff-frame'
 import { Chord, KeySignature, TimeSignature } from './StaffNotes'
 import { useKeyboardStore } from '@/state/keyboard-store'
-import { timeX, type Placed } from './score'
+import { timeX, type Measured, type Placed } from './score'
 
 /**
  * The marks a system is made of, drawn the same way in both views.
@@ -134,6 +134,65 @@ export const Step = React.memo(function Step({
   )
 })
 
+/** A chord whose keys are watched: where it falls in the piece, and its pitches. */
+export interface Watched {
+  readonly index: number
+  readonly notes: readonly number[]
+}
+
+/** The chords of a score that watch the keys, as the lighting compares them. */
+export function watchedIn(
+  measured: readonly Measured[],
+  live: (index: number) => boolean,
+): Watched[] {
+  return measured
+    .filter((entry) => live(entry.index))
+    .map((entry) => ({ index: entry.index, notes: entry.step.notes.map((note) => note.note) }))
+}
+
+/**
+ * Which of a chord's notes light, out of the ones being held.
+ *
+ * A key is one pitch and a pitch is written in more than one place. A scale
+ * comes back down through the notes it went up, and with both hands the left
+ * reaches an octave later the very keys the right began on — so every key of a
+ * two-octave scale in octaves is written four times, twice on each staff. A
+ * chord that lit whenever one of its pitches was down lit all four: six
+ * noteheads for the two notes actually sounding, the other four on steps
+ * nobody was playing.
+ *
+ * So the writings of a pitch are compared, and the one that is being played
+ * lights. Nearest to `position` first — where the playback head or the run is is
+ * not a guess. Then, between chords equally near, or when nobody is known to be
+ * anywhere, the chord with the most of itself held down: both hands on the
+ * first step is that step, and not the left hand's half of one an octave on.
+ *
+ * What is still level after that lights everywhere it is level, because a key
+ * does not say which hand pressed it and choosing one would be a guess.
+ */
+export function litNotes(
+  step: Watched,
+  watched: readonly Watched[],
+  position: number,
+  isDown: (note: number) => boolean,
+): number[] {
+  const claim = (chord: Watched) => ({
+    away: position < 0 ? 0 : Math.abs(chord.index - position),
+    held: chord.notes.filter(isDown).length / chord.notes.length,
+  })
+  const own = claim(step)
+
+  return step.notes.filter(
+    (note) =>
+      isDown(note) &&
+      !watched.some((other) => {
+        if (other.index === step.index || !other.notes.includes(note)) return false
+        const rival = claim(other)
+        return rival.away !== own.away ? rival.away < own.away : rival.held > own.held
+      }),
+  )
+}
+
 /**
  * A chord close enough to the playhead to light up as you play it.
  *
@@ -143,16 +202,34 @@ export const Step = React.memo(function Step({
  * is reconciled on every note-on and note-off. Here only the handful under the
  * player's hands is listening, so a chord costs what a chord costs.
  *
+ * It is told which other chords are listening, because whether a held pitch
+ * lights here depends on where else it is written — see `litNotes`.
+ *
  * The selector returns a string, so holding a key down through some other
  * change to the store — the sustain pedal, a note somewhere else — comes back
  * equal and re-renders nothing.
  */
-export function LiveStep({ placed, role, fifths }: { placed: Placed; role: Role; fifths: number }) {
+export function LiveStep({
+  placed,
+  role,
+  fifths,
+  watched,
+  position,
+}: {
+  placed: Placed
+  role: Role
+  fifths: number
+  watched: readonly Watched[]
+  /** The step the player is known to be on, or negative where nobody is. */
+  position: number
+}) {
   const lit = useKeyboardStore((state) =>
-    placed.step.notes
-      .filter((note) => state.active[note.note] !== undefined)
-      .map((note) => note.note)
-      .join(','),
+    litNotes(
+      { index: placed.index, notes: placed.step.notes.map((note) => note.note) },
+      watched,
+      position,
+      (note) => state.active[note] !== undefined,
+    ).join(','),
   )
   return <Step placed={placed} role={role} fifths={fifths} lit={lit} />
 }
