@@ -484,7 +484,7 @@ export function ProgressionSettings() {
                 onChange={(dominant) => update({ dominant })}
                 options={CADENCE_DOMINANTS.map((chord) => ({
                   value: chord,
-                  label: numeral(chord),
+                  label: chord,
                 }))}
               />
             </CompactField>
