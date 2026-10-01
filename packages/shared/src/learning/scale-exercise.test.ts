@@ -46,17 +46,48 @@ describe('buildScaleExercise', () => {
   it('places the scale where a 61-key keyboard can reach it', () => {
     // The default view is C2-C7. A scale that starts below or ends above it is
     // an exercise the player cannot see themselves playing.
-    for (let pitchClass = 0; pitchClass < 12; pitchClass++) {
-      for (const octaves of [1, 2] as const) {
-        const notes = build({ rootPitchClass: pitchClass, octaves }).notes
-        expect(Math.min(...notes), `pc ${pitchClass}`).toBeGreaterThanOrEqual(36)
-        expect(Math.max(...notes), `pc ${pitchClass}`).toBeLessThanOrEqual(96)
+    for (const hand of ['right', 'left'] as const) {
+      for (let pitchClass = 0; pitchClass < 12; pitchClass++) {
+        for (const octaves of [1, 2, 3, 4] as const) {
+          const notes = build({ rootPitchClass: pitchClass, octaves, hand }).notes
+          const where = `${hand} pc ${pitchClass} x${octaves}`
+          expect(Math.min(...notes), where).toBeGreaterThanOrEqual(36)
+          expect(Math.max(...notes), where).toBeLessThanOrEqual(96)
+        }
       }
     }
   })
 
-  it('starts A minor on A3, where both hands are comfortable', () => {
+  it('starts the right hand of A minor on A3', () => {
     expect(noteName(build().notes[0]!)).toBe('A3')
+  })
+
+  it('puts the left hand an octave below the right, as the scale books do', () => {
+    // The regression: both hands were given the same keys. The Brown Scale
+    // Book prints A minor "in octaves" with the right hand from A3 and the
+    // left from A2.
+    expect(noteName(build({ hand: 'left' }).notes[0]!)).toBe('A2')
+
+    // In every key, at every width that leaves room for it, in both directions.
+    for (let pitchClass = 0; pitchClass < 12; pitchClass++) {
+      for (const octaves of [1, 2, 3] as const) {
+        for (const direction of ['up', 'down', 'up-down'] as const) {
+          const spec = { rootPitchClass: pitchClass, octaves, direction }
+          const right = build({ ...spec, hand: 'right' }).notes
+          const left = build({ ...spec, hand: 'left' }).notes
+          expect(left, `pc ${pitchClass} x${octaves} ${direction}`).toEqual(
+            right.map((note) => note - 12),
+          )
+        }
+      }
+    }
+  })
+
+  it('shares the one place a four-octave scale fits rather than leave the keyboard', () => {
+    // Db over four octaves runs Db2-Db6. An octave lower starts below C2, off
+    // the bottom of a 61-key keyboard, so the left hand stays where it fits.
+    const spec = { rootPitchClass: 1, octaves: 4 } as const
+    expect(build({ ...spec, hand: 'left' }).notes).toEqual(build({ ...spec, hand: 'right' }).notes)
   })
 
   it('names each step with its spelled note, not a MIDI number', () => {

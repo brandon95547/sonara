@@ -58,23 +58,36 @@ export const DEFAULT_SCALE_SPEC: ScaleSpec = {
 /**
  * Where to place the root.
  *
- * A3 is the target: low enough that a two-octave scale stays inside a 61-key
- * view, high enough that the left hand is not down at the bottom of the piano.
- * The whole scale is checked against the top of that view, so a wide exercise
- * drops an octave rather than running off the end of a keyboard the player can
- * see.
+ * A3 is the right hand's target: low enough that a two-octave scale stays
+ * inside a 61-key view. The whole scale is checked against the top of that
+ * view, so a wide exercise drops an octave rather than running off the end of a
+ * keyboard the player can see.
+ *
+ * The left hand plays the same scale an octave below the right. That is where
+ * the scale books put it — "similar motion in octaves", right hand from A3 and
+ * left from A2 — and where it will sit once the hands are put together. It used
+ * to share the right hand's keys, which taught the left hand a position it
+ * then has to leave.
+ *
+ * The one exception is a scale so wide the view has no octave to spare below
+ * it: four octaves on 61 keys fit in one place, and both hands get it.
  */
 const PREFERRED_START = 57 // A3
-const COMFORTABLE_TOP = 96 // C7, the top of the default 61-key view
+const COMFORTABLE_BOTTOM = 36 // C2, the bottom of the default 61-key view
+const COMFORTABLE_TOP = 96 // C7, the top of it
 
-function chooseStartNote(pitchClass: number, span: number): number {
+function chooseStartNote(pitchClass: number, span: number, hand: Hand): number {
   // One candidate per octave from C1 to C5.
   const candidates = [24, 36, 48, 60, 72].map((c) => c + normalisePitchClass(pitchClass))
   const fits = candidates.filter((note) => note + span <= COMFORTABLE_TOP)
   const pool = fits.length > 0 ? fits : candidates
-  return pool.reduce((best, note) =>
+  const right = pool.reduce((best, note) =>
     Math.abs(note - PREFERRED_START) < Math.abs(best - PREFERRED_START) ? note : best,
   )
+  if (hand === 'right') return right
+
+  const left = right - 12
+  return left >= COMFORTABLE_BOTTOM ? left : right
 }
 
 /** `Thumb under` / `Cross over`, placed on the note where the hand actually moves. */
@@ -95,7 +108,7 @@ export function buildScaleExercise(spec: ScaleSpec): Exercise {
   const scale: SpelledScale = spellScale(spec.rootPitchClass, type)
   const offsets = scaleOffsets(type)
   const span = 12 * spec.octaves
-  const start = chooseStartNote(spec.rootPitchClass, span)
+  const start = chooseStartNote(spec.rootPitchClass, span, spec.hand)
 
   // A scale whose way down is not its way up. Only the melodic minor has one,
   // and reversing the ascending notes for it plays the raised sixth and seventh
