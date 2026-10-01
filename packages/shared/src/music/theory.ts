@@ -1,6 +1,12 @@
 import type { Fingering, Hand } from './fingering.js'
 import { normalisePitchClass } from './pitch.js'
-import { findScaleType, scaleOffsets, spellScale, type ScaleType } from './scales.js'
+import {
+  findScaleType,
+  keySignatureOf,
+  scaleOffsets,
+  spellScale,
+  type ScaleType,
+} from './scales.js'
 
 /**
  * The facts about a scale that make it smaller to remember than it looks.
@@ -243,4 +249,53 @@ export function crossings(
   }
 
   return found
+}
+
+/** The order sharps are added to a key signature, and flats — the same list backwards. */
+export const ORDER_OF_SHARPS = ['F♯', 'C♯', 'G♯', 'D♯', 'A♯', 'E♯', 'B♯'] as const
+export const ORDER_OF_FLATS = ['B♭', 'E♭', 'A♭', 'D♭', 'G♭', 'C♭', 'F♭'] as const
+
+/** One place on the circle of fifths: a major key, and the minor key that shares its signature. */
+export interface CircleKey {
+  /** 0 at the top (C), clockwise — each step a fifth up. */
+  readonly position: number
+  readonly major: { readonly pitchClass: number; readonly name: string }
+  readonly minor: { readonly pitchClass: number; readonly name: string }
+  /** Sharps, positive; flats, negative. */
+  readonly fifths: number
+  /** `No sharps or flats`, `1 sharp`, `3 flats`. */
+  readonly signature: string
+  /** The sharps or flats themselves, in the order they are written. */
+  readonly accidentals: readonly string[]
+}
+
+/**
+ * The circle of fifths: the twelve major keys a fifth apart, each with its
+ * relative minor.
+ *
+ * Going clockwise every key has one more sharp (or one fewer flat) than the
+ * last, because its lower tetrachord is the upper tetrachord of the key before
+ * it. Each key is named as the app names it by default, so the three places at
+ * the bottom where two names meet — B and C♭, F♯ and G♭, D♭ and C♯ — show the
+ * one the key picker shows.
+ */
+export function circleOfFifths(): CircleKey[] {
+  const major = findScaleType('major')
+  if (!major) return []
+  return Array.from({ length: 12 }, (_, position) => {
+    const pitchClass = (position * 7) % 12
+    const scale = spellScale(pitchClass, major)
+    const fifths = keySignatureOf(scale) ?? 0
+    const relative = relativeKey(pitchClass, major)
+    const count = Math.abs(fifths)
+    const kind = fifths > 0 ? 'sharp' : 'flat'
+    return {
+      position,
+      major: { pitchClass, name: scale.root.name },
+      minor: { pitchClass: normalisePitchClass(pitchClass + 9), name: relative?.name ?? '' },
+      fifths,
+      signature: count === 0 ? 'No sharps or flats' : `${count} ${kind}${count === 1 ? '' : 's'}`,
+      accidentals: (fifths > 0 ? ORDER_OF_SHARPS : ORDER_OF_FLATS).slice(0, count),
+    }
+  })
 }

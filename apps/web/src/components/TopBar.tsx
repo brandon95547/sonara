@@ -1,5 +1,6 @@
 import {
   AudioWaveform,
+  BookOpen,
   Circle,
   Gauge,
   Hand,
@@ -233,11 +234,17 @@ function Utilities({ area }: { area: string | null }) {
     })),
     ...folded,
     {
+      id: 'fundamentals',
+      label: 'Fundamentals',
+      icon: <BookOpen size={16} />,
+      onSelect: () => panelActions.open('fundamentals'),
+      separated: true,
+    },
+    {
       id: 'devices',
       label: 'Keyboard & MIDI setup',
       icon: <Piano size={16} />,
       onSelect: () => panelActions.open('devices'),
-      separated: true,
     },
     {
       id: 'import',

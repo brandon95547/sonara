@@ -1,5 +1,4 @@
 import * as React from 'react'
-import { ChevronDown, ChevronRight } from 'lucide-react'
 import {
   crossings,
   degreeNames,
@@ -12,10 +11,13 @@ import {
   spellScale,
   tetrachordNotes,
   type Hand,
+  type KeyMode,
 } from '@sonara/shared'
 import { Drawer } from '@/ui/Drawer'
 import { Divider } from '@/ui/Display'
 import { useLearningStore } from '@/state/learning-store'
+import { KeyCircle } from '@/features/theory/KeyCircle'
+import { Disclosure, Row, Section } from '@/features/theory/parts'
 
 /**
  * "Understand this scale."
@@ -31,6 +33,7 @@ import { useLearningStore } from '@/state/learning-store'
  */
 export function ScaleTheoryDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const spec = useLearningStore((state) => state.spec)
+  const updateSpec = useLearningStore((state) => state.updateSpec)
 
   const type = findScaleType(spec.scaleTypeId)
   const system = useLearningStore((state) => state.fingeringSystem)
@@ -67,6 +70,18 @@ export function ScaleTheoryDialog({ open, onClose }: { open: boolean; onClose: (
     })
     .filter((principle) => principle.source === 'standard' && principle.anchors.length > 0)
   const once = principles.every((principle) => principle.anchors.length === 1)
+  // A major or minor scale is in a key and has a place on the circle. A mode or
+  // a pentatonic is not, and is shown the circle with nothing marked on it.
+  const mode: KeyMode | null =
+    type.family === 'major' ? 'major' : type.family === 'minor' ? 'minor' : null
+  const chooseKey = (rootPitchClass: number, next: KeyMode) =>
+    updateSpec({
+      rootPitchClass,
+      tonic: undefined,
+      // The minor form already chosen is kept; from anything else it is the
+      // natural minor, which is the one the signature describes.
+      scaleTypeId: next === 'major' ? 'major' : mode === 'minor' ? type.id : 'natural-minor',
+    })
 
   return (
     <Drawer
@@ -176,6 +191,12 @@ export function ScaleTheoryDialog({ open, onClose }: { open: boolean; onClose: (
             </Section>
           </>
         )}
+
+        <Divider />
+        <KeyCircle
+          selected={mode ? { pitchClass: spec.rootPitchClass, mode } : null}
+          onSelect={chooseKey}
+        />
       </div>
     </Drawer>
   )
@@ -184,51 +205,3 @@ export function ScaleTheoryDialog({ open, onClose }: { open: boolean; onClose: (
 /** `W` and `H` read fine on the diagram and not at all in a sentence. */
 const stepWord = (step: string) => (step === 'W' ? 'whole' : step === 'H' ? 'half' : step)
 const spellSteps = (steps: string) => steps.split(' ').map(stepWord).join(', ')
-
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <section className="flex flex-col gap-2.5">
-      <h3 className="text-label text-[var(--ds-accent-text)]">{title}</h3>
-      {children}
-    </section>
-  )
-}
-
-/** One line of the built-from panel: cells separated by the joining step. */
-function Row({ cells, tone, join }: { cells: string[]; tone: 'fg' | 'muted'; join?: string }) {
-  return (
-    <div
-      className={`flex flex-wrap items-baseline gap-x-2 text-ui ${
-        tone === 'fg' ? 'text-[var(--ds-fg)]' : 'text-[var(--ds-fg-muted)]'
-      }`}
-      data-tabular
-    >
-      {cells.map((cell, index) => (
-        <React.Fragment key={index}>
-          {index > 0 && (
-            <span className="text-[var(--ds-fg-muted)]">{join ? `| ${join} |` : '|'}</span>
-          )}
-          <span>{cell}</span>
-        </React.Fragment>
-      ))}
-    </div>
-  )
-}
-
-function Disclosure({ label, children }: { label: string; children: React.ReactNode }) {
-  const [open, setOpen] = React.useState(false)
-  return (
-    <div className="flex flex-col gap-2">
-      <button
-        type="button"
-        aria-expanded={open}
-        onClick={() => setOpen((current) => !current)}
-        className="flex w-fit items-center gap-1 text-label-sm text-[var(--ds-fg-secondary)] hover:text-[var(--ds-fg)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ds-focus-ring)]"
-      >
-        {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-        {label}
-      </button>
-      {open && children}
-    </div>
-  )
-}

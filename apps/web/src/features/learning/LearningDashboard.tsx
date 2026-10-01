@@ -24,6 +24,7 @@ import { cn } from '@/lib/cn'
 import { useLearningStore } from '@/state/learning-store'
 import { HandDiagram } from './HandDiagram'
 import { panelActions } from '@/state/panel-store'
+import { THEORY_TITLES } from '@/features/theory/KeyTheoryDrawer'
 
 /**
  * Everything about the run in progress, for the Progress panel.
@@ -130,18 +131,16 @@ function MaterialCard({ exercise }: { exercise: Exercise }) {
           <h3 className="text-h2 text-[var(--ds-fg)]">{exercise.title}</h3>
           <p className="text-caption text-[var(--ds-fg-muted)]">{exercise.subtitle}</p>
         </div>
-        {/* The explanation is the scale's: how it is built, what its degrees
-            are called. A chord has no such page yet, so it has no button. */}
-        {exercise.kind === 'scale' && (
-          <IconButton
-            size="sm"
-            variant="text"
-            className="-mr-1 shrink-0"
-            label="Understand this scale"
-            icon={<Info />}
-            onClick={() => panelActions.open('theory')}
-          />
-        )}
+        {/* The explanation of what is on the keys: how it is built, what its
+            parts are called, why it is fingered as it is. */}
+        <IconButton
+          size="sm"
+          variant="text"
+          className="-mr-1 shrink-0"
+          label={THEORY_TITLES[exercise.kind]}
+          icon={<Info />}
+          onClick={() => panelActions.open('theory')}
+        />
       </div>
 
       <dl className="flex flex-col gap-2">

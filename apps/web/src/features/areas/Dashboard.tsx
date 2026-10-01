@@ -1,8 +1,9 @@
-import { ArrowRight, Lock } from 'lucide-react'
+import { ArrowRight, BookOpen, Lock } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { useLearningStore } from '@/state/learning-store'
 import { useCurrentSong } from '@/state/song-store'
 import { pageActions } from '@/state/page-store'
+import { panelActions } from '@/state/panel-store'
 import { AREAS, COMING_NEXT, type Area } from './areas'
 
 /**
@@ -37,6 +38,17 @@ export function Dashboard() {
             Dashboard
           </h1>
           <p className="dashboard__lede">Pick an area to practise.</p>
+          {/* For someone who does not yet know which: the ground the areas
+              stand on, in the order it is learned. */}
+          <button
+            type="button"
+            className="dashboard__start"
+            onClick={() => panelActions.open('fundamentals')}
+          >
+            <BookOpen size={16} aria-hidden />
+            New to this? Start with the fundamentals
+            <ArrowRight size={16} aria-hidden />
+          </button>
         </header>
 
         <ul className="area-grid">

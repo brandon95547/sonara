@@ -3,6 +3,7 @@ import {
   ArrowDown,
   ArrowUp,
   ArrowUpDown,
+  BookOpen,
   Dumbbell,
   Hand,
   Layers,
@@ -53,6 +54,8 @@ import { Popover, SelectMenu } from '@/ui/Menu'
 import { SegmentedControl, Select } from '@/ui/Controls'
 import { BarGlyph } from '@/ui/BarGlyph'
 import { useLearningStore } from '@/state/learning-store'
+import { panelActions } from '@/state/panel-store'
+import { THEORY_TITLES } from '@/features/theory/KeyTheoryDrawer'
 import { CompactField, RadioGrid } from './ScaleControls'
 
 /**
@@ -163,6 +166,7 @@ function KeyPicker({
 }) {
   const { spec, update } = useKey(area)
   const title = useLearningStore((state) => state.exercise?.title ?? 'Choose a key')
+  const kind = useLearningStore((state) => state.exercise?.kind)
   const [open, setOpen] = React.useState(false)
   const triggerRef = React.useRef<HTMLButtonElement>(null)
   const close = React.useCallback(() => setOpen(false), [])
@@ -255,6 +259,20 @@ function KeyPicker({
               </CompactField>
             )}
           </div>
+
+          {kind && (
+            <button
+              type="button"
+              className="inline-flex items-center gap-2 self-start text-label-sm text-[var(--ds-accent-text)] underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ds-focus-ring)]"
+              onClick={() => {
+                setOpen(false)
+                panelActions.open('theory')
+              }}
+            >
+              <BookOpen size={15} aria-hidden />
+              {THEORY_TITLES[kind]}
+            </button>
+          )}
         </div>
       </Popover>
     </>

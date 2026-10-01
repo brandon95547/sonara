@@ -1696,6 +1696,65 @@
   color: var(--ds-accent-fg);
 }
 
+/* ---- The circle of fifths --------------------------------------------------
+   Twelve keys round a ring and their relative minors round a smaller one,
+   placed by angle. Sized by its container, so it is the same picture in a
+   26rem drawer and in a phone's bottom sheet; the buttons keep their size and
+   the rings close up around them. */
+.circle-of-fifths {
+  position: relative;
+  width: min(100%, 21rem);
+  aspect-ratio: 1;
+  margin-inline: auto;
+}
+.circle-of-fifths__ring {
+  position: absolute;
+  border: 1px solid var(--ds-border-subtle);
+  border-radius: 50%;
+}
+.circle-of-fifths__ring--outer {
+  inset: 8%;
+}
+.circle-of-fifths__ring--inner {
+  inset: 24%;
+}
+.circle-of-fifths__key {
+  position: absolute;
+  min-width: 2.5rem;
+  transform: translate(-50%, -50%);
+  /* On the drawer's own surface, so the ring passes behind a key, not through it. */
+  background-color: var(--ds-surface-overlay);
+}
+.circle-of-fifths__key:hover {
+  background-color: var(--ds-surface-overlay);
+  border-color: var(--ds-border-strong);
+}
+.circle-of-fifths__key.choice--on,
+.circle-of-fifths__key.choice--on:hover {
+  background-color: var(--ds-accent);
+}
+.circle-of-fifths__key--minor {
+  min-width: 2.375rem;
+  min-height: 28px;
+  padding-inline: 4px;
+  font-size: 0.8125rem;
+}
+/* A fifth either side: the keys of this key's IV and V chords. */
+.circle-of-fifths__key[data-near='true'] {
+  border-color: var(--ds-accent-border);
+  color: var(--ds-fg);
+}
+.circle-of-fifths__centre {
+  position: absolute;
+  inset: 37%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  text-align: center;
+}
+
 /* Bar-style menus inside a panel get an edge to read against. */
 .settings-menus {
   display: flex;
@@ -1772,6 +1831,33 @@
   letter-spacing: 0.38em;
   text-transform: uppercase;
   color: var(--c-dash-quiet);
+}
+/* The way in for someone who does not know which area yet. A link in the
+   header's own voice — it is an aside to the heading, not a seventh card. */
+.dashboard__start {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  align-self: flex-start;
+  min-height: 32px;
+  color: var(--c-dash-quiet);
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-shadow: var(--shadow-dash-lede);
+  transition: color var(--duration-fast) var(--ease-standard);
+}
+.dashboard__start:hover {
+  color: #fff;
+}
+.dashboard__start:focus-visible {
+  outline: 2px solid var(--ds-focus-ring);
+  outline-offset: 4px;
+  border-radius: var(--radius-sm);
+}
+@media (pointer: coarse) {
+  .dashboard__start {
+    min-height: 44px;
+  }
 }
 .area-grid {
   display: grid;

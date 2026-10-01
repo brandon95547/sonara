@@ -16,6 +16,8 @@ import { SongLibrary } from '@/features/songs/SongLibrary'
 import { SongEngine } from '@/features/songs/SongControls'
 import { KeyboardRangeSync, ScaleEngine } from '@/features/learning/ScaleControls'
 import { ScaleTheoryDialog } from '@/features/learning/ScaleTheoryDialog'
+import { KeyTheoryDrawer } from '@/features/theory/KeyTheoryDrawer'
+import { FundamentalsDrawer } from '@/features/theory/FundamentalsDrawer'
 import { Button } from '@/ui/Button'
 import { useLearningStore } from '@/state/learning-store'
 import { usePanelStore } from '@/state/panel-store'
@@ -151,7 +153,14 @@ function Shell() {
         catalogueFailed={catalogueFailed}
       />
       <SessionDrawer />
-      <ScaleTheoryDialog open={panel === 'theory'} onClose={closePanel} />
+      {/* The theory of whatever is on the keys: a scale has its own panel, and
+          everything else that is in a key shares one. */}
+      {topic === 'scales' || topic === 'songs' ? (
+        <ScaleTheoryDialog open={panel === 'theory'} onClose={closePanel} />
+      ) : (
+        <KeyTheoryDrawer open={panel === 'theory'} onClose={closePanel} topic={topic} />
+      )}
+      <FundamentalsDrawer open={panel === 'fundamentals'} onClose={closePanel} />
       <DeviceSettingsDrawer open={panel === 'devices'} onClose={closePanel} />
       <SongLibrary open={panel === 'library'} onClose={closePanel} />
       <RecordingOverlay />

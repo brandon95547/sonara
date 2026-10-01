@@ -11,7 +11,7 @@ import { create } from 'zustand'
  * A store rather than state in the shell, because the buttons that open these
  * are scattered: the bar, its overflow menu, a card inside another panel.
  */
-export type Panel = 'settings' | 'session' | 'library' | 'devices' | 'theory'
+export type Panel = 'settings' | 'session' | 'library' | 'devices' | 'theory' | 'fundamentals'
 
 interface PanelState {
   panel: Panel | null
