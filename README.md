@@ -36,8 +36,8 @@ touchscreen or a USB MIDI keyboard, and watch every note land on the keys.
 - **Fourteen scale types** — major, all three minors, the five modes, both
   pentatonics, blues, chromatic and whole tone — in every key, either hand, one
   to three octaves, ascending, descending or both.
-- **Play it to hear it.** A demo button walks the scale at a learnable tempo,
-  driving the same finger and target guidance Learn uses.
+- **Play it to hear it.** A demo button walks the scale at the tempo you have
+  set, driving the same finger and target guidance Learn uses.
 - **"Understand this scale"** explains the one you have selected: how it is
   built from its tetrachords, its degrees, its relative key, and the fingering
   principle behind the hand you are being shown.

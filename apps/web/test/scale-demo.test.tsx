@@ -39,6 +39,9 @@ beforeEach(() => {
   useKeyboardStore.getState().panic()
   useLearningStore.getState().setTopic('scales')
   useLearningStore.getState().updateSpec(DEFAULT_SCALE_SPEC)
+  // The demonstration follows the tempo control, so every test pins it: a beat
+  // a second makes the arithmetic below readable.
+  useLearningStore.getState().setTargetBpm(60)
 })
 
 afterEach(() => {
@@ -56,13 +59,41 @@ describe('scale demo', () => {
     expect(sounded()).toEqual(useLearningStore.getState().exercise!.notes.slice(0, 4))
   })
 
-  it('plays slowly enough to follow', () => {
+  it('plays one note per beat at the tempo that is set', () => {
+    // The regression: it ran at a fixed 66 whatever the tempo control said.
+    for (const [bpm, expected] of [
+      [60, 4],
+      [120, 8],
+      [30, 2],
+    ] as const) {
+      noteOn.mockClear()
+      useLearningStore.getState().setTargetBpm(bpm)
+      const { result, unmount } = mount()
+      act(() => result.current.toggle())
+      // Just short of four seconds, so a note landing exactly on the boundary
+      // cannot make the count depend on timer ordering.
+      act(() => void vi.advanceTimersByTime(3990))
+      expect(sounded().length).toBe(expected)
+      unmount()
+    }
+  })
+
+  it('picks up a tempo change at the next note, without restarting', () => {
     const { result } = mount()
     act(() => result.current.toggle())
-    // Four seconds of a demonstration should be a handful of notes, not a run.
-    act(() => void vi.advanceTimersByTime(4000))
-    expect(sounded().length).toBeLessThanOrEqual(6)
-    expect(sounded().length).toBeGreaterThanOrEqual(4)
+    act(() => void vi.advanceTimersByTime(2500))
+    expect(sounded().length).toBe(3)
+
+    // Mid-note: the note in flight keeps its length, the ones after are faster.
+    act(() => useLearningStore.getState().setTargetBpm(120))
+    act(() => void vi.advanceTimersByTime(400))
+    expect(sounded().length).toBe(3)
+    act(() => void vi.advanceTimersByTime(1090))
+    expect(sounded().length).toBe(5)
+
+    // It carried on up the scale rather than going back to the first note.
+    expect(sounded()).toEqual(useLearningStore.getState().exercise!.notes.slice(0, 5))
+    expect(result.current.status).toBe('playing')
   })
 
   it('stops dead when paused, and does not creep forward', () => {

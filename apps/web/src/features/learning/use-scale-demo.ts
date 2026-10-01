@@ -6,12 +6,16 @@ import { learningActions, useLearningStore } from '@/state/learning-store'
 /**
  * Plays the current exercise back, so you can hear the scale before you try it.
  *
- * ## Why this does not use the practice tempo
+ * ## It plays at the practice tempo
  *
- * `targetBpm` is what the player is aiming at, and auto-tempo pushes it as high
- * as 208. A demonstration at that speed is a blur, and the one thing a
- * demonstration has to be is followable — so this runs at its own fixed,
- * unhurried tempo and never reads the target.
+ * One note per beat at `targetBpm` — the same pulse the metronome clicks and
+ * the same unit the run is measured in, so what you hear is what you are about
+ * to be asked for. It used to run at a fixed 66 whatever the control said,
+ * which made the tempo control look broken: turn it up, press this, and
+ * nothing had changed.
+ *
+ * A tempo change is picked up at the next note rather than restarting the
+ * scale, so dragging the slider while it plays speeds it up under your hand.
  *
  * ## What it does and does not tell the learning store
  *
@@ -26,19 +30,15 @@ import { learningActions, useLearningStore } from '@/state/learning-store'
  */
 
 /**
- * Deliberately slow — a shade under one note a second.
- *
- * Fast enough to hear the shape of the scale as a phrase rather than a list,
- * slow enough that a beginner can find the next key while it is still sounding.
- */
-const DEMO_BPM = 66
-const STEP_MS = Math.round(60_000 / DEMO_BPM)
-
-/**
  * Each note lifts a little before the next lands. A scale held fully legato
  * turns a repeated note into one long note, which hides a step of the scale.
  */
-const HOLD_MS = Math.round(STEP_MS * 0.82)
+const HOLD_RATIO = 0.82
+
+/** How long one note of the demonstration lasts at the tempo set right now. */
+function stepMs(): number {
+  return 60_000 / Math.max(1, useLearningStore.getState().targetBpm)
+}
 
 /** An even mezzo-forte. A demonstration should not also be an interpretation. */
 const DEMO_VELOCITY = 80
@@ -127,8 +127,11 @@ export function useScaleDemo(): ScaleDemo {
     }
     soundingRef.current = step.notes
 
-    timersRef.current.push(window.setTimeout(silence, HOLD_MS))
-    timersRef.current.push(window.setTimeout(() => playFrom.current(index + 1), STEP_MS))
+    // Read from the store here, not from a render: a scheduled tick must not
+    // depend on having re-rendered with the latest tempo first.
+    const beatMs = stepMs()
+    timersRef.current.push(window.setTimeout(silence, beatMs * HOLD_RATIO))
+    timersRef.current.push(window.setTimeout(() => playFrom.current(index + 1), beatMs))
   }
 
   const toggle = React.useCallback(() => {
