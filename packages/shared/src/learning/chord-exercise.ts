@@ -7,6 +7,8 @@ import {
   KEY_MODE_LABELS,
   KEY_MODES,
   keyChord,
+  keyTriads,
+  type ChordKind,
   type KeyChord,
 } from '../music/chords.js'
 import { scaleFingering, type Hand } from '../music/fingering.js'
@@ -35,11 +37,23 @@ import {
 export const CHORD_STYLES = ['solid', 'broken'] as const
 export type ChordStyle = (typeof CHORD_STYLES)[number]
 
-export const CHORD_KIND_LABELS = {
+/**
+ * What the Chords area plays.
+ *
+ * The first three are one chord — the key's own triad, that triad with its
+ * octave, the key's seventh chord — taken through its positions. `key-triads`
+ * is the other thing a key's page prints: the triad on every degree of the
+ * scale, each in root position.
+ */
+export const CHORD_FORMS = [...CHORD_KINDS, 'key-triads'] as const
+export type ChordForm = (typeof CHORD_FORMS)[number]
+
+export const CHORD_KIND_LABELS: Record<ChordForm, string> = {
   triad: 'Triads',
   'four-note': 'Four-Note Chords',
   seventh: 'Seventh Chord',
-} as const
+  'key-triads': 'Chords of the Key',
+}
 
 export const CHORD_STYLE_LABELS: Record<ChordStyle, string> = { solid: 'Solid', broken: 'Broken' }
 
@@ -54,7 +68,7 @@ const keyFields = {
 export const chordSpecSchema = z.object({
   kind: z.literal('chord'),
   ...keyFields,
-  chord: z.enum(CHORD_KINDS),
+  chord: z.enum(CHORD_FORMS),
   style: z.enum(CHORD_STYLES),
 })
 export type ChordSpec = z.infer<typeof chordSpecSchema>
@@ -149,11 +163,13 @@ function spread(size: number, hand: Hand): number[] {
  * and then walks them all back down.
  */
 export function buildChordExercise(spec: ChordSpec, options: ChordExerciseOptions = {}): Exercise {
-  const chord = keyChord(spec.rootPitchClass, spec.mode, spec.chord, spec.tonic)
+  if (spec.chord === 'key-triads') return buildKeyTriadsExercise(spec, options)
+  const kind: ChordKind = spec.chord
+  const chord = keyChord(spec.rootPitchClass, spec.mode, kind, spec.tonic)
   const system = fingeringSystem(options.fingering)
   const toneCount = chord.tones.length
   // A triad under the hand is three notes; the four-note form adds its octave.
-  const size = spec.chord === 'triad' ? 3 : 4
+  const size = kind === 'triad' ? 3 : 4
   const positions = [0, 1, 2, 3]
   const roots = placeRoot(
     chord.tones[0]!.pitchClass,
@@ -167,7 +183,7 @@ export function buildChordExercise(spec: ChordSpec, options: ChordExerciseOption
     const ladder = chordLadder(chord.tones, roots[hand])
     let source: ExerciseFingering['source'] = 'standard'
     const shapes = positions.map((position) => {
-      const supplied = system.chord({ kind: spec.chord, mode: spec.mode, position, hand })
+      const supplied = system.chord({ kind, mode: spec.mode, position, hand })
       if (!supplied) source = 'derived'
       const fingers = supplied ?? spread(size, hand)
       return Array.from({ length: size }, (_, index) => ({
@@ -220,13 +236,13 @@ export function buildChordExercise(spec: ChordSpec, options: ChordExerciseOption
     }
   }
 
-  const seventh = spec.chord === 'seventh'
+  const seventh = kind === 'seventh'
   const title = seventh
     ? `${chord.qualityName} of ${keyName(chord)}`
-    : `${keyName(chord)} ${spec.chord === 'triad' ? 'Triads' : 'Four-Note Chords'}`
+    : `${keyName(chord)} ${kind === 'triad' ? 'Triads' : 'Four-Note Chords'}`
 
   return {
-    id: `chord:${chord.key.root.name}:${spec.mode}:${spec.chord}:${spec.style}:${spec.hand}:${roots.right}`,
+    id: `chord:${chord.key.root.name}:${spec.mode}:${kind}:${spec.style}:${spec.hand}:${roots.right}`,
     kind: 'chord',
     title,
     subtitle: `${HAND_LABELS[spec.hand]} · ${CHORD_STYLE_LABELS[spec.style]}`,
@@ -251,6 +267,107 @@ export function buildChordExercise(spec: ChordSpec, options: ChordExerciseOption
       fingers: shapes.flatMap((shape) => shape.map((entry) => entry.finger)),
       source,
       perStep: size,
+    })),
+  }
+}
+
+/**
+ * The triad on every degree of the key, root position, up the scale to the
+ * octave — eight chords, as the Alfred book prints them under each key.
+ *
+ * Solid, each is struck whole. Broken, each is walked up a note at a time, and
+ * with both hands the left plays a triad and the right answers with the same
+ * one, which is how that book sets the broken form (p. 85). It is the one place
+ * the hands take turns rather than playing together.
+ *
+ * Fingered 1 3 5 and 5 3 1 throughout, as that page is. The Brown Scale Book
+ * prints only the tonic chord, so there is nothing of its own to prefer here.
+ */
+function buildKeyTriadsExercise(spec: ChordSpec, options: ChordExerciseOptions): Exercise {
+  const { key, mode, triads } = keyTriads(spec.rootPitchClass, spec.mode, spec.tonic)
+  const tonic = key.notes[0]!
+  // The top note: the fifth of the tonic triad an octave up.
+  const roots = placeRoot(tonic.pitchClass, 12 + 7, options.range ?? DEFAULT_PLAYABLE_RANGE)
+  const hands = handsOf(spec.hand)
+  const title = `${tonic.name} ${KEY_MODE_LABELS[mode]}`
+
+  /** Semitones from the tonic to each scale degree. */
+  const offsets = key.notes.map((note) => (note.pitchClass - tonic.pitchClass + 12) % 12)
+  /** The eight chords in order: every degree, then the tonic again an octave up. */
+  const chords = [...triads, triads[0]!].map((triad, index) => ({
+    triad,
+    /** Each hand's three notes, bottom to top. */
+    shape: (hand: Hand) =>
+      [0, 2, 4].map((step, part) => {
+        const degree = index + step
+        return {
+          note: roots[hand] + Math.floor(degree / 7) * 12 + offsets[degree % 7]!,
+          name: triad.tones[part]!.name,
+          finger: { finger: spread(3, hand)[part]!, hand },
+        }
+      }),
+  }))
+
+  const steps: ExerciseStep[] = []
+  for (const { triad, shape } of chords) {
+    const cue = `${triad.degreeName}${triad.primary ? ' · primary chord' : ''}`
+    if (spec.style === 'solid') {
+      const playing = hands.flatMap((hand) => shape(hand))
+      steps.push({
+        id: `${steps.length}`,
+        notes: playing.map((entry) => entry.note),
+        fingers: playing.map((entry) => entry.finger),
+        label: triad.symbol,
+        noteLabels: playing.map((entry) => entry.name),
+        degree: triad.numeral,
+        cue,
+      })
+    } else {
+      for (const hand of hands) {
+        shape(hand).forEach((entry, part) => {
+          steps.push({
+            id: `${steps.length}`,
+            notes: [entry.note],
+            fingers: [entry.finger],
+            label: entry.name,
+            degree: triad.numeral,
+            // Named as each triad begins, in whichever hand begins it.
+            cue: part === 0 && hand === hands[0] ? `${triad.symbol} · ${cue}` : undefined,
+          })
+        })
+      }
+    }
+  }
+
+  return {
+    id: `chord:${tonic.name}:${mode}:key-triads:${spec.style}:${spec.hand}:${roots.right}`,
+    kind: 'chord',
+    title: `Chords of ${title}`,
+    subtitle: `${HAND_LABELS[spec.hand]} · ${CHORD_STYLE_LABELS[spec.style]}`,
+    steps,
+    pitchClasses: key.notes.map((note) => note.pitchClass),
+    rootPitchClass: tonic.pitchClass,
+    pitchNames: Object.fromEntries(key.notes.map((note) => [note.pitchClass, note.name])),
+    keyFifths: keySignatureOf(key),
+    defaultBpm: 72,
+    notes: steps.flatMap((step) => step.notes),
+    facts: [
+      { label: 'Key', value: title },
+      { label: 'Chords', value: triads.map((triad) => triad.symbol).join('  ') },
+      { label: 'Numerals', value: triads.map((triad) => triad.numeral).join('  ') },
+      {
+        label: 'Primary',
+        value: triads
+          .filter((triad) => triad.primary)
+          .map((triad) => `${triad.symbol} (${triad.numeral})`)
+          .join('  '),
+      },
+    ],
+    fingerings: hands.map((hand) => ({
+      hand,
+      fingers: spread(3, hand),
+      source: 'alfred',
+      perStep: 3,
     })),
   }
 }

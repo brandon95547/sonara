@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { isBlackKey, noteName } from '../midi/notes.js'
-import { KEY_MODES, keyChord } from '../music/chords.js'
+import { KEY_MODES, keyChord, keyTriads } from '../music/chords.js'
 import {
   buildArpeggioExercise,
   buildChordExercise,
@@ -342,6 +342,141 @@ describe('arpeggios', () => {
             expect(Math.max(...notes), where).toBeLessThanOrEqual(96)
           }
         }
+      }
+    }
+  })
+})
+
+describe('the triad on every degree of a key', () => {
+  const row = (...args: Parameters<typeof keyTriads>) =>
+    keyTriads(...args).triads.map((triad) => `${triad.symbol} ${triad.numeral}`)
+
+  it('names the chords of a major key as the page does', () => {
+    // Alfred p. 19, the row under "C Major Triads".
+    expect(row(0, 'major')).toEqual(['C I', 'Dm ii', 'Em iii', 'F IV', 'G V', 'Am vi', 'Bdim vii°'])
+  })
+
+  it('takes a minor key’s chords from its harmonic form', () => {
+    // Alfred p. 49. The raised seventh is what makes III augmented, V major and
+    // the chord on the seventh degree diminished.
+    expect(row(9, 'minor')).toEqual([
+      'Am i',
+      'Bdim ii°',
+      'Caug III+',
+      'Dm iv',
+      'E V',
+      'F VI',
+      'G♯dim vii°',
+    ])
+  })
+
+  it('has the same qualities in every key of a mode', () => {
+    for (const mode of KEY_MODES) {
+      const want = keyTriads(mode === 'major' ? 0 : 9, mode).triads.map((triad) => triad.numeral)
+      for (let pitchClass = 0; pitchClass < 12; pitchClass++) {
+        expect(
+          keyTriads(pitchClass, mode).triads.map((triad) => triad.numeral),
+          `${mode} pc ${pitchClass}`,
+        ).toEqual(want)
+      }
+    }
+  })
+
+  it('marks the tonic, subdominant and dominant as the primary chords', () => {
+    const primary = keyTriads(7, 'major')
+      .triads.filter((triad) => triad.primary)
+      .map((triad) => triad.symbol)
+    expect(primary).toEqual(['G', 'C', 'D'])
+  })
+
+  it('spells an enharmonic key under the name it was asked for', () => {
+    expect(row(3, 'minor', 'E♭')[0]).toBe('E♭m i')
+    expect(row(3, 'minor')[0]).toBe('D♯m i')
+  })
+})
+
+describe('the chords of the key, as an exercise', () => {
+  const key = (spec: Partial<ChordSpec> = {}) => chords({ chord: 'key-triads', ...spec })
+
+  it('plays eight chords: every degree, then the tonic an octave up', () => {
+    const exercise = key()
+    expect(exercise.title).toBe('Chords of C Major')
+    expect(exercise.steps.map((step) => step.label)).toEqual([
+      'C',
+      'Dm',
+      'Em',
+      'F',
+      'G',
+      'Am',
+      'Bdim',
+      'C',
+    ])
+    expect(exercise.steps.map((step) => step.degree)).toEqual([
+      'I',
+      'ii',
+      'iii',
+      'IV',
+      'V',
+      'vi',
+      'vii°',
+      'I',
+    ])
+    expect(exercise.steps[0]!.notes).toEqual([60, 64, 67])
+    expect(exercise.steps[7]!.notes).toEqual([72, 76, 79])
+  })
+
+  it('fingers every chord 1 3 5 in the right hand and 5 3 1 in the left', () => {
+    const exercise = key({ hand: 'both' })
+    expect(new Set(fingersOf(exercise, 'right'))).toEqual(new Set(['135']))
+    expect(new Set(fingersOf(exercise, 'left'))).toEqual(new Set(['531']))
+    // It is the Alfred book's material, and says so.
+    expect(exercise.fingerings.map((fingering) => fingering.source)).toEqual(['alfred', 'alfred'])
+  })
+
+  it('puts the left hand an octave below the right', () => {
+    for (const step of key({ hand: 'both' }).steps) {
+      expect(step.notes.slice(3).map((note) => note - 12)).toEqual(step.notes.slice(0, 3))
+    }
+  })
+
+  it('names each key with its own note, and says which chords are primary', () => {
+    const exercise = key({ rootPitchClass: 9, mode: 'minor' })
+    expect(exercise.steps[2]!.label).toBe('Caug')
+    expect(exercise.steps[2]!.noteLabels).toEqual(['C', 'E', 'G♯'])
+    expect(exercise.steps[2]!.cue).toBe('Mediant')
+    expect(exercise.steps[4]!.cue).toBe('Dominant · primary chord')
+  })
+
+  it('broken, walks each chord up; with both hands the left plays it and the right answers', () => {
+    const one = key({ style: 'broken' })
+    expect(one.steps).toHaveLength(24)
+    expect(one.steps.slice(0, 6).map((step) => step.notes[0])).toEqual([60, 64, 67, 62, 65, 69])
+
+    const both = key({ style: 'broken', hand: 'both' })
+    expect(both.steps).toHaveLength(48)
+    expect(both.steps.slice(0, 6).map((step) => step.fingers[0]!.hand)).toEqual([
+      'left',
+      'left',
+      'left',
+      'right',
+      'right',
+      'right',
+    ])
+    expect(both.steps.slice(0, 6).map((step) => step.notes[0])).toEqual([48, 52, 55, 60, 64, 67])
+    expect(both.steps[0]!.cue).toBe('C · Tonic · primary chord')
+    expect(both.steps[3]!.cue).toBeUndefined()
+  })
+
+  it('lights the whole key in Explore, not one chord', () => {
+    expect(key().pitchClasses).toHaveLength(7)
+  })
+
+  it('stays on a 61-key keyboard in every key', () => {
+    for (const mode of KEY_MODES) {
+      for (let rootPitchClass = 0; rootPitchClass < 12; rootPitchClass++) {
+        const notes = key({ rootPitchClass, mode, hand: 'both' }).notes
+        expect(Math.min(...notes), `${mode} pc ${rootPitchClass}`).toBeGreaterThanOrEqual(36)
+        expect(Math.max(...notes), `${mode} pc ${rootPitchClass}`).toBeLessThanOrEqual(96)
       }
     }
   })

@@ -33,7 +33,13 @@ export interface StepFinger {
 export interface ExerciseFingering {
   readonly hand: Hand
   readonly fingers: readonly number[]
-  readonly source: 'standard' | 'derived'
+  /**
+   * Where the numbers come from. `standard` is the fingering system the player
+   * has chosen; `derived` is worked out by rule where that system prints
+   * nothing; `alfred` is material only the Alfred book prints — its cadences,
+   * its routines — fingered as that book fingers it.
+   */
+  readonly source: 'standard' | 'derived' | 'alfred'
   /**
    * How many of `fingers` are played together, where it is more than one: 2
    * for a hand in thirds or octaves, 3 or 4 for a hand holding chords. Lets a

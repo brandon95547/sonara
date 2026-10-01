@@ -52,6 +52,18 @@ function fingerGroups(fingering: ExerciseFingering): number[][] {
 const HAND_NAMES: Record<Hand, string> = { left: 'Left hand', right: 'Right hand' }
 
 /**
+ * What a fingering's chip says, where it is not the chosen system's own.
+ *
+ * Three different claims. The system's name means "this is what its source
+ * prints". Alfred means the same of the Alfred book, for material only that
+ * book has. Suggested means nobody prints it, and it follows the same rules.
+ */
+const FINGERING_SOURCE_NAMES: Partial<Record<ExerciseFingering['source'], string>> = {
+  derived: 'Suggested',
+  alfred: 'Alfred',
+}
+
+/**
  * The fingers due on a step, grouped by the hand that plays them — left first,
  * the way the hands sit on the keys.
  *
@@ -156,8 +168,8 @@ function MaterialCard({ exercise }: { exercise: Exercise }) {
               // the card makes the difference visible — per hand, because one
               // hand's fingering can be printed where the other's is not.
               const source = (
-                <Chip tone={fingering.source === 'standard' ? 'neutral' : 'warning'}>
-                  {fingering.source === 'standard' ? system.shortName : 'Suggested'}
+                <Chip tone={fingering.source === 'derived' ? 'warning' : 'neutral'}>
+                  {FINGERING_SOURCE_NAMES[fingering.source] ?? system.shortName}
                 </Chip>
               )
               const hands = exercise.fingerings.length > 1
@@ -318,7 +330,8 @@ function ExploreBody({ exercise }: { exercise: Exercise }) {
       <p className="text-body-sm text-[var(--ds-fg-secondary)]">
         {exercise.kind === 'scale'
           ? `Every ${exercise.title} key is lit across the whole keyboard. Play freely and listen to where the scale wants to go.`
-          : 'Every note of the chord is lit across the whole keyboard. Play freely and listen to how it sits.'}
+          : // A key's chords together are the key: seven notes, not three.
+            `Every note of the ${exercise.pitchClasses.length > 4 ? 'key' : 'chord'} is lit across the whole keyboard. Play freely and listen to how it sits.`}
       </p>
       <div className="flex flex-wrap gap-1.5 pt-1">
         {/* Scale order, not pitch-class order: A minor starts on A, and a chip

@@ -12,8 +12,8 @@ import {
 } from 'lucide-react'
 import {
   ARPEGGIO_CHORDS,
+  CHORD_FORMS,
   CHORD_KIND_LABELS,
-  CHORD_KINDS,
   CHORD_STYLE_LABELS,
   CHORD_STYLES,
   chordPositionName,
@@ -28,7 +28,7 @@ import {
   SCALE_TYPES,
   spellScale,
   type ArpeggioChord,
-  type ChordKind,
+  type ChordForm,
   type ChordStyle,
   type KeyMode,
   type ScaleDirection,
@@ -77,7 +77,12 @@ const keyScale = (mode: KeyMode) =>
 const HAND_BADGES: Record<ScaleHands, string> = { right: 'R', left: 'L', both: 'LR' }
 const HAND_OPTIONS = SCALE_HANDS.map((hand) => ({ value: hand, label: HAND_LABELS[hand] }))
 
-const KIND_BADGES: Record<ChordKind, string> = { triad: '3', 'four-note': '4', seventh: '7' }
+const KIND_BADGES: Record<ChordForm, string> = {
+  triad: '3',
+  'four-note': '4',
+  seventh: '7',
+  'key-triads': 'Key',
+}
 const STYLE_BADGES: Record<ChordStyle, string> = { solid: 'S', broken: 'B' }
 
 const ARPEGGIO_CHORD_LABELS: Record<ArpeggioChord, string> = {
@@ -220,8 +225,12 @@ function HandsMenu({ area }: { area: Area }) {
 export function ChordSettings() {
   const spec = useLearningStore((state) => state.chordSpec)
   const update = useLearningStore((state) => state.updateChordSpec)
-  const kindLabel = (kind: ChordKind) =>
+  const kindLabel = (kind: ChordForm) =>
     kind === 'seventh' ? seventhName(spec.mode) : CHORD_KIND_LABELS[kind]
+  const playedHelp =
+    spec.chord === 'key-triads'
+      ? 'A note at a time. With both hands, the left plays each chord and the right answers.'
+      : 'A note at a time, up through the positions and back.'
 
   return (
     <>
@@ -231,8 +240,8 @@ export function ChordSettings() {
             size="sm"
             aria-label="Chord"
             value={spec.chord}
-            onChange={(event) => update({ chord: event.target.value as ChordKind })}
-            options={CHORD_KINDS.map((kind) => ({ value: kind, label: kindLabel(kind) }))}
+            onChange={(event) => update({ chord: event.target.value as ChordForm })}
+            options={CHORD_FORMS.map((kind) => ({ value: kind, label: kindLabel(kind) }))}
           />
         </CompactField>
         <CompactField label="Played">
@@ -247,10 +256,10 @@ export function ChordSettings() {
           />
         </CompactField>
       </KeyPicker>
-      <SelectMenu<ChordKind>
+      <SelectMenu<ChordForm>
         label="Chord"
         value={spec.chord}
-        options={CHORD_KINDS.map((kind) => ({
+        options={CHORD_FORMS.map((kind) => ({
           value: kind,
           label: kindLabel(kind),
           description:
@@ -258,7 +267,9 @@ export function ChordSettings() {
               ? 'Three notes: root position and both inversions.'
               : kind === 'four-note'
                 ? 'The triad with its octave added.'
-                : 'Root position and three inversions.',
+                : kind === 'seventh'
+                  ? 'Root position and three inversions.'
+                  : 'The triad on every note of the scale, up to the octave.',
         }))}
         onChange={(chord) => update({ chord })}
         iconOnly
@@ -273,7 +284,7 @@ export function ChordSettings() {
           {
             value: 'broken',
             label: 'Broken',
-            description: 'A note at a time, up through the positions and back.',
+            description: playedHelp,
           },
         ]}
         onChange={(style) => update({ style })}

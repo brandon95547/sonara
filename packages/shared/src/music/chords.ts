@@ -1,5 +1,6 @@
 import type { Pitch } from './pitch.js'
 import { findScaleType, SCALE_TYPES, spellScale, type SpelledScale } from './scales.js'
+import { degreeNames } from './theory.js'
 
 /**
  * The chords of a key, as a scale book teaches them.
@@ -94,6 +95,86 @@ export function keyChord(
       'diminished-seventh': 'Diminished Seventh',
     }[quality],
   }
+}
+
+/**
+ * The triads of a key: one on every degree of its scale.
+ *
+ * The other thing a key's page prints, beside the tonic chord in its positions:
+ * the chord each note of the scale carries when the two notes a third and a
+ * fifth above it are taken from the same scale. Which of them come out major,
+ * minor, diminished or augmented is the key's whole harmony in one row —
+ * I ii iii IV V vi vii° in major, i ii° III+ iv V VI vii° in minor.
+ */
+export type TriadQuality = 'major' | 'minor' | 'diminished' | 'augmented'
+
+export interface DegreeTriad {
+  /** The degree it is built on, 0 at the tonic. */
+  readonly degree: number
+  /** Root, third, fifth, spelled as the key spells them. */
+  readonly tones: readonly Pitch[]
+  readonly quality: TriadQuality
+  /** `C`, `Dm`, `Bdim`, `Caug` — the names a chord chart uses. */
+  readonly symbol: string
+  /** `IV`, `ii`, `vii°`, `III+`: capitals for a major third, a sign for an altered fifth. */
+  readonly numeral: string
+  /** `Subdominant`. */
+  readonly degreeName: string
+  /** One of the three the key is built on: the tonic, subdominant and dominant. */
+  readonly primary: boolean
+}
+
+export interface KeyTriads {
+  readonly key: SpelledScale
+  readonly mode: KeyMode
+  readonly triads: readonly DegreeTriad[]
+}
+
+const NUMERALS = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII'] as const
+const TRIAD_QUALITIES: Readonly<Record<string, TriadQuality>> = {
+  '4,7': 'major',
+  '3,7': 'minor',
+  '3,6': 'diminished',
+  '4,8': 'augmented',
+}
+const QUALITY_SUFFIX: Record<TriadQuality, string> = {
+  major: '',
+  minor: 'm',
+  diminished: 'dim',
+  augmented: 'aug',
+}
+const QUALITY_SIGN: Record<TriadQuality, string> = {
+  major: '',
+  minor: '',
+  diminished: '°',
+  augmented: '+',
+}
+/** The primary triads: on the first, fourth and fifth degrees. */
+const PRIMARY_DEGREES: readonly number[] = [0, 3, 4]
+
+export function keyTriads(pitchClass: number, mode: KeyMode, tonic?: string): KeyTriads {
+  const type = findScaleType(KEY_SCALE[mode]) ?? SCALE_TYPES[0]!
+  const key = spellScale(pitchClass, type, tonic)
+  const names = degreeNames(type)
+
+  const triads = key.notes.map((root, degree): DegreeTriad => {
+    const tones = TRIAD.map((step) => key.notes[(degree + step) % 7]!)
+    const above = (tone: Pitch) => (tone.pitchClass - root.pitchClass + 12) % 12
+    const quality = TRIAD_QUALITIES[`${above(tones[1]!)},${above(tones[2]!)}`] ?? 'major'
+    const upper = quality === 'major' || quality === 'augmented'
+    const numeral = NUMERALS[degree]!
+    return {
+      degree,
+      tones,
+      quality,
+      symbol: `${root.name}${QUALITY_SUFFIX[quality]}`,
+      numeral: `${upper ? numeral : numeral.toLowerCase()}${QUALITY_SIGN[quality]}`,
+      degreeName: names[degree] ?? '',
+      primary: PRIMARY_DEGREES.includes(degree),
+    }
+  })
+
+  return { key, mode, triads }
 }
 
 /**
