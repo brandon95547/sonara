@@ -19,6 +19,17 @@ export type FingeringSystemId = (typeof FINGERING_SYSTEM_IDS)[number]
 
 export const DEFAULT_FINGERING_SYSTEM: FingeringSystemId = 'traditional'
 
+/**
+ * The ways two hands play a scale together, as a scale book lays them out.
+ *
+ * `similar` is the one a single hand plays too. The rest are the same scale
+ * with the hands set differently against each other, and a source may finger
+ * a hand differently in one of them — the page for a key prints each as its
+ * own line.
+ */
+export const SCALE_FORMS = ['similar', 'contrary', 'third', 'sixth'] as const
+export type ScaleForm = (typeof SCALE_FORMS)[number]
+
 /** What a system is asked: a run of a scale, in a key, in one hand. */
 export interface ScaleFingeringQuery {
   /**
@@ -34,11 +45,26 @@ export interface ScaleFingeringQuery {
   readonly octaves: number
   /** The run ascending, bottom note to top, for a system that fingers by rule. */
   readonly notes: readonly number[]
+  /** Which line of the page this run belongs to. `similar` when left out. */
+  readonly form?: ScaleForm
+  /**
+   * The degree the run starts on, counted from 0 at the tonic.
+   *
+   * Not always the tonic: a third apart, the right hand runs from the third of
+   * the scale to the third; a sixth apart, the left hand does.
+   */
+  readonly startDegree?: number
 }
 
 export interface SystemScaleFingering {
   /** One finger per note of the ascending run, bottom to top. */
   readonly fingers: readonly number[]
+  /**
+   * The same run, bottom to top, as it is fingered coming back down — where
+   * the page lands on different fingers from the ones it set out on. Absent
+   * when the way down is the way up read backwards, which is nearly always.
+   */
+  readonly closing?: readonly number[]
   /**
    * One finger per scale degree, tonic first: what each note takes in the
    * middle of a run, clear of how the run happens to open or turn. Absent for

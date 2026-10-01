@@ -26,17 +26,21 @@ import {
   LEARNING_MODES,
   SCALE_DIRECTION_LABELS,
   SCALE_DIRECTIONS,
-  SCALE_HANDS,
+  SCALE_MOTION_LABELS,
+  SCALE_MOTIONS,
+  scaleMotionsFor,
   SCALE_TYPES,
   scaleSpellings,
   spellScale,
   type LearningMode,
   type ScaleDirection,
-  type ScaleHands,
+  type ScaleMotion,
+  type ScaleSpec,
 } from '@sonara/shared'
 import { cn } from '@/lib/cn'
 import { Popover, SelectMenu } from '@/ui/Menu'
-import { SegmentedControl } from '@/ui/Controls'
+import { SegmentedControl, Select } from '@/ui/Controls'
+import { useMidi } from '@/midi/MidiProvider'
 import { useLearningStore } from '@/state/learning-store'
 import { panelActions } from '@/state/panel-store'
 import { useMetronome } from '@/audio/use-metronome'
@@ -62,10 +66,71 @@ import { BarGlyph } from '@/ui/BarGlyph'
  * so every one of them stays one tap away and none is squeezed.
  */
 
-const HAND_OPTIONS = SCALE_HANDS.map((hand) => ({ value: hand, label: HAND_LABELS[hand] }))
+/**
+ * Who plays, as one list: a hand on its own, or the two together in one of the
+ * ways a scale book sets them against each other.
+ *
+ * One setting on the bar and two in the spec — a hand and a motion — because a
+ * motion only means anything with both hands, and a second menu that is dead
+ * two times out of three is a menu to be puzzled over.
+ */
+type Playing = 'right' | 'left' | ScaleMotion
 
-/** The hand, as the bar's badge says it. Both is both letters, in keyboard order. */
-const HAND_BADGES: Record<ScaleHands, string> = { right: 'R', left: 'L', both: 'LR' }
+const PLAYING: readonly Playing[] = ['right', 'left', ...SCALE_MOTIONS]
+
+const PLAYING_LABELS: Record<Playing, string> = {
+  right: HAND_LABELS.right,
+  left: HAND_LABELS.left,
+  similar: HAND_LABELS.both,
+  contrary: SCALE_MOTION_LABELS.contrary,
+  third: SCALE_MOTION_LABELS.third,
+  sixth: SCALE_MOTION_LABELS.sixth,
+}
+
+const PLAYING_DESCRIPTIONS: Partial<Record<Playing, string>> = {
+  similar: 'Similar motion, the left hand an octave below.',
+  contrary: 'From one note: right hand up, left hand down, and back.',
+  third: 'Together, the right hand a third above the left.',
+  sixth: 'Together, the right hand a sixth above the left.',
+}
+
+/** Why a motion is not on offer for the scale that is selected. */
+const MOTION_UNAVAILABLE: Record<ScaleMotion, string> = {
+  similar: '',
+  contrary: 'Not for a scale that comes down differently from how it goes up.',
+  third: 'For seven-note scales.',
+  sixth: 'For seven-note scales.',
+}
+
+/** The setting, as the bar's badge says it. Both is both letters, in keyboard order. */
+const PLAYING_BADGES: Record<Playing, string> = {
+  right: 'R',
+  left: 'L',
+  similar: 'LR',
+  // Plain characters: an arrow glyph at this size is two dots.
+  contrary: '<>',
+  third: '3rd',
+  sixth: '6th',
+}
+
+const playingOf = (spec: ScaleSpec, motions: readonly ScaleMotion[]): Playing =>
+  spec.hand !== 'both'
+    ? spec.hand
+    : spec.motion && motions.includes(spec.motion)
+      ? spec.motion
+      : 'similar'
+
+const specFor = (playing: Playing): Pick<ScaleSpec, 'hand' | 'motion'> =>
+  playing === 'right' || playing === 'left' ? { hand: playing } : { hand: 'both', motion: playing }
+
+/** The motions the selected scale can be played in. */
+function useScaleMotions(): ScaleMotion[] {
+  const scaleTypeId = useLearningStore((state) => state.spec.scaleTypeId)
+  return React.useMemo(
+    () => scaleMotionsFor(SCALE_TYPES.find((type) => type.id === scaleTypeId) ?? SCALE_TYPES[0]!),
+    [scaleTypeId],
+  )
+}
 
 const OCTAVE_OPTIONS = [1, 2, 3].map((count) => ({
   value: count,
@@ -109,6 +174,25 @@ function rootOptions(scaleTypeId: string, selected: { pitchClass: number; tonic?
   }))
 }
 
+/**
+ * Tells the exercises which keys the player actually has.
+ *
+ * So that an exercise is placed where the book prints it when the keyboard
+ * reaches that far: A major in contrary motion goes down to the A at the very
+ * bottom of an 88, which a 61-key instrument does not have. With nothing
+ * plugged in it is the on-screen keyboard's 61.
+ */
+export function KeyboardRangeSync() {
+  const { connectedPorts } = useMidi()
+  const low = Math.min(...connectedPorts.flatMap((port) => port.device?.config.range.low ?? []))
+  const high = Math.max(...connectedPorts.flatMap((port) => port.device?.config.range.high ?? []))
+  const setPlayableRange = useLearningStore((state) => state.setPlayableRange)
+  React.useEffect(() => {
+    setPlayableRange(Number.isFinite(low) && Number.isFinite(high) ? { low, high } : null)
+  }, [low, high, setPlayableRange])
+  return null
+}
+
 /** Runs whatever the Scales bar needs running, wherever its buttons happen to be. */
 export function ScaleEngine() {
   const metronome = useLearningStore((state) => state.metronome)
@@ -144,6 +228,8 @@ export function ScalePicker() {
   // The key's names, where it has more than one: D♯ minor is also E♭ minor.
   const type = SCALE_TYPES.find((entry) => entry.id === spec.scaleTypeId) ?? SCALE_TYPES[0]!
   const names = scaleSpellings(spec.rootPitchClass, type).map((scale) => scale.root.name)
+  const motions = useScaleMotions()
+  const playing = playingOf(spec, motions)
 
   return (
     <>
@@ -210,6 +296,21 @@ export function ScalePicker() {
                 ]}
               />
             </CompactField>
+            {spec.hand === 'both' && (
+              <CompactField label="Motion">
+                <Select
+                  size="sm"
+                  aria-label="Motion"
+                  value={playing}
+                  onChange={(event) => updateSpec(specFor(event.target.value as Playing))}
+                  options={SCALE_MOTIONS.map((motion) => ({
+                    value: motion,
+                    label: SCALE_MOTION_LABELS[motion],
+                    disabled: !motions.includes(motion),
+                  }))}
+                />
+              </CompactField>
+            )}
             <CompactField label="Octaves">
               <SegmentedControl
                 label="Octaves"
@@ -337,16 +438,29 @@ function RadioGrid<T extends string | number>({
 }
 
 export function HandMenu() {
-  const hand = useLearningStore((state) => state.spec.hand)
+  const spec = useLearningStore((state) => state.spec)
   const updateSpec = useLearningStore((state) => state.updateSpec)
+  const motions = useScaleMotions()
+  const playing = playingOf(spec, motions)
   return (
-    <SelectMenu
-      label="Hand"
-      value={hand}
-      options={HAND_OPTIONS}
-      onChange={(next) => updateSpec({ hand: next })}
+    <SelectMenu<Playing>
+      label="Hands"
+      value={playing}
+      options={PLAYING.map((option) => {
+        const offered = option === 'right' || option === 'left' || motions.includes(option)
+        return {
+          value: option,
+          label: PLAYING_LABELS[option],
+          // A motion the scale cannot take says why, rather than just greying out.
+          description: offered
+            ? PLAYING_DESCRIPTIONS[option]
+            : MOTION_UNAVAILABLE[option as ScaleMotion],
+          disabled: !offered,
+        }
+      })}
+      onChange={(next) => updateSpec(specFor(next))}
       iconOnly
-      icon={<BarGlyph icon={<Hand size={18} />} badge={HAND_BADGES[hand]} />}
+      icon={<BarGlyph icon={<Hand size={18} />} badge={PLAYING_BADGES[playing]} />}
       className="bar-wide"
     />
   )

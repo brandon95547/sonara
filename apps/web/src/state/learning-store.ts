@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import {
   buildScaleExercise,
   DEFAULT_FINGERING_SYSTEM,
+  DEFAULT_PLAYABLE_RANGE,
   DEFAULT_SCALE_SPEC,
   IDLE_SESSION,
   isFingeringSystemId,
@@ -16,6 +17,7 @@ import {
   type Exercise,
   type FingeringSystemId,
   type LearningMode,
+  type NoteRange,
   type ScaleSpec,
   type SessionState,
 } from '@sonara/shared'
@@ -118,6 +120,14 @@ interface LearningState {
    * opinion about how to play it. Changing it re-fingers the same notes.
    */
   fingeringSystem: FingeringSystemId
+  /**
+   * The keys the player has: a connected keyboard's, or the on-screen 61.
+   *
+   * It only ever moves an exercise by octaves — to where the book prints it
+   * when the keyboard reaches that far, and onto the keys there are when it
+   * does not.
+   */
+  playableRange: NoteRange
   /** View settings. What is drawn on the keys, not what the keys mean. */
   keyLabels: KeyLabels
   showStructure: boolean
@@ -137,6 +147,8 @@ interface LearningState {
   reset: () => void
   setDemoStep: (index: number | null) => void
   setFingeringSystem: (system: FingeringSystemId) => void
+  /** Null for no keyboard connected, which is the default range. */
+  setPlayableRange: (range: NoteRange | null) => void
   setSongAnnotations: (annotations: Record<number, KeyAnnotation>) => void
   setKeyLabels: (labels: KeyLabels) => void
   setShowStructure: (show: boolean) => void
@@ -154,10 +166,11 @@ function buildExercise(
   topic: LearningTopic,
   spec: ScaleSpec,
   fingering: FingeringSystemId,
+  range: NoteRange,
 ): Exercise | null {
   // One switch, and it is the only place that maps a topic to a builder. Adding
   // chords is a case here plus a builder in shared — no other file changes.
-  return topic === 'scales' ? buildScaleExercise(spec, { fingering }) : null
+  return topic === 'scales' ? buildScaleExercise(spec, { fingering, range }) : null
 }
 
 const FINGERING_SYSTEM_KEY = 'sonara.fingering.system'
@@ -225,7 +238,7 @@ function buildAnnotations(
         // The finger's own cue, not the step's: with both hands on a step only
         // one of them is crossing, and the cue belongs on that hand's key.
         cue: ahead === 0 ? step.fingers[i]?.cue : undefined,
-        label: step.label,
+        label: step.noteLabels?.[i] ?? step.label,
       }
     })
   })
@@ -280,8 +293,9 @@ export const useLearningStore = create<LearningState>((set, get) => {
     mode: LearningMode,
     session: SessionState,
     fingering: FingeringSystemId = get().fingeringSystem,
+    range: NoteRange = get().playableRange,
   ) => {
-    const exercise = buildExercise(topic, spec, fingering)
+    const exercise = buildExercise(topic, spec, fingering, range)
     // Any rebuild is a new exercise or a new mode, and the demonstration does
     // not survive either — so the playback head resets with it.
     // A new scale is a new question; whatever was drawn on the keys was about
@@ -306,6 +320,7 @@ export const useLearningStore = create<LearningState>((set, get) => {
     metronome: false,
     demoStepIndex: null,
     fingeringSystem: initialFingeringSystem,
+    playableRange: DEFAULT_PLAYABLE_RANGE,
     keyLabels: 'notes',
     showStructure: false,
     songAnnotations: {},
@@ -382,11 +397,36 @@ export const useLearningStore = create<LearningState>((set, get) => {
         }
         // The same notes, re-fingered. The run carries on from where it is:
         // nothing about what has been played is any less true.
-        const exercise = buildExercise(state.topic, state.spec, fingeringSystem)
+        const exercise = buildExercise(
+          state.topic,
+          state.spec,
+          fingeringSystem,
+          state.playableRange,
+        )
         return {
           fingeringSystem,
           exercise,
           annotations: buildAnnotations(exercise, state.mode, state.session, state.demoStepIndex),
+        }
+      }),
+
+    setPlayableRange: (range) =>
+      set((state) => {
+        const playableRange = range ?? DEFAULT_PLAYABLE_RANGE
+        const current = state.playableRange
+        if (playableRange.low === current.low && playableRange.high === current.high) return {}
+        const exercise = buildExercise(
+          state.topic,
+          state.spec,
+          state.fingeringSystem,
+          playableRange,
+        )
+        // Most exercises sit where they sat. One that has moved to another
+        // octave is a different set of keys, and a run on the old ones is over.
+        if (exercise?.id === state.exercise?.id) return { playableRange }
+        return {
+          playableRange,
+          ...rebuild(state.topic, state.spec, state.mode, IDLE_SESSION, undefined, playableRange),
         }
       }),
 

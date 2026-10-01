@@ -1,5 +1,5 @@
 import { isBlackKey } from '../midi/notes.js'
-import { fingeringSystem, type FingeringSystemId } from './fingering-system.js'
+import { fingeringSystem, type FingeringSystemId, type ScaleForm } from './fingering-system.js'
 
 /**
  * Recommended scale fingering.
@@ -43,6 +43,11 @@ export interface Fingering {
    * finger go" is a question about.
    */
   readonly cycle?: readonly number[]
+  /**
+   * The run as it is fingered coming back down, bottom note first, where that
+   * is not simply `fingers` again. See `SystemScaleFingering.closing`.
+   */
+  readonly closing?: readonly number[]
 }
 
 // --- Working a fingering out ------------------------------------------------
@@ -205,29 +210,54 @@ export interface FingeringRequest {
   readonly notes: readonly number[]
   /** Which system to ask. The default one when left out. */
   readonly system?: FingeringSystemId
+  /** Which line of the page the run is — similar motion when left out. */
+  readonly form?: ScaleForm
+  /** The degree the run starts on, 0 at the tonic. */
+  readonly startDegree?: number
 }
 
 export function scaleFingering(request: FingeringRequest): Fingering {
-  const supplied = fingeringSystem(request.system).scale({
+  const system = fingeringSystem(request.system)
+  const query = {
     tonic: request.rootName,
     scaleTypeId: request.scaleTypeId,
     hand: request.hand,
     octaves: request.octaves,
     notes: request.notes,
-  })
+    form: request.form,
+    startDegree: request.startDegree,
+  }
+  const supplied = system.scale(query)
+
+  // A line the system does not print, of a scale it does: the hands thirds
+  // apart in a minor key, say. The honest fingering is the one those notes
+  // already have in that scale — the same fingers, started further along —
+  // and it is a suggestion, because no page was read for it.
+  const borrowed =
+    supplied === null && (request.startDegree ?? 0) !== 0
+      ? system.scale({ ...query, form: 'similar', startDegree: 0 })?.cycle
+      : undefined
 
   // Source travels with the fingers rather than being worked out again from
   // the request: asking twice is how the chromatic scale came to report itself
   // as published while returning nothing at all.
   const { fingers, source }: { fingers: number[]; source: Fingering['source'] } = supplied
     ? { fingers: [...supplied.fingers], source: 'standard' }
-    : { fingers: derive(request.notes, request.hand), source: 'derived' }
+    : borrowed
+      ? {
+          fingers: request.notes.map(
+            (_, index) => borrowed[(index + (request.startDegree ?? 0)) % borrowed.length]!,
+          ),
+          source: 'derived',
+        }
+      : { fingers: derive(request.notes, request.hand), source: 'derived' }
 
   return {
     fingers,
     source,
     crossings: findCrossings(fingers, request.hand),
     ...(supplied?.cycle ? { cycle: supplied.cycle } : {}),
+    ...(supplied?.closing ? { closing: supplied.closing } : {}),
   }
 }
 

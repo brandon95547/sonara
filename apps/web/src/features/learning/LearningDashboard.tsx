@@ -263,7 +263,8 @@ function CurrentStepCard({
               {demoing
                 ? `Playing ${step?.label ?? ''}`
                 : reveal
-                  ? `Play ${step?.label} ${together ? 'in both hands ' : ''}to continue`
+                  ? // Two hands on one note need telling; on two notes, the notes say it.
+                    `Play ${step?.label} ${together && !step?.noteLabels ? 'in both hands ' : ''}to continue`
                   : 'Play the next note from memory'}
             </p>
             {reveal && step?.cue && (

@@ -42,8 +42,14 @@ export interface ExerciseStep {
   readonly notes: readonly number[]
   /** Parallel to `notes`. */
   readonly fingers: readonly StepFinger[]
-  /** What to call it on screen: `A`, or `Am`. */
+  /** What to call it on screen: `A`, or `Am` — or `C + E` for two hands a third apart. */
   readonly label: string
+  /**
+   * Parallel to `notes`, where the notes do not all share the step's name: the
+   * hands a third apart, or moving against each other. A key is labelled with
+   * its own note, not with both.
+   */
+  readonly noteLabels?: readonly string[]
   /** Where it sits in the material: `♭3`, or `iv`. */
   readonly degree?: string
   /**

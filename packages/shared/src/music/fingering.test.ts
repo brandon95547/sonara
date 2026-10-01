@@ -148,7 +148,9 @@ describe('the Brown Scale Book, as printed', () => {
     ['B', WHITE_RH, '432143213214321'],
     ['F♯', '234123123412312', '432132143213212'],
     ['F', '123412312341234', WHITE_LH],
-    ['B♭', '212312341231234', '321432132143213'],
+    // The similar-motion line prints no digit on the left hand's top note;
+    // the contrary-motion and third-apart lines of the same page print a 2.
+    ['B♭', '212312341231234', '321432132143212'],
     ['E♭', '212341231234123', '321432132143212'],
     ['A♭', '231231234123123', '321432132143212'],
     ['D♭', '231234123123412', '321432132143212'],

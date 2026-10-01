@@ -47,18 +47,45 @@ import { normalisePitchClass, parsePitch } from './pitch.js'
  * the middle of a run, plus whatever the page does differently on its lowest
  * and its highest notes.
  */
-interface HandRun {
-  /** One finger per degree, tonic first — the body of the run. */
-  readonly cycle: string
+interface RunEnds {
   /** The lowest notes of the run, from the bottom up, where the page differs. */
   readonly bottom?: string
   /** The highest notes of the run, ending on the top note, where it differs. */
   readonly top?: string
+  /**
+   * The lowest notes again, from the bottom up, as the run comes back down
+   * onto them — for the few lines that close on different fingers from the
+   * ones they opened on.
+   */
+  readonly close?: string
 }
 
+interface HandRun extends RunEnds {
+  /** One finger per degree, tonic first — the body of the run. */
+  readonly cycle: string
+}
+
+/**
+ * One key's page.
+ *
+ * `right` and `left` are the "similar motion in octaves" line, and every other
+ * line on the page is those two hands again unless it says otherwise:
+ *
+ * - `contrary` — "contrary motion from unison". Each hand plays its own run,
+ *   the left from the top down. Listed only where the page fingers a hand
+ *   differently there.
+ * - `third` — "separated by a third". The left hand is as above; the right
+ *   runs from the third degree, on the same fingers those notes always take,
+ *   so only its ends are listed.
+ * - `sixth` — "separated by a sixth". The right hand is as above; the left
+ *   runs from the third degree, a sixth below.
+ */
 interface KeyPage {
   readonly right: HandRun
   readonly left: HandRun
+  readonly contrary?: { readonly right?: HandRun; readonly left?: HandRun }
+  readonly third?: RunEnds
+  readonly sixth?: RunEnds
 }
 
 /** Printed keys, by the tonic as the page names it. */
@@ -76,21 +103,50 @@ const RIGHT_FROM_F: HandRun = { cycle: '1234123', top: '4' }
 /** The flat-key left hand, 3 2 1 then 4 3 2 1, turning at the top on the 2nd finger. */
 const LEFT_FLAT: HandRun = { cycle: '3214321', top: '2' }
 
+/**
+ * A sixth apart in the flat keys, the left hand starts on a white key that is
+ * a thumb everywhere else in the scale. The page starts it on the little
+ * finger instead and walks down to the thumb — `5 4 3 2 1` — and ends on it
+ * again. (It prints a small `1` under the `5` as the alternative.)
+ */
+const SIXTH_FROM_FIVE: RunEnds = { bottom: '5' }
+
 const MAJOR: Pages = {
-  C: WHITE,
+  // C alone turns the left hand at the top of the sixths on `3 2`, not `4 3`.
+  C: { ...WHITE, sixth: { top: '32' } },
   G: WHITE,
   D: WHITE,
   A: WHITE,
   E: WHITE,
   B: { right: RIGHT, left: LEFT_FROM_B },
-  'F♯': { right: { cycle: '2341231' }, left: { cycle: '4321321', top: '2' } },
+  'F♯': {
+    right: { cycle: '2341231' },
+    left: { cycle: '4321321', top: '2' },
+    // A♯ is a 4th finger in the scale; a third apart it opens on the 3rd.
+    third: { bottom: '3' },
+  },
   F: { right: RIGHT_FROM_F, left: LEFT },
-  // No digit is printed on the left hand's top note in B♭, so it keeps the 3
-  // the pattern gives it; in the three keys after it the page prints a 2.
-  'B♭': { right: { cycle: '4123123', bottom: '2' }, left: { cycle: '3214321' } },
-  'E♭': { right: { cycle: '3123412', bottom: '2' }, left: LEFT_FLAT },
-  'A♭': { right: { cycle: '3412312', bottom: '23' }, left: LEFT_FLAT },
-  'D♭': { right: { cycle: '2312341' }, left: LEFT_FLAT },
+  // The similar-motion line prints no digit on the left hand's top note. The
+  // contrary-motion and third-apart lines of the same page do, and it is a 2.
+  'B♭': {
+    right: { cycle: '4123123', bottom: '2' },
+    left: LEFT_FLAT,
+    sixth: SIXTH_FROM_FIVE,
+  },
+  'E♭': {
+    right: { cycle: '3123412', bottom: '2' },
+    left: LEFT_FLAT,
+    sixth: SIXTH_FROM_FIVE,
+  },
+  'A♭': {
+    right: { cycle: '3412312', bottom: '23' },
+    left: LEFT_FLAT,
+    // In contrary motion the page's main line of digits opens `3 4`, with the
+    // similar-motion `2 3` tucked beneath it as the alternative.
+    contrary: { right: { cycle: '3412312' } },
+    sixth: SIXTH_FROM_FIVE,
+  },
+  'D♭': { right: { cycle: '2312341' }, left: LEFT_FLAT, sixth: SIXTH_FROM_FIVE },
 }
 
 /** The right hand of F♯, C♯ and G♯ harmonic minor: 3 4 mid-run, opened on 2 3. */
@@ -100,9 +156,19 @@ const HARMONIC_MINOR: Pages = {
   A: WHITE,
   E: WHITE,
   B: { right: RIGHT, left: LEFT_FROM_B },
-  'F♯': { right: RIGHT_SHARP_MINOR, left: { cycle: '4321321', top: '2' } },
+  'F♯': {
+    right: RIGHT_SHARP_MINOR,
+    left: { cycle: '4321321', top: '2' },
+    // Contrary motion is printed `3 4` from the first note, and ends on it.
+    contrary: { right: { cycle: '3412312' } },
+  },
   'C♯': { right: RIGHT_SHARP_MINOR, left: LEFT_FLAT },
-  'G♯': { right: RIGHT_SHARP_MINOR, left: LEFT_FLAT },
+  'G♯': {
+    right: RIGHT_SHARP_MINOR,
+    left: LEFT_FLAT,
+    // Contrary motion opens `2 3` like the line above it and closes `4 3`.
+    contrary: { right: { cycle: '3412312', bottom: '23', close: '34' } },
+  },
   'D♯': { right: { cycle: '3123412', bottom: '2' }, left: { cycle: '2143213' } },
   D: WHITE,
   G: WHITE,
@@ -110,8 +176,9 @@ const HARMONIC_MINOR: Pages = {
   F: { right: RIGHT_FROM_F, left: LEFT },
   // The left hand is printed twice at the opening: `5 4` under the staff and
   // `2 1 3` over it. The one under the staff is where the book puts the left
-  // hand's fingering everywhere else, and the run closes on it — a 4 on the
-  // last C, so a 5 on the last B♭ — so that is the one recorded.
+  // hand's fingering everywhere else, the run closes on it — a 4 on the last
+  // C, so a 5 on the last B♭ — and the contrary-motion line below it reaches
+  // its lowest note on `4 5`. So that is the one recorded.
   'B♭': {
     right: { cycle: '4123123', bottom: '2' },
     left: { cycle: '2132143', bottom: '5432' },
@@ -189,23 +256,41 @@ const PLAYED_FROM: Readonly<Record<'major' | 'minor', Readonly<Record<string, st
 
 const digits = (run: string) => [...run].map(Number)
 
-/** Lays a printed hand out over however many octaves were asked for. */
-function layOut(run: HandRun, octaves: number): number[] {
-  const cycle = digits(run.cycle)
+/**
+ * Lays a printed hand out over however many octaves were asked for, from
+ * whichever degree the run starts on.
+ */
+function layOut(
+  cycle: readonly number[],
+  ends: RunEnds,
+  octaves: number,
+  startDegree: number,
+): { fingers: number[]; closing?: number[] } {
   const count = cycle.length * Math.max(1, octaves) + 1
-  const fingers = Array.from({ length: count }, (_, index) => cycle[index % cycle.length]!)
+  const fingers = Array.from(
+    { length: count },
+    (_, index) => cycle[(index + startDegree) % cycle.length]!,
+  )
 
   // The top first, so that in a run short enough for the two to meet, the
   // opening — which is where the hand actually starts — is what is kept.
-  const top = digits(run.top ?? '')
+  const top = digits(ends.top ?? '')
   top.forEach((finger, index) => {
     fingers[count - top.length + index] = finger
   })
-  digits(run.bottom ?? '').forEach((finger, index) => {
-    fingers[index] = finger
-  })
 
-  return fingers
+  const withBottom = (bottom: string | undefined) => {
+    const laid = [...fingers]
+    digits(bottom ?? '').forEach((finger, index) => {
+      laid[index] = finger
+    })
+    return laid
+  }
+
+  return {
+    fingers: withBottom(ends.bottom),
+    ...(ends.close === undefined ? {} : { closing: withBottom(ends.close) }),
+  }
 }
 
 /**
@@ -240,22 +325,44 @@ function chromatic(notes: readonly number[], hand: Hand): number[] {
 }
 
 function scale(query: ScaleFingeringQuery) {
+  const form = query.form ?? 'similar'
+  const startDegree = query.startDegree ?? 0
+
   if (query.scaleTypeId === 'chromatic') {
+    // A rule about keys, so it does not care where the run starts.
     return query.notes.length > 0 ? { fingers: chromatic(query.notes, query.hand) } : null
   }
 
-  const form = PAGES[query.scaleTypeId]
-  if (!form) return null
+  const printed = PAGES[query.scaleTypeId]
+  if (!printed) return null
 
   // `Bb` and `B♭` are one name written two ways; D♯ and E♭ are two names.
   const tonic = parsePitch(query.tonic)?.name
   if (tonic === undefined) return null
 
-  const page = form.pages[tonic] ?? form.pages[PLAYED_FROM[form.mode][tonic] ?? '']
+  const page = printed.pages[tonic] ?? printed.pages[PLAYED_FROM[printed.mode][tonic] ?? '']
   if (!page) return null
 
-  const run = page[query.hand]
-  return { fingers: layOut(run, query.octaves), cycle: digits(run.cycle) }
+  if (startDegree === 0) {
+    // The hand's own run from the tonic — as the page's line for this form
+    // prints it, where that line differs.
+    const run = (form === 'contrary' ? page.contrary?.[query.hand] : undefined) ?? page[query.hand]
+    const cycle = digits(run.cycle)
+    return { ...layOut(cycle, run, query.octaves, 0), cycle }
+  }
+
+  // A run from the third degree. The book prints one only for the major keys:
+  // the right hand of the thirds, the left hand of the sixths.
+  const ends =
+    startDegree === 2 && form === 'third' && query.hand === 'right'
+      ? (page.third ?? {})
+      : startDegree === 2 && form === 'sixth' && query.hand === 'left'
+        ? (page.sixth ?? {})
+        : undefined
+  if (ends === undefined || query.scaleTypeId !== 'major') return null
+
+  const cycle = digits(page[query.hand].cycle)
+  return { ...layOut(cycle, ends, query.octaves, startDegree), cycle }
 }
 
 export const TRADITIONAL: FingeringSystem = {

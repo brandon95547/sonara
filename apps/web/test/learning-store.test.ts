@@ -368,3 +368,74 @@ describe('a key and its enharmonic twin', () => {
     expect(store().exercise!.title).toBe('D♯ Harmonic Minor')
   })
 })
+
+/**
+ * Two hands on two different notes: contrary motion, and the hands a third or
+ * a sixth apart. Each key is labelled with its own note, not with the pair.
+ */
+describe('the hands on different notes', () => {
+  const step = (index: number) => store().exercise!.steps[index]!
+
+  it('labels each key with the note that hand plays', () => {
+    store().updateSpec({ rootPitchClass: 0, scaleTypeId: 'major', hand: 'both', motion: 'third' })
+    const [left, right] = step(0).notes
+    expect(step(0).label).toBe('C + E')
+    expect(store().annotations[left!]?.label).toBe('C')
+    expect(store().annotations[right!]?.label).toBe('E')
+  })
+
+  it('runs contrary motion a pair of notes at a time', () => {
+    store().updateSpec({
+      rootPitchClass: 0,
+      scaleTypeId: 'major',
+      hand: 'both',
+      motion: 'contrary',
+      octaves: 1,
+    })
+    store().start()
+    // Both hands share the first note, so one key press is the whole step.
+    expect(step(0).notes).toEqual([60, 60])
+    store().noteOn(60)
+    expect(store().session.stepIndex).toBe(1)
+    // Then they part: B below and D above.
+    expect(step(1).notes).toEqual([59, 62])
+    store().noteOn(62)
+    expect(store().session.stepIndex).toBe(1)
+    store().noteOn(59)
+    expect(store().session.stepIndex).toBe(2)
+    expect(store().session.mistakes).toBe(0)
+  })
+})
+
+describe('the keys the player has', () => {
+  afterEach(() => store().setPlayableRange(null))
+
+  it('puts an exercise where the book prints it once the keyboard reaches', () => {
+    // G major in contrary motion: the page starts on the G below middle C and
+    // the left hand goes two octaves down from there, off the end of a 61.
+    store().updateSpec({
+      rootPitchClass: 7,
+      scaleTypeId: 'major',
+      hand: 'both',
+      motion: 'contrary',
+      octaves: 2,
+    })
+    expect(store().exercise!.steps[0]!.notes).toEqual([67, 67])
+
+    store().setPlayableRange({ low: 21, high: 108 })
+    expect(store().exercise!.steps[0]!.notes).toEqual([55, 55])
+
+    // Unplugged, it comes back onto the keys there are.
+    store().setPlayableRange(null)
+    expect(store().exercise!.steps[0]!.notes).toEqual([67, 67])
+  })
+
+  it('leaves a run alone when the exercise has not moved', () => {
+    store().updateSpec({ ...DEFAULT_SCALE_SPEC })
+    store().start()
+    store().noteOn(notes()[0]!)
+    const session = store().session
+    store().setPlayableRange({ low: 21, high: 108 })
+    expect(store().session).toBe(session)
+  })
+})

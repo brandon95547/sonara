@@ -98,6 +98,23 @@ describe('the session engine', () => {
     expect(state.satisfied).toEqual([])
   })
 
+  it('asks for one press where two hands share a key', () => {
+    // The first note of a scale in contrary motion: both thumbs on middle C.
+    // It is listed once per hand and is one key, and waiting for it twice
+    // would wait for ever — a second press of a held note is not progress.
+    const unison: typeof exercise = {
+      ...exercise,
+      steps: [
+        { id: '0', notes: [60, 60], fingers: [], label: 'C' },
+        { id: '1', notes: [59, 62], fingers: [], label: 'B + D' },
+      ],
+    }
+    let state = sessionReducer(IDLE_SESSION, { type: 'start', at: 0 }, unison)
+    state = sessionReducer(state, { type: 'noteOn', note: 60, at: 1 }, unison)
+    expect(state.stepIndex).toBe(1)
+    expect(state.mistakes).toBe(0)
+  })
+
   it('completes on the last step and stops advancing', () => {
     const state = playThrough(exercise.steps.length)
     expect(state.status).toBe('complete')

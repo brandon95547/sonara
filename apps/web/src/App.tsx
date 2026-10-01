@@ -14,7 +14,7 @@ import { DeviceSettingsDrawer } from '@/features/devices/DeviceSettingsDrawer'
 import { RecordingOverlay, RecordingReview } from '@/features/recording/RecordControls'
 import { SongLibrary } from '@/features/songs/SongLibrary'
 import { SongEngine } from '@/features/songs/SongControls'
-import { ScaleEngine } from '@/features/learning/ScaleControls'
+import { KeyboardRangeSync, ScaleEngine } from '@/features/learning/ScaleControls'
 import { ScaleTheoryDialog } from '@/features/learning/ScaleTheoryDialog'
 import { Button } from '@/ui/Button'
 import { useLearningStore } from '@/state/learning-store'
@@ -140,6 +140,7 @@ function Shell() {
       {/* The engines run for their topic whatever the bar is showing: a song
           must keep playing, and a metronome keep time, while a menu is shut.
           Leaving for the dashboard is leaving the area, and stops them. */}
+      <KeyboardRangeSync />
       {page === 'area' && topic === 'scales' && <ScaleEngine />}
       {page === 'area' && topic === 'songs' && <SongEngine />}
 

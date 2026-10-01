@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { noteName } from '../midi/notes.js'
-import { buildScaleExercise, DEFAULT_SCALE_SPEC, type ScaleSpec } from './scale-exercise.js'
+import {
+  buildScaleExercise,
+  DEFAULT_PLAYABLE_RANGE,
+  DEFAULT_SCALE_SPEC,
+  scaleMotionsFor,
+  type ScaleSpec,
+} from './scale-exercise.js'
 import { isInExercise } from './exercise.js'
 import { SCALE_TYPES } from '../music/scales.js'
 
@@ -471,5 +477,277 @@ describe('the forms of the minor scale', () => {
     expect(labels({ scaleTypeId: 'melodic-minor', direction: 'up-down' }).join(' ')).toBe(
       'A B C D E F♯ G♯ A G F E D C B A',
     )
+  })
+})
+
+/**
+ * The other lines of a key's page in the Brown Scale Book: contrary motion,
+ * and the hands a third and a sixth apart. Every starting note and every
+ * finger below was read off the page.
+ */
+describe('contrary motion, thirds and sixths', () => {
+  /** A keyboard that reaches as far as the book goes. */
+  const FULL = { low: 21, high: 108 }
+  const two = (spec: Partial<ScaleSpec>, range = FULL) =>
+    buildScaleExercise({ ...DEFAULT_SCALE_SPEC, hand: 'both', octaves: 2, ...spec }, { range })
+  const hand = (exercise: ReturnType<typeof two>, index: number) =>
+    exercise.steps.map((step) => step.fingers[index]!.finger).join('')
+
+  it('offers each scale the motions it can take', () => {
+    const motions = (id: string) => scaleMotionsFor(SCALE_TYPES.find((type) => type.id === id)!)
+    expect(motions('major')).toEqual(['similar', 'contrary', 'third', 'sixth'])
+    expect(motions('harmonic-minor')).toEqual(['similar', 'contrary', 'third', 'sixth'])
+    // One hand would be on the raised sixth while the other is on the lowered.
+    expect(motions('melodic-minor')).toEqual(['similar', 'third', 'sixth'])
+    // Two steps along a pentatonic is not a third.
+    expect(motions('major-pentatonic')).toEqual(['similar', 'contrary'])
+  })
+
+  it('is similar motion for one hand, and for a scale that cannot take the motion', () => {
+    const plain = build({ hand: 'right' })
+    expect(build({ hand: 'right', motion: 'contrary' }).notes).toEqual(plain.notes)
+    expect(two({ scaleTypeId: 'melodic-minor', motion: 'contrary' }).notes).toEqual(
+      two({ scaleTypeId: 'melodic-minor' }).notes,
+    )
+  })
+
+  describe('contrary motion from unison', () => {
+    it('starts both hands on the note the page does, in every key', () => {
+      const majors = {
+        0: 60,
+        7: 55,
+        2: 62,
+        9: 57,
+        4: 64,
+        11: 59,
+        6: 66,
+        5: 65,
+        10: 58,
+        3: 63,
+        8: 68,
+        1: 61,
+      }
+      const minors = {
+        9: 57,
+        4: 64,
+        11: 59,
+        6: 66,
+        1: 61,
+        8: 68,
+        3: 63,
+        2: 62,
+        7: 67,
+        0: 60,
+        5: 65,
+        10: 58,
+      }
+      for (const [scaleTypeId, starts] of [
+        ['major', majors],
+        ['harmonic-minor', minors],
+      ] as const) {
+        for (const [pitchClass, unison] of Object.entries(starts)) {
+          const exercise = two({
+            scaleTypeId,
+            rootPitchClass: Number(pitchClass),
+            motion: 'contrary',
+            direction: 'up-down',
+          })
+          const where = `${scaleTypeId} pc ${pitchClass}`
+          expect(exercise.steps[0]!.notes, where).toEqual([unison, unison])
+          // Two octaves out, each way, and back to meet.
+          expect(exercise.steps[14]!.notes, where).toEqual([unison - 24, unison + 24])
+          expect(exercise.steps.at(-1)!.notes, where).toEqual([unison, unison])
+        }
+      }
+    })
+
+    it('sends the left hand down the same scale the right hand goes up', () => {
+      const exercise = two({ rootPitchClass: 0, scaleTypeId: 'major', motion: 'contrary' })
+      expect(exercise.subtitle).toBe('Contrary Motion · 2 octaves · Apart')
+      expect(exercise.steps.slice(0, 4).map((step) => step.label)).toEqual([
+        'C',
+        'B + D',
+        'A + E',
+        'G + F',
+      ])
+      expect(exercise.steps[1]!.noteLabels).toEqual(['B', 'D'])
+      // Mirror images on the white keys: both hands 1 2 3 1 2 3 4 …
+      expect(hand(exercise, 0)).toBe('123123412312345')
+      expect(hand(exercise, 1)).toBe('123123412312345')
+    })
+
+    it('says the hands part, or meet, rather than go up or down', () => {
+      const spec = { rootPitchClass: 0, scaleTypeId: 'major', motion: 'contrary' } as const
+      expect(two({ ...spec, direction: 'down' }).subtitle).toContain('Together')
+      expect(two({ ...spec, direction: 'up-down' }).subtitle).toContain('Apart and Back')
+      // Coming together starts apart: left hand at the bottom, right at the top.
+      expect(two({ ...spec, direction: 'down' }).steps[0]!.notes).toEqual([36, 84])
+    })
+
+    it('cues each hand by the way it is actually moving', () => {
+      // The left hand going down passes its thumb under, as the right does going up.
+      const exercise = two({
+        rootPitchClass: 0,
+        scaleTypeId: 'major',
+        motion: 'contrary',
+        octaves: 1,
+      })
+      expect(exercise.steps[3]!.cue).toBe('Left: Thumb under · Right: Thumb under')
+    })
+
+    it('fingers each hand as the page does', () => {
+      const line = (rootPitchClass: number, scaleTypeId: string) =>
+        two({ rootPitchClass, scaleTypeId, motion: 'contrary' })
+      // F♯ major: the left hand opens at the top of its run, on 2.
+      expect(hand(line(6, 'major'), 1)).toBe('234123123412312')
+      expect(hand(line(6, 'major'), 0)).toBe('212312341231234')
+      expect(hand(line(10, 'major'), 0)).toBe('212341231234123')
+      // A♭ major opens 3 4 here, where its similar-motion line opens 2 3.
+      expect(hand(line(8, 'major'), 1)).toBe('341231234123123')
+      expect(hand(two({ rootPitchClass: 8, scaleTypeId: 'major' }), 1)).toBe('231231234123123')
+      // So does F♯ minor.
+      expect(hand(line(6, 'harmonic-minor'), 1)).toBe('341231234123123')
+      // B♭ minor's left hand reaches the bottom on 4 5.
+      expect(hand(line(10, 'harmonic-minor'), 0)).toBe('234123123412345')
+    })
+
+    it('closes G♯ minor on 4 3 though it opened on 2 3', () => {
+      const fingers = hand(
+        two({
+          rootPitchClass: 8,
+          scaleTypeId: 'harmonic-minor',
+          motion: 'contrary',
+          direction: 'up-down',
+        }),
+        1,
+      )
+      expect(fingers.slice(0, 3)).toBe('231')
+      expect(fingers.slice(-3)).toBe('143')
+    })
+
+    it('moves up an octave rather than off the end of a 61-key keyboard', () => {
+      // The page starts G major on G3 and takes the left hand down to G1.
+      const spec = { rootPitchClass: 7, scaleTypeId: 'major', motion: 'contrary' } as const
+      expect(two(spec).steps[0]!.notes).toEqual([55, 55])
+      const fitted = two(spec, DEFAULT_PLAYABLE_RANGE)
+      expect(fitted.steps[0]!.notes).toEqual([67, 67])
+      expect(Math.min(...fitted.notes)).toBeGreaterThanOrEqual(36)
+    })
+  })
+
+  describe('separated by a third, and by a sixth', () => {
+    // The left hand's tonic in the thirds. The sixths start an octave higher
+    // in the right hand, with the left on the note the right had in the thirds.
+    const TONICS = {
+      0: 48,
+      7: 43,
+      2: 50,
+      9: 45,
+      4: 52,
+      11: 47,
+      6: 54,
+      5: 53,
+      10: 46,
+      3: 51,
+      8: 44,
+      1: 49,
+    }
+
+    it('starts each where the page does, in every major key', () => {
+      for (const [pitchClass, tonic] of Object.entries(TONICS)) {
+        const key = { rootPitchClass: Number(pitchClass), scaleTypeId: 'major' }
+        expect(two({ ...key, motion: 'third' }).steps[0]!.notes, `third pc ${pitchClass}`).toEqual([
+          tonic,
+          tonic + 4,
+        ])
+        expect(two({ ...key, motion: 'sixth' }).steps[0]!.notes, `sixth pc ${pitchClass}`).toEqual([
+          tonic + 4,
+          tonic + 12,
+        ])
+      }
+    })
+
+    it('keeps the hands a third, or a sixth, of the scale apart throughout', () => {
+      const third = two({
+        rootPitchClass: 0,
+        scaleTypeId: 'major',
+        motion: 'third',
+        direction: 'up-down',
+      })
+      expect(third.subtitle).toBe('A Third Apart · 2 octaves · Up then Down')
+      expect(third.steps.slice(0, 3).map((step) => step.label)).toEqual(['C + E', 'D + F', 'E + G'])
+      // Major and minor thirds, as the scale has them — never anything else.
+      for (const step of third.steps) expect([3, 4]).toContain(step.notes[1]! - step.notes[0]!)
+
+      const sixth = two({
+        rootPitchClass: 0,
+        scaleTypeId: 'major',
+        motion: 'sixth',
+        direction: 'up-down',
+      })
+      expect(sixth.steps[0]!.label).toBe('E + C')
+      for (const step of sixth.steps) expect([8, 9]).toContain(step.notes[1]! - step.notes[0]!)
+    })
+
+    it('gives the hand on the tonic its usual fingering', () => {
+      for (let rootPitchClass = 0; rootPitchClass < 12; rootPitchClass++) {
+        const key = { rootPitchClass, scaleTypeId: 'major' }
+        const similar = two(key)
+        expect(hand(two({ ...key, motion: 'third' }), 0), `pc ${rootPitchClass}`).toBe(
+          hand(similar, 0),
+        )
+        expect(hand(two({ ...key, motion: 'sixth' }), 1), `pc ${rootPitchClass}`).toBe(
+          hand(similar, 1),
+        )
+      }
+    })
+
+    it('fingers the hand that starts on the third as the page does', () => {
+      const third = (rootPitchClass: number) =>
+        hand(two({ rootPitchClass, scaleTypeId: 'major', motion: 'third' }), 1)
+      const sixth = (rootPitchClass: number) =>
+        hand(two({ rootPitchClass, scaleTypeId: 'major', motion: 'sixth' }), 0)
+
+      // The same fingers those notes always take: C major from E is 3 1 2 3 4 …
+      expect(third(0)).toBe('312341231234123')
+      expect(third(10)).toBe('231234123123412')
+      // … except F♯ major, which opens on 3 where A♯ is otherwise a 4.
+      expect(third(6)).toBe('312312341231234')
+
+      expect(sixth(7)).toBe('321321432132143')
+      expect(sixth(11)).toBe('214321321432132')
+      // C major turns at the top on 3 2.
+      expect(sixth(0)).toBe('321321432132132')
+      // The four flat keys start the left hand on 5 and walk down to the thumb.
+      for (const flat of [10, 3, 8, 1]) expect(sixth(flat), `pc ${flat}`).toBe('543213214321321')
+    })
+
+    it('calls a line the book does not print a suggestion', () => {
+      // The book prints thirds and sixths for the major keys only. A minor key
+      // takes the fingers its notes already have, and says it is suggesting.
+      const exercise = two({ rootPitchClass: 9, scaleTypeId: 'harmonic-minor', motion: 'third' })
+      expect(exercise.fingerings.map((fingering) => fingering.source)).toEqual([
+        'standard',
+        'derived',
+      ])
+      // A minor from C: the fingers C D E F take in the scale — 3 1 2 3.
+      expect(hand(exercise, 1).slice(0, 4)).toBe('3123')
+    })
+
+    it('stays on a 61-key keyboard at every width the controls offer', () => {
+      for (const motion of ['third', 'sixth'] as const) {
+        for (let rootPitchClass = 0; rootPitchClass < 12; rootPitchClass++) {
+          for (const octaves of [1, 2, 3] as const) {
+            const notes = two(
+              { rootPitchClass, scaleTypeId: 'major', motion, octaves },
+              DEFAULT_PLAYABLE_RANGE,
+            ).notes
+            const where = `${motion} pc ${rootPitchClass} x${octaves}`
+            expect(Math.min(...notes), where).toBeGreaterThanOrEqual(36)
+            expect(Math.max(...notes), where).toBeLessThanOrEqual(96)
+          }
+        }
+      }
+    })
   })
 })

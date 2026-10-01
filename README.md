@@ -38,6 +38,10 @@ touchscreen or a USB MIDI keyboard, and watch every note land on the keys.
   octaves, ascending, descending or both. Right hand, left hand, or both
   together: the left hand sits an octave below the right, the way scale books
   print a scale "in octaves".
+- **The other lines of the page.** With both hands: contrary motion from a
+  shared note, and the hands a third or a sixth apart — each starting where
+  The Brown Scale Book starts it when the connected keyboard reaches that far,
+  and an octave higher when it does not.
 - **Fingering from the book.** The recommended fingers for major, minor and
   chromatic scales are the ones printed in The Brown Scale Book, under a
   Fingering system setting built to take more than one.

@@ -108,7 +108,10 @@ export function sessionReducer(
       if (state.satisfied.includes(event.note)) return state
 
       const satisfied = [...state.satisfied, event.note]
-      if (satisfied.length < step.notes.length) return { ...state, satisfied }
+      // Distinct keys, not notes listed: where two hands meet on one note —
+      // the first and last of a scale in contrary motion — there is one key to
+      // press, and counting it twice would wait for ever on the second.
+      if (satisfied.length < new Set(step.notes).size) return { ...state, satisfied }
 
       const stepIndex = state.stepIndex + 1
       const done = stepIndex >= exercise.steps.length

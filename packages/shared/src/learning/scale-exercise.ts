@@ -12,7 +12,8 @@ import {
   type SpelledScale,
 } from '../music/scales.js'
 import { scaleFingering, type Hand } from '../music/fingering.js'
-import type { FingeringSystemId } from '../music/fingering-system.js'
+import { SCALE_FORMS, type FingeringSystemId, type ScaleForm } from '../music/fingering-system.js'
+import type { NoteRange } from '../domain/device.js'
 import { tetrachords } from '../music/theory.js'
 import type { Exercise, ExerciseStep } from './exercise.js'
 
@@ -46,6 +47,51 @@ export const HAND_LABELS: Record<ScaleHands, string> = {
   both: 'Both Hands',
 }
 
+/**
+ * How two hands are set against each other. Only means anything with both
+ * hands playing; these are the lines a scale book prints under each key.
+ *
+ * - `similar` — the same notes an octave apart, moving together.
+ * - `contrary` — from one shared note, the right hand up and the left hand
+ *   down, and back to meet.
+ * - `third` — moving together, the right hand a third above the left.
+ * - `sixth` — moving together, the right hand a sixth above the left.
+ */
+export const SCALE_MOTIONS = SCALE_FORMS
+export type ScaleMotion = ScaleForm
+
+export const SCALE_MOTION_LABELS: Record<ScaleMotion, string> = {
+  similar: 'Similar Motion',
+  contrary: 'Contrary Motion',
+  third: 'A Third Apart',
+  sixth: 'A Sixth Apart',
+}
+
+/**
+ * The motions a scale can be played in.
+ *
+ * Thirds and sixths are intervals of a seven-note scale: two steps along a
+ * pentatonic is not a third. And contrary motion needs a scale that is the
+ * same going down as going up — a melodic minor in contrary motion has one
+ * hand on the raised sixth and seventh while the other is on the lowered ones.
+ */
+export function scaleMotionsFor(type: ScaleType): ScaleMotion[] {
+  return SCALE_MOTIONS.filter((motion) =>
+    motion === 'similar'
+      ? true
+      : motion === 'contrary'
+        ? type.descendingTypeId === undefined
+        : type.steps.length === 7,
+  )
+}
+
+/** The direction, as contrary motion reads it: the hands part, or meet. */
+const CONTRARY_DIRECTION_LABELS: Record<ScaleDirection, string> = {
+  up: 'Apart',
+  down: 'Together',
+  'up-down': 'Apart and Back',
+}
+
 /** Which hand a cue belongs to, once there are two it could be. */
 const HAND_CUE_PREFIX: Record<Hand, string> = { right: 'Right', left: 'Left' }
 
@@ -62,6 +108,8 @@ export const scaleSpecSchema = z.object({
   tonic: z.string().optional(),
   scaleTypeId: z.string().min(1),
   hand: z.enum(SCALE_HANDS),
+  /** How the two hands move against each other. Similar motion when left out. */
+  motion: z.enum(SCALE_MOTIONS).optional(),
   octaves: z.number().int().min(1).max(4),
   direction: z.enum(SCALE_DIRECTIONS),
 })
@@ -102,8 +150,12 @@ export const DEFAULT_SCALE_SPEC: ScaleSpec = {
  * that one runs off the bottom of a 61 — it needs the bigger keyboard anyway.
  */
 const PREFERRED_START = 58.5 // midway through F3-E4, so no two octaves tie
-const COMFORTABLE_BOTTOM = 36 // C2, the bottom of the default 61-key view
-const COMFORTABLE_TOP = 96 // C7, the top of it
+
+/**
+ * The keys an exercise may use, unless it is told about a bigger keyboard: a
+ * 61-key instrument, C2 to C7, which is also the default view.
+ */
+export const DEFAULT_PLAYABLE_RANGE: NoteRange = { low: 36, high: 96 }
 
 /**
  * The two minor keys the Brown Scale Book starts an octave above the rule.
@@ -113,24 +165,111 @@ const COMFORTABLE_TOP = 96 // C7, the top of it
  */
 const MINOR_START: Readonly<Record<number, number>> = { 5: 65, 6: 66 }
 
+/**
+ * Where the book starts the other lines of a key's page.
+ *
+ * Thirds: the left hand's tonic is somewhere from G2 to F♯3, the right hand a
+ * third above it. Sixths: the right hand's tonic an octave higher, G3 to F♯4,
+ * the left hand a sixth below — the very notes the right hand had in the
+ * thirds. Contrary motion: the note both hands share is somewhere from A3 to
+ * G♯4, except in G major, which the page starts on the G below middle C.
+ */
+const THIRD_START = 48.5 // midway through G2-F♯3
+const SIXTH_START = 60.5 // midway through G3-F♯4
+const CONTRARY_START = 62.5 // midway through A3-G♯4
+const CONTRARY_MAJOR_START: Readonly<Record<number, number>> = { 7: 55 }
+
+/** One hand's place in the exercise. */
+interface VoicePlan {
+  readonly hand: Hand
+  /** Where this hand's lowest tonic would be: the note its degrees count from. */
+  readonly anchor: number
+  /** The degree it starts on, 0 at the tonic. */
+  readonly startDegree: number
+  /** Plays the run from the top down first: the left hand in contrary motion. */
+  readonly inverted: boolean
+}
+
+/** The candidate nearest to where the book would put it, among those that fit. */
+function nearest(
+  candidates: readonly number[],
+  preferred: number,
+  fits: (note: number) => boolean,
+): number {
+  const fitting = candidates.filter(fits)
+  const pool = fitting.length > 0 ? fitting : candidates
+  return pool.reduce((best, note) =>
+    Math.abs(note - preferred) < Math.abs(best - preferred) ? note : best,
+  )
+}
+
 function placeHands(
   pitchClass: number,
   type: ScaleType,
   span: number,
   hands: ScaleHands,
-): Record<Hand, number> {
+  motion: ScaleMotion,
+  range: NoteRange,
+): VoicePlan[] {
   const root = normalisePitchClass(pitchClass)
+  // The scale's third degree, as semitones above the tonic.
+  const third = scaleOffsets(type)[2] ?? 4
+  const plain = { startDegree: 0, inverted: false }
+
+  if (motion === 'third') {
+    const candidates = [12, 24, 36, 48, 60, 72].map((c) => c + root)
+    const left = nearest(
+      candidates,
+      THIRD_START,
+      (note) => note >= range.low && note + third + span <= range.high,
+    )
+    return [
+      { hand: 'left', anchor: left, ...plain },
+      { hand: 'right', anchor: left, startDegree: 2, inverted: false },
+    ]
+  }
+
+  if (motion === 'sixth') {
+    const candidates = [24, 36, 48, 60, 72, 84].map((c) => c + root)
+    const right = nearest(
+      candidates,
+      SIXTH_START,
+      (note) => note - 12 + third >= range.low && note + span <= range.high,
+    )
+    return [
+      { hand: 'left', anchor: right - 12, startDegree: 2, inverted: false },
+      { hand: 'right', anchor: right, ...plain },
+    ]
+  }
+
+  if (motion === 'contrary') {
+    const candidates = [24, 36, 48, 60, 72, 84].map((c) => c + root)
+    const preferred =
+      (type.family === 'major' ? CONTRARY_MAJOR_START[root] : undefined) ?? CONTRARY_START
+    const unison = nearest(
+      candidates,
+      preferred,
+      (note) => note - span >= range.low && note + span <= range.high,
+    )
+    return [
+      { hand: 'left', anchor: unison - span, startDegree: 0, inverted: true },
+      { hand: 'right', anchor: unison, ...plain },
+    ]
+  }
+
   // One candidate per octave from C1 to C5.
   const candidates = [24, 36, 48, 60, 72].map((c) => c + root)
-  const fits = candidates.filter((note) => note + span <= COMFORTABLE_TOP)
-  const pool = fits.length > 0 ? fits : candidates
   const preferred = (type.family === 'minor' ? MINOR_START[root] : undefined) ?? PREFERRED_START
-  const right = pool.reduce((best, note) =>
-    Math.abs(note - preferred) < Math.abs(best - preferred) ? note : best,
-  )
-
+  const right = nearest(candidates, preferred, (note) => note + span <= range.high)
   const below = right - 12
-  return { right, left: hands === 'both' || below >= COMFORTABLE_BOTTOM ? below : right }
+  const left = hands === 'both' || below >= range.low ? below : right
+
+  // Low hand first, so a step's notes read up the keyboard.
+  return (hands === 'both' ? (['left', 'right'] as const) : [hands]).map((hand) => ({
+    hand,
+    anchor: hand === 'left' ? left : right,
+    ...plain,
+  }))
 }
 
 /** `Thumb under` / `Cross over`, placed on the note where the hand actually moves. */
@@ -152,6 +291,15 @@ export interface ScaleExerciseOptions {
    * spec: the spec says what is played, and this only says how it is fingered.
    */
   readonly fingering?: FingeringSystemId
+  /**
+   * The keys the player has. A 61-key instrument when left out.
+   *
+   * It decides the octave and nothing else. The book starts A major in contrary
+   * motion on the A below middle C and takes the left hand two octaves down
+   * from there, to a note a 61-key keyboard does not have; with only those
+   * keys the exercise moves up an octave rather than off the end.
+   */
+  readonly range?: NoteRange
 }
 
 export function buildScaleExercise(spec: ScaleSpec, options: ScaleExerciseOptions = {}): Exercise {
@@ -159,9 +307,19 @@ export function buildScaleExercise(spec: ScaleSpec, options: ScaleExerciseOption
   const scale: SpelledScale = spellScale(spec.rootPitchClass, type, spec.tonic)
   const offsets = scaleOffsets(type)
   const span = 12 * spec.octaves
-  const starts = placeHands(spec.rootPitchClass, type, span, spec.hand)
-  // Low hand first, so a step's notes read up the keyboard.
-  const hands: readonly Hand[] = spec.hand === 'both' ? ['left', 'right'] : [spec.hand]
+  // A motion is a way for two hands to play, and one the scale can take.
+  const motion: ScaleMotion =
+    spec.hand === 'both' && spec.motion && scaleMotionsFor(type).includes(spec.motion)
+      ? spec.motion
+      : 'similar'
+  const plans = placeHands(
+    spec.rootPitchClass,
+    type,
+    span,
+    spec.hand,
+    motion,
+    options.range ?? DEFAULT_PLAYABLE_RANGE,
+  )
 
   // A scale whose way down is not its way up. Only the melodic minor has one,
   // and reversing the ascending notes for it plays the raised sixth and seventh
@@ -181,28 +339,33 @@ export function buildScaleExercise(spec: ScaleSpec, options: ScaleExerciseOption
       : scale
   const descendingOffsets = differsDescending ? scaleOffsets(descendingType) : offsets
 
-  /** Root to octave, in pitch order, for whichever form is asked for. */
-  const climb = (start: number, formOffsets: readonly number[]) => {
-    const notes: { note: number; degreeIndex: number }[] = []
-    for (let octave = 0; octave < spec.octaves; octave++) {
-      for (let i = 0; i < formOffsets.length; i++) {
-        notes.push({ note: start + octave * 12 + formOffsets[i]!, degreeIndex: i })
+  /**
+   * A run in pitch order, bottom to top, for whichever form is asked for: from
+   * the degree it starts on, up the octaves, to that degree again.
+   */
+  const climb = (plan: VoicePlan, formOffsets: readonly number[]) => {
+    const size = formOffsets.length
+    return Array.from({ length: size * spec.octaves + 1 }, (_, index) => {
+      const position = plan.startDegree + index
+      return {
+        note: plan.anchor + Math.floor(position / size) * 12 + formOffsets[position % size]!,
+        degreeIndex: position % size,
       }
-    }
-    notes.push({ note: start + span, degreeIndex: 0 })
-    return notes
+    })
   }
 
   /**
    * One hand's way through the exercise: its own keys, each with its finger.
    *
-   * Per hand because that is all that differs between them. Both hands play
-   * the same degrees in the same order, an octave apart, and each is fingered
-   * as itself — the left hand is not the right hand's numbers moved down.
+   * Per hand because that is all that differs between them. In similar motion
+   * both hands play the same degrees in the same order, an octave apart, and
+   * each is fingered as itself — the left hand is not the right hand's numbers
+   * moved down. The other motions only change where a hand starts and which
+   * way it sets off.
    */
-  const voice = (hand: Hand) => {
-    const start = starts[hand]
-    const ascending = climb(start, offsets)
+  const voice = (plan: VoicePlan) => {
+    const { hand } = plan
+    const ascending = climb(plan, offsets)
 
     const fingering = scaleFingering({
       rootName: scale.root.name,
@@ -211,6 +374,8 @@ export function buildScaleExercise(spec: ScaleSpec, options: ScaleExerciseOption
       octaves: spec.octaves,
       notes: ascending.map((entry) => entry.note),
       system: options.fingering,
+      form: motion,
+      startDegree: plan.startDegree,
     })
 
     // Descending is the ascending shape read backwards, fingers included — which
@@ -222,7 +387,7 @@ export function buildScaleExercise(spec: ScaleSpec, options: ScaleExerciseOption
     // puts it back going down, saying so on the page. Mirroring the ascending
     // fingering would carry the ascending hand into the descent and contradict
     // that, so the descending form is fingered as itself.
-    const descendingClimb = climb(start, descendingOffsets)
+    const descendingClimb = climb(plan, descendingOffsets)
     const descendingFingering = differsDescending
       ? scaleFingering({
           rootName: descendingScale.root.name,
@@ -231,9 +396,20 @@ export function buildScaleExercise(spec: ScaleSpec, options: ScaleExerciseOption
           octaves: spec.octaves,
           notes: descendingClimb.map((entry) => entry.note),
           system: options.fingering,
+          form: motion,
+          startDegree: plan.startDegree,
         })
       : fingering
-    const descendingFingers = [...descendingFingering.fingers].reverse()
+
+    // A hand that sets off downwards — the left, in contrary motion — opens at
+    // the top of its run, so the way down is its opening. For every other hand
+    // the way down is the way back, and a page that comes home on different
+    // fingers from the ones it left on says so in `closing`.
+    const descendingFingers = [
+      ...(plan.inverted
+        ? descendingFingering.fingers
+        : (descendingFingering.closing ?? descendingFingering.fingers)),
+    ].reverse()
 
     const up = ascending.map((entry, i) => ({
       ...entry,
@@ -246,34 +422,41 @@ export function buildScaleExercise(spec: ScaleSpec, options: ScaleExerciseOption
       ascending: false,
     }))
 
+    // "Up" is the right hand's up. A hand in contrary motion goes the other way.
+    const [first, second] = plan.inverted ? [down, up] : [up, down]
+
     return {
       hand,
       fingering,
       sequence:
         spec.direction === 'up'
-          ? up
+          ? first
           : spec.direction === 'down'
-            ? down
+            ? second
             : // The turn is not played twice.
-              [...up, ...down.slice(1)],
+              [...first, ...second.slice(1)],
     }
   }
 
-  const voices = hands.map(voice)
+  const voices = plans.map(voice)
 
-  const steps: ExerciseStep[] = voices[0]!.sequence.map((entry, index) => {
-    // Which form this note belongs to decides how it is spelled: the sixth of
-    // A melodic minor is F♯ on the way up and F on the way down, and calling
-    // both of them F♯ would name a note the player is not being asked for.
-    const form = entry.ascending ? scale : descendingScale
-    const formType = entry.ascending ? type : descendingType
-    const pitch = form.notes[entry.degreeIndex]!
-
-    const fingers = voices.map(({ hand, sequence }) => {
+  const steps: ExerciseStep[] = voices[0]!.sequence.map((_, index) => {
+    const playing = voices.map(({ hand, sequence }) => {
       const at = sequence[index]!
+      // Which form this note belongs to decides how it is spelled: the sixth of
+      // A melodic minor is F♯ on the way up and F on the way down, and calling
+      // both of them F♯ would name a note the player is not being asked for.
+      const form = at.ascending ? scale : descendingScale
+      const formType = at.ascending ? type : descendingType
       const cue = movementCue(sequence[index - 1]?.finger, at.finger, hand, at.ascending)
-      return { finger: at.finger, hand, ...(cue ? { cue } : {}) }
+      return {
+        note: at.note,
+        name: form.notes[at.degreeIndex]!.name,
+        degree: formType.degrees[at.degreeIndex],
+        finger: { finger: at.finger, hand, ...(cue ? { cue } : {}) },
+      }
     })
+    const fingers = playing.map((voice) => voice.finger)
     // The hands do not cross on the same note, so with two of them playing a
     // bare "Thumb under" does not say whose.
     const cues = fingers.flatMap((finger) =>
@@ -281,19 +464,25 @@ export function buildScaleExercise(spec: ScaleSpec, options: ScaleExerciseOption
         ? [voices.length > 1 ? `${HAND_CUE_PREFIX[finger.hand]}: ${finger.cue}` : finger.cue]
         : [],
     )
+    // In octaves the hands play one note between them and it has one name. A
+    // third apart, or moving against each other, they play two.
+    const names = [...new Set(playing.map((voice) => voice.name))]
+    const degrees = [...new Set(playing.flatMap((voice) => (voice.degree ? [voice.degree] : [])))]
 
     return {
       id: `${index}`,
-      notes: voices.map(({ sequence }) => sequence[index]!.note),
+      notes: playing.map((voice) => voice.note),
       fingers,
-      label: pitch.name,
-      degree: formType.degrees[entry.degreeIndex],
+      label: names.join(' + '),
+      ...(names.length > 1 ? { noteLabels: playing.map((voice) => voice.name) } : {}),
+      degree: degrees.length > 0 ? degrees.join(' + ') : undefined,
       cue: cues.length > 0 ? cues.join(' · ') : undefined,
     }
   })
 
   /** Every note this exercise can name, across the forms it actually plays. */
-  const playsDescending = spec.direction !== 'up'
+  // In contrary motion one hand is always coming down.
+  const playsDescending = spec.direction !== 'up' || motion === 'contrary'
   const sounding =
     differsDescending && playsDescending ? [...scale.notes, ...descendingScale.notes] : scale.notes
 
@@ -302,14 +491,20 @@ export function buildScaleExercise(spec: ScaleSpec, options: ScaleExerciseOption
   // theory dialog derives for itself, so one place explains a scale, not two.
   const halves = tetrachords(type)
 
-  const directionLabel = SCALE_DIRECTION_LABELS[spec.direction]
+  const directionLabel = (
+    motion === 'contrary' ? CONTRARY_DIRECTION_LABELS : SCALE_DIRECTION_LABELS
+  )[spec.direction]
+  const handsLabel = motion === 'similar' ? HAND_LABELS[spec.hand] : SCALE_MOTION_LABELS[motion]
+  // Where each hand begins is part of what the exercise is: the same scale an
+  // octave away is a different thing to find on the keys.
+  const placed = voices.map(({ sequence }) => sequence[0]!.note).join('-')
   const octaveLabel = `${spec.octaves} ${spec.octaves === 1 ? 'octave' : 'octaves'}`
 
   return {
-    id: `scale:${scale.root.name}:${type.id}:${spec.hand}:${spec.octaves}:${spec.direction}`,
+    id: `scale:${scale.root.name}:${type.id}:${spec.hand}:${motion}:${spec.octaves}:${spec.direction}:${placed}`,
     kind: 'scale',
     title: `${scale.root.name} ${type.name}`,
-    subtitle: `${HAND_LABELS[spec.hand]} · ${octaveLabel} · ${directionLabel}`,
+    subtitle: `${handsLabel} · ${octaveLabel} · ${directionLabel}`,
     steps,
     // Both forms light up when both get played, or the descending sixth and
     // seventh would be notes the keyboard says are not in the scale.
