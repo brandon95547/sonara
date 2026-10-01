@@ -220,3 +220,51 @@ describe('scale demo guidance', () => {
     expect(sounded().length).toBe(before)
   })
 })
+
+describe('scale demo, where a step is not a beat', () => {
+  it('plays four notes to the beat when the scale is in semiquavers', () => {
+    useLearningStore.getState().updateSpec({ notesPerBeat: 4 })
+    const { result } = mount()
+    act(() => result.current.toggle())
+    // 60 BPM: a beat a second, so a note every quarter of one.
+    act(() => void vi.advanceTimersByTime(990))
+    expect(sounded().length).toBe(4)
+    act(() => void vi.advanceTimersByTime(1000))
+    expect(sounded().length).toBe(8)
+    useLearningStore.getState().updateSpec({ notesPerBeat: undefined })
+  })
+
+  it('keeps to the beat rather than drifting later with every note', () => {
+    useLearningStore.getState().updateSpec({ notesPerBeat: 4, octaves: 2, direction: 'up-down' })
+    const { result } = mount()
+    act(() => result.current.toggle())
+    // 28 semiquavers are exactly seven beats: the 29th note is due at 7000ms,
+    // not at 7000ms plus however late 28 timers each were.
+    act(() => void vi.advanceTimersByTime(6990))
+    expect(sounded().length).toBe(28)
+    act(() => void vi.advanceTimersByTime(20))
+    expect(sounded().length).toBe(29)
+    useLearningStore.getState().updateSpec({ notesPerBeat: undefined, direction: 'up' })
+  })
+
+  it('starts the click again from beat one, and comes in with it', () => {
+    useLearningStore.getState().setMetronome(true)
+    const before = useLearningStore.getState().pulseEpoch
+    const { result } = mount()
+    act(() => result.current.toggle())
+    expect(useLearningStore.getState().pulseEpoch).toBe(before + 1)
+    // The click's first beat is a twentieth of a second out, and so is the note.
+    expect(sounded().length).toBe(0)
+    act(() => void vi.advanceTimersByTime(60))
+    expect(sounded().length).toBe(1)
+    useLearningStore.getState().setMetronome(false)
+  })
+
+  it('leaves the click alone when it is off', () => {
+    const before = useLearningStore.getState().pulseEpoch
+    const { result } = mount()
+    act(() => result.current.toggle())
+    expect(useLearningStore.getState().pulseEpoch).toBe(before)
+    expect(sounded().length).toBe(1)
+  })
+})

@@ -1,4 +1,5 @@
 import * as React from 'react'
+import { stepBeats, type ExerciseStep } from '@sonara/shared'
 import { useAudio } from '@/audio/AudioProvider'
 import { keyboardActions } from '@/state/keyboard-store'
 import { learningActions, useLearningStore } from '@/state/learning-store'
@@ -8,14 +9,23 @@ import { learningActions, useLearningStore } from '@/state/learning-store'
  *
  * ## It plays at the practice tempo
  *
- * One note per beat at `targetBpm` — the same pulse the metronome clicks and
- * the same unit the run is measured in, so what you hear is what you are about
- * to be asked for. It used to run at a fixed 66 whatever the control said,
- * which made the tempo control look broken: turn it up, press this, and
- * nothing had changed.
+ * A beat is a beat at `targetBpm` — the same pulse the metronome clicks and the
+ * same unit the run is measured in, so what you hear is what you are about to
+ * be asked for. Each step lasts as long as it is written: a beat for a plain
+ * scale, a quarter of one for a scale in semiquavers, and a chord held under a
+ * melody stays down while the melody moves.
  *
  * A tempo change is picked up at the next note rather than restarting the
  * scale, so dragging the slider while it plays speeds it up under your hand.
+ *
+ * ## It keeps time
+ *
+ * Each step is due a fixed time after the last one was *due*, not after it was
+ * played. A chain of timers each started when the one before fired is late by
+ * however late every one of them was, added up — unnoticeable over fifteen
+ * crotchets, and a visible drift against the click over sixty semiquavers.
+ * With the click on, the two also start together: the pulse is re-anchored as
+ * the demonstration begins, so its first note is the click's first beat.
  *
  * ## What it does and does not tell the learning store
  *
@@ -38,9 +48,27 @@ const HOLD_RATIO = 0.82
 /** Staccato: each note let go well before the next, so the hand is heard to lift. */
 const STACCATO_HOLD_RATIO = 0.4
 
-/** How long one note of the demonstration lasts at the tempo set right now. */
-function stepMs(): number {
+/** How long one beat lasts at the tempo set right now. */
+function beatMs(): number {
   return 60_000 / Math.max(1, useLearningStore.getState().targetBpm)
+}
+
+/**
+ * How far ahead the click schedules its first beat after it is re-anchored
+ * (see `useMetronome`). The demonstration waits the same, so they land together.
+ */
+const CLICK_LEAD_MS = 50
+
+/** A step's notes, each once, with how long it is held in beats. */
+function soundingOf(step: ExerciseStep): [note: number, beats: number][] {
+  const held = new Map<number, number>()
+  step.notes.forEach((note, index) => {
+    // Two hands on one key — the first note of a scale in contrary motion —
+    // is one key going down once.
+    const beats = step.holds?.[index] ?? stepBeats(step)
+    held.set(note, Math.max(held.get(note) ?? 0, beats))
+  })
+  return [...held]
 }
 
 /** An even mezzo-forte. A demonstration should not also be an interpretation. */
@@ -80,21 +108,35 @@ export function useScaleDemo(): ScaleDemo {
   // reads this, because a scheduled tick cannot wait for a re-render to know
   // whether it has been paused.
   const statusRef = React.useRef<DemoStatus>('idle')
-  const timersRef = React.useRef<number[]>([])
-  const soundingRef = React.useRef<readonly number[]>([])
+  /** The timer that plays the next step. One, because there is one playback head. */
+  const advanceRef = React.useRef<number | null>(null)
+  /**
+   * What the demo is holding, and the timer that lets each note go.
+   *
+   * Per note rather than per step, because a step's notes do not all end
+   * together: a chord under a melody is still down three steps later.
+   */
+  const soundingRef = React.useRef(new Map<number, number>())
+  /** When the step now sounding was due, on the wall clock. */
+  const dueRef = React.useRef(0)
 
-  const clearTimers = React.useCallback(() => {
-    for (const id of timersRef.current) window.clearTimeout(id)
-    timersRef.current = []
+  const release = React.useCallback((note: number) => {
+    const timer = soundingRef.current.get(note)
+    if (timer === undefined) return
+    window.clearTimeout(timer)
+    soundingRef.current.delete(note)
+    audioRef.current.noteOff(note)
+    keyboardActions.noteOff(note)
   }, [])
 
   /** Releases whatever the demo is currently holding, and nothing else. */
   const silence = React.useCallback(() => {
-    for (const note of soundingRef.current) {
-      audioRef.current.noteOff(note)
-      keyboardActions.noteOff(note)
-    }
-    soundingRef.current = []
+    for (const note of [...soundingRef.current.keys()]) release(note)
+  }, [release])
+
+  const clearTimers = React.useCallback(() => {
+    if (advanceRef.current !== null) window.clearTimeout(advanceRef.current)
+    advanceRef.current = null
   }, [])
 
   const stop = React.useCallback(() => {
@@ -126,17 +168,26 @@ export function useScaleDemo(): ScaleDemo {
     learningActions.setDemoStep(index)
 
     const step = steps[index]!
-    for (const note of step.notes) {
-      keyboardActions.noteOn(note, DEMO_VELOCITY, 'pointer')
-      audioRef.current.noteOn(note, DEMO_VELOCITY)
-    }
-    soundingRef.current = step.notes
-
     // Read from the store here, not from a render: a scheduled tick must not
     // depend on having re-rendered with the latest tempo first.
-    const beatMs = stepMs()
-    timersRef.current.push(window.setTimeout(silence, beatMs * holdRef.current))
-    timersRef.current.push(window.setTimeout(() => playFrom.current(index + 1), beatMs))
+    const beat = beatMs()
+    for (const [note, beats] of soundingOf(step)) {
+      // A note still held from an earlier step is struck again, not left ringing.
+      release(note)
+      keyboardActions.noteOn(note, DEMO_VELOCITY, 'pointer')
+      audioRef.current.noteOn(note, DEMO_VELOCITY)
+      soundingRef.current.set(
+        note,
+        window.setTimeout(() => release(note), beats * beat * holdRef.current),
+      )
+    }
+
+    // Due from when this step was due, so lateness does not accumulate.
+    dueRef.current += stepBeats(step) * beat
+    advanceRef.current = window.setTimeout(
+      () => playFrom.current(index + 1),
+      Math.max(0, dueRef.current - Date.now()),
+    )
   }
 
   const toggle = React.useCallback(() => {
@@ -153,7 +204,12 @@ export function useScaleDemo(): ScaleDemo {
     if (stepsRef.current.length === 0) return
     statusRef.current = 'playing'
     setStatus('playing')
-    playFrom.current(indexRef.current)
+    // With the click on, start it again from beat one and come in with it.
+    const lead = useLearningStore.getState().metronome ? CLICK_LEAD_MS : 0
+    if (lead > 0) learningActions.syncPulse()
+    dueRef.current = Date.now() + lead
+    if (lead === 0) playFrom.current(indexRef.current)
+    else advanceRef.current = window.setTimeout(() => playFrom.current(indexRef.current), lead)
   }, [clearTimers, silence])
 
   // A different scale is a different demonstration: anything still in flight is

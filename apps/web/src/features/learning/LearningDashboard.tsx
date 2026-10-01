@@ -376,7 +376,7 @@ function ProgressCard({
 }) {
   const targetBpm = useLearningStore((state) => state.targetBpm)
   const fraction = progress(exercise, session)
-  const measured = tempo(session)
+  const measured = tempo(session, exercise)
   const upcoming = upcomingSteps(exercise, session, 7)
 
   if (mode === 'explore') {

@@ -14,6 +14,7 @@ import {
   type WrittenValue,
 } from '@sonara/shared'
 import { STEP, yOn } from './staff-frame'
+import type { StemOverride, StepStems } from './beams'
 
 /**
  * Notes, drawn the way notes are drawn.
@@ -28,7 +29,7 @@ import { STEP, yOn } from './staff-frame'
  */
 
 /** A stem is an octave long — seven letter-steps — unless the note is far out. */
-const STEM_STEPS = 7
+export const STEM_STEPS = 7
 const HEAD_RX = STEP * 1.35
 const HEAD_RY = STEP * 0.98
 /** Half a ledger line, which reaches wider than the head it carries. */
@@ -113,8 +114,11 @@ export interface DrawnNote {
 /** Which staff a note is written on: its hand's, where a hand is known. */
 export const staffOf = (note: DrawnNote): Staff => staffFor(note.note, note.hand)
 
-const placementOf = (note: DrawnNote): StaffPlacement =>
+export const placementOf = (note: DrawnNote): StaffPlacement =>
   staffPlacement(note.note, note.spelling, staffOf(note))
+
+/** Where a chord's stem stands: on the right of the heads going up, the left going down. */
+export const stemXFor = (x: number, up: boolean) => (up ? x + HEAD_RX * 0.95 : x - HEAD_RX * 0.95)
 
 /**
  * Where every mark of one staff's chord goes.
@@ -128,14 +132,22 @@ const placementOf = (note: DrawnNote): StaffPlacement =>
  * Separate from the drawing so the page can ask how much room a chord needs
  * before deciding where to put the next one.
  */
-function layout(x: number, notes: readonly DrawnNote[], value: WrittenValue, fifths: number) {
+function layout(
+  x: number,
+  notes: readonly DrawnNote[],
+  value: WrittenValue,
+  fifths: number,
+  /** The stem a beam has decided: its direction and where it ends. */
+  stem?: StemOverride,
+) {
   const placed = notes
     .map((note) => ({ ...note, placement: placementOf(note) }))
     .sort((a, b) => a.placement.steps - b.placement.steps)
   if (placed.length === 0) return null
 
   const staff = placed[0]!.placement.staff
-  const up = stemDirection(placed.map((entry) => entry.placement)) === 'up'
+  // Under a beam the group decides the direction, not this chord.
+  const up = stem ? stem.up : stemDirection(placed.map((entry) => entry.placement)) === 'up'
   const sounding = placed.some((entry) => entry.sounding)
 
   /*
@@ -170,11 +182,14 @@ function layout(x: number, notes: readonly DrawnNote[], value: WrittenValue, fif
    * reaches back towards it, or the chord floats free of the system it belongs
    * to. Engravers lengthen rather than shorten, so the clamp only ever adds.
    */
-  const stemX = up ? x + HEAD_RX * 0.95 : x - HEAD_RX * 0.95
+  const stemX = stemXFor(x, up)
   const middle = staff === 'treble' ? 6 : -6
   const outer = up ? placed.at(-1)! : placed[0]!
   const reach = outer.placement.steps + (up ? STEM_STEPS : -STEM_STEPS)
-  const stemEnd = yOn(up ? Math.max(reach, middle) : Math.min(reach, middle), staff)
+  // A beamed stem ends on its beam, which is wherever the group put it.
+  const stemEnd = stem
+    ? stem.end
+    : yOn(up ? Math.max(reach, middle) : Math.min(reach, middle), staff)
   const stemStart = yOn(placed[up ? 0 : placed.length - 1]!.placement.steps, staff)
 
   /*
@@ -369,13 +384,15 @@ function StaffGroup({
   notes,
   value,
   fifths,
+  stem,
 }: {
   x: number
   notes: readonly DrawnNote[]
   value: WrittenValue
   fifths: number
+  stem?: StemOverride
 }) {
-  const box = layout(x, notes, value, fifths)
+  const box = layout(x, notes, value, fifths, stem)
   if (!box) return null
   const { placed, staff, up, sounding } = box
 
@@ -406,7 +423,8 @@ function StaffGroup({
           data-sounding={sounding ? 'true' : undefined}
         />
       )}
-      {value.stemmed && value.flags > 0 && (
+      {/* A beamed note has no flags: the beam is its flags, joined up. */}
+      {value.stemmed && value.flags > 0 && !stem && (
         <Flags x={box.stemX} yEnd={box.stemEnd} up={up} count={value.flags} sounding={sounding} />
       )}
 
@@ -550,6 +568,7 @@ export function Chord({
   notes,
   value,
   fifths = 0,
+  stems,
 }: {
   x: number
   notes: readonly DrawnNote[]
@@ -563,6 +582,8 @@ export function Chord({
    */
   value: WrittenValue | { readonly treble: WrittenValue; readonly bass: WrittenValue }
   fifths?: number
+  /** The stems a beam has decided, for the staves that have one. */
+  stems?: StepStems
 }) {
   const treble = notes.filter((note) => staffOf(note) === 'treble')
   const bass = notes.filter((note) => staffOf(note) === 'bass')
@@ -570,8 +591,8 @@ export function Chord({
 
   return (
     <>
-      <StaffGroup x={x} notes={treble} value={per.treble} fifths={fifths} />
-      <StaffGroup x={x} notes={bass} value={per.bass} fifths={fifths} />
+      <StaffGroup x={x} notes={treble} value={per.treble} fifths={fifths} stem={stems?.treble} />
+      <StaffGroup x={x} notes={bass} value={per.bass} fifths={fifths} stem={stems?.bass} />
     </>
   )
 }

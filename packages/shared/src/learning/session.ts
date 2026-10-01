@@ -1,4 +1,4 @@
-import type { Exercise, ExerciseStep } from './exercise.js'
+import { stepBeats, type Exercise, type ExerciseStep } from './exercise.js'
 
 /**
  * The practice engine.
@@ -162,19 +162,30 @@ export function progress(exercise: Exercise | null, state: SessionState): number
 }
 
 /**
- * Notes per minute, from the gaps between completed steps.
+ * Beats per minute, from the gaps between completed steps.
  *
  * The median rather than the mean, and only over a recent window. A player who
  * stops to find a note leaves one enormous gap, and a mean turns that into a
  * tempo of 11 BPM that then takes half a scale to recover. The median ignores
  * it, which is what a listener does too.
+ *
+ * Each gap is measured against how long its step is written as, so a scale in
+ * semiquavers played at 72 reads 72 and not 288 — which is what it read when a
+ * gap was assumed to be a beat. Without the exercise every step is one beat,
+ * as every step once was.
  */
-export function tempo(state: SessionState, window = 8): number | null {
-  const times = state.stepTimes.slice(-(window + 1))
+export function tempo(state: SessionState, exercise?: Exercise | null, window = 8): number | null {
+  const from = Math.max(0, state.stepTimes.length - (window + 1))
+  const times = state.stepTimes.slice(from)
   if (times.length < 3) return null
 
   const gaps: number[] = []
-  for (let i = 1; i < times.length; i++) gaps.push(times[i]! - times[i - 1]!)
+  for (let i = 1; i < times.length; i++) {
+    // `stepTimes[n]` is when step `n` was finished; the gap before it is the
+    // length of the step it followed.
+    const step = exercise?.steps[from + i - 1]
+    gaps.push((times[i]! - times[i - 1]!) / (step ? stepBeats(step) : 1))
+  }
   gaps.sort((a, b) => a - b)
 
   const middle = Math.floor(gaps.length / 2)

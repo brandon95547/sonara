@@ -21,7 +21,7 @@ import {
 } from '../music/fingering-system.js'
 import type { NoteRange } from '../domain/device.js'
 import { tetrachords } from '../music/theory.js'
-import type { Exercise, ExerciseFingering, ExerciseStep } from './exercise.js'
+import type { Exercise, ExerciseFingering, ExerciseMeter, ExerciseStep } from './exercise.js'
 
 /**
  * Turns a scale request into a generic exercise.
@@ -127,6 +127,54 @@ export function scaleTexturesFor(type: ScaleType): ScaleTexture[] {
 }
 
 /**
+ * How many notes go to a beat: crotchets, quavers, triplets, semiquavers.
+ *
+ * The same scale at the same tempo, two, three and four times as fast — which
+ * is how a scale is actually worked up. The click stays where it is and the
+ * notes divide it.
+ */
+export const NOTES_PER_BEAT = [1, 2, 3, 4] as const
+export type NotesPerBeat = (typeof NOTES_PER_BEAT)[number]
+
+export const NOTES_PER_BEAT_LABELS: Record<NotesPerBeat, string> = {
+  1: 'Quarter Notes',
+  2: 'Eighth Notes',
+  3: 'Triplets',
+  4: 'Sixteenth Notes',
+}
+
+/** Subdivided scales are written in common time, as scale books write them. */
+const COMMON_TIME: ExerciseMeter = { beats: 4, beatType: 4 }
+
+/**
+ * A run of steps in even notes, `perBeat` to the beat, closing on a long one.
+ *
+ * The last note is where a scale stops, and it is written to say so: landing
+ * on a beat, it is held to the end of its bar — a minim after a two-octave
+ * scale in quavers, exactly as the page ends it. Landing between beats it is
+ * held to the next one where a plain note can write that. A scale in triplets
+ * that ends mid-beat has no such note, and ends on a triplet.
+ */
+export function inEvenNotes(
+  steps: readonly ExerciseStep[],
+  perBeat: number,
+  meter: ExerciseMeter = COMMON_TIME,
+): ExerciseStep[] {
+  if (perBeat <= 1 || steps.length === 0) return [...steps]
+  const length = 1 / perBeat
+  const last = steps.length - 1
+  // Counted in notes, so a triplet's thirds never have to add up to a whole.
+  const into = last % perBeat
+  const closing =
+    into === 0
+      ? meter.beats - (Math.floor(last / perBeat) % meter.beats)
+      : perBeat === 3
+        ? length
+        : (perBeat - into) * length
+  return steps.map((step, index) => ({ ...step, beats: index === last ? closing : length }))
+}
+
+/**
  * Whether a scale has a cadence to close with: I – IV – V – I, the chords of
  * a key, which a major or a minor scale has and a mode or a blues scale does
  * not in the same sense.
@@ -170,6 +218,8 @@ export const scaleSpecSchema = z.object({
    * the scale comes back down to finish on its tonic.
    */
   cadence: z.boolean().optional(),
+  /** How many notes to a beat. One when left out. */
+  notesPerBeat: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4)]).optional(),
   octaves: z.number().int().min(1).max(4),
   direction: z.enum(SCALE_DIRECTIONS),
 })
@@ -628,6 +678,9 @@ export function buildScaleExercise(spec: ScaleSpec, options: ScaleExerciseOption
     }
   })
 
+  const perBeat: NotesPerBeat = spec.notesPerBeat ?? 1
+  if (perBeat > 1) steps.splice(0, steps.length, ...inEvenNotes(steps, perBeat))
+
   /*
    * The cadence: I – IV – V – I, which is how a scale book ends a scale.
    *
@@ -713,6 +766,7 @@ export function buildScaleExercise(spec: ScaleSpec, options: ScaleExerciseOption
     ...(texture === 'single' ? [] : [SCALE_TEXTURE_LABELS[texture]]),
     `${spec.octaves} ${spec.octaves === 1 ? 'octave' : 'octaves'}`,
     directionLabel,
+    ...(perBeat > 1 ? [NOTES_PER_BEAT_LABELS[perBeat]] : []),
     ...(closes ? ['Cadence'] : []),
   ].join(' · ')
   // Where each hand begins is part of what the exercise is: the same scale an
@@ -720,7 +774,7 @@ export function buildScaleExercise(spec: ScaleSpec, options: ScaleExerciseOption
   const placed = voices.map(({ sequence }) => sequence[0]!.parts[0]!.note).join('-')
 
   return {
-    id: `scale:${scale.root.name}:${type.id}:${spec.hand}:${motion}:${texture}:${spec.octaves}:${spec.direction}:${closes ? 'cadence' : 'plain'}:${placed}`,
+    id: `scale:${scale.root.name}:${type.id}:${spec.hand}:${motion}:${texture}:${spec.octaves}:${spec.direction}:${perBeat}:${closes ? 'cadence' : 'plain'}:${placed}`,
     kind: 'scale',
     title: `${scale.root.name} ${type.name}`,
     subtitle,
@@ -737,6 +791,7 @@ export function buildScaleExercise(spec: ScaleSpec, options: ScaleExerciseOption
       ...sounding.map((note): [number, string] => [note.pitchClass, note.name]),
     ]),
     ...(texture === 'staccato-octaves' ? { staccato: true } : {}),
+    ...(perBeat > 1 ? { meter: COMMON_TIME } : {}),
     notes: steps.flatMap((step) => step.notes),
     pitchDegrees: Object.fromEntries(
       scale.notes.map((note, index) => [note.pitchClass, type.degrees[index] ?? String(index + 1)]),

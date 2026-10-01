@@ -74,6 +74,13 @@ export interface Measured {
   readonly gap: number
   /** Which bar it falls in, counting from one. */
   readonly bar: number
+  /**
+   * The beam this chord is under on each staff: a number shared by every chord
+   * of the group. Absent for a note that stands alone and keeps its flags.
+   */
+  readonly beam?: Partial<Record<Staff, number>>
+  /** The tuplet its notes on each staff belong to, where the score said. */
+  readonly tuplet?: Partial<Record<Staff, { readonly id: number; readonly actual: number }>>
 }
 
 /**
@@ -95,6 +102,15 @@ export interface ScoreSource {
    * two-octave run fits the paper instead of scrolling a third of itself away.
    */
   readonly barWidth?: number
+  /**
+   * Join short notes into beats with beams.
+   *
+   * On for material whose rhythm is stated exactly — an exercise knows every
+   * note's length. Off for a song, whose onsets may be a performance: grouping
+   * by the beat needs a beat to group by, and a rubato bar does not have one
+   * this code can trust.
+   */
+  readonly beams?: boolean
 }
 
 /**
@@ -135,7 +151,7 @@ export function measureScore(
   const onStaff = (candidate: SongStep, staff: Staff) =>
     candidate.notes.some((note) => staffFor(note.note, note.hand) === staff)
 
-  return steps.map((step, index) => {
+  const measured = steps.map((step, index): Measured => {
     /*
      * Which bar this chord falls in.
      *
@@ -223,7 +239,124 @@ export function measureScore(
     }
     previous = extent.right
 
-    return { step, index, notes, value, extent, gap, bar }
+    /** The tuplet a staff's notes are written inside, if the score put them in one. */
+    const tupletOn = (staff: Staff) =>
+      step.notes.find((note) => staffFor(note.note, note.hand) === staff && note.written?.tuplet)
+        ?.written?.tuplet
+    const tuplet = {
+      ...(tupletOn('treble') ? { treble: tupletOn('treble')! } : {}),
+      ...(tupletOn('bass') ? { bass: tupletOn('bass')! } : {}),
+    }
+
+    return {
+      step,
+      index,
+      notes,
+      value,
+      extent,
+      gap,
+      bar,
+      ...(tuplet.treble || tuplet.bass ? { tuplet } : {}),
+    }
+  })
+
+  return song?.beams ? beamed(measured, beat, measureMs) : measured
+}
+
+/**
+ * Says which chords share a beam.
+ *
+ * A beam joins the short notes of one beat: notes with a flag, one straight
+ * after another, on the same staff, in the same bar. A rest breaks it, and so
+ * does a note long enough to stand without a flag. Quavers in common time are
+ * the one case that runs further — four to a beam, half a bar — because that is
+ * how every scale book prints a scale in quavers, and two-note beams the length
+ * of a page read as hiccups.
+ *
+ * Each staff is grouped by itself. The hands keep their own rhythm, and a beam
+ * never joins them.
+ */
+function beamed(measured: readonly Measured[], beat: number, measureMs: number): Measured[] {
+  const beamOf: Record<Staff, Map<number, number>> = { treble: new Map(), bass: new Map() }
+  const beatsPerBar = Math.round(measureMs / beat)
+  let nextId = 0
+
+  for (const staff of ['treble', 'bass'] as const) {
+    /** The beam being gathered, if one is open. */
+    interface Group {
+      members: number[]
+      bar: number
+      beat: number
+      end: number
+      plain: boolean
+    }
+    const open: { group: Group | null } = { group: null }
+    const close = () => {
+      if (open.group && open.group.members.length > 1) {
+        const id = nextId++
+        for (const index of open.group.members) beamOf[staff].set(index, id)
+      }
+      open.group = null
+    }
+
+    for (const entry of measured) {
+      const mine = entry.step.notes.filter((note) => staffFor(note.note, note.hand) === staff)
+      if (mine.length === 0) continue
+      const value = entry.value[staff]
+      const tuplet = mine.find((note) => note.written?.tuplet)?.written?.tuplet
+      const length =
+        valueQuarters(value.value, value.dots) * beat * (tuplet ? tuplet.normal / tuplet.actual : 1)
+      const start = entry.step.startMs
+      // Which beat of its bar it starts on. The small allowance is for thirds
+      // of a beat, which do not add up to a whole one in floating point.
+      const inBar = start - (entry.bar - 1) * measureMs
+      const onBeat = Math.floor(inBar / beat + 1e-6)
+      const plain = value.flags === 1 && !value.dotted && !tuplet
+
+      if (value.flags === 0) {
+        close()
+        continue
+      }
+      const current = open.group
+      if (
+        current !== null &&
+        current.bar === entry.bar &&
+        Math.abs(start - current.end) < 1 &&
+        (onBeat === current.beat ||
+          // Plain quavers in four: beats one and two, or three and four.
+          (current.plain &&
+            plain &&
+            beatsPerBar === 4 &&
+            Math.floor(onBeat / 2) === Math.floor(current.beat / 2)))
+      ) {
+        current.members.push(entry.index)
+        current.end = start + length
+        current.plain = current.plain && plain
+      } else {
+        close()
+        open.group = {
+          members: [entry.index],
+          bar: entry.bar,
+          beat: onBeat,
+          end: start + length,
+          plain,
+        }
+      }
+    }
+    close()
+  }
+
+  return measured.map((entry) => {
+    const treble = beamOf.treble.get(entry.index)
+    const bass = beamOf.bass.get(entry.index)
+    if (treble === undefined && bass === undefined) return entry
+    return {
+      ...entry,
+      beam: {
+        ...(treble !== undefined ? { treble } : {}),
+        ...(bass !== undefined ? { bass } : {}),
+      },
+    }
   })
 }
 

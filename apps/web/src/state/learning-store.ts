@@ -141,6 +141,11 @@ interface LearningState {
    */
   demoStepIndex: number | null
   /**
+   * Rises each time the click should start again from the first beat of a bar
+   * — when a demonstration begins, so the two come in together.
+   */
+  pulseEpoch: number
+  /**
    * Whose fingering is recommended.
    *
    * Beside the spec, not in it: the spec is the music, and this is one school's
@@ -398,6 +403,7 @@ export const useLearningStore = create<LearningState>((set, get) => {
     autoTempo: false,
     metronome: false,
     demoStepIndex: null,
+    pulseEpoch: 0,
     fingeringSystem: initialFingeringSystem,
     playableRange: DEFAULT_PLAYABLE_RANGE,
     keyLabels: 'notes',
@@ -508,7 +514,7 @@ export const useLearningStore = create<LearningState>((set, get) => {
         // up, a scrappy one earns a nudge down, and anything in between leaves
         // it alone. Adjusting mid-scale would chase the player's own hesitation.
         ...(session.status === 'complete' && state.autoTempo
-          ? { targetBpm: nextTargetBpm(state.targetBpm, session) }
+          ? { targetBpm: nextTargetBpm(state.targetBpm, session, state.exercise) }
           : {}),
       })
     },
@@ -536,9 +542,9 @@ function clampBpm(bpm: number): number {
 
 const AUTO_TEMPO_STEP = 4
 
-function nextTargetBpm(target: number, session: SessionState): number {
+function nextTargetBpm(target: number, session: SessionState, exercise: Exercise | null): number {
   const score = accuracy(session)
-  const measured = tempo(session)
+  const measured = tempo(session, exercise)
   if (score >= 0.95 && measured !== null && measured >= target * 0.95) {
     return clampBpm(target + AUTO_TEMPO_STEP)
   }
@@ -550,4 +556,5 @@ function nextTargetBpm(target: number, session: SessionState): number {
 export const learningActions = {
   noteOn: (note: number) => useLearningStore.getState().noteOn(note),
   setDemoStep: (index: number | null) => useLearningStore.getState().setDemoStep(index),
+  syncPulse: () => useLearningStore.setState((state) => ({ pulseEpoch: state.pulseEpoch + 1 })),
 }

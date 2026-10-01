@@ -179,6 +179,46 @@ describe('tempo', () => {
   })
 })
 
+describe('tempo, where the steps are not all one beat', () => {
+  /** The same exercise with every step a quarter of a beat long. */
+  const semiquavers: typeof exercise = {
+    ...exercise,
+    steps: exercise.steps.map((step) => ({ ...step, beats: 0.25 })),
+  }
+  const playEvery = (gapMs: number, count: number, of: typeof exercise) => {
+    const events: SessionEvent[] = [{ type: 'start', at: 0 }]
+    for (let i = 0; i < count; i++) {
+      events.push({ type: 'noteOn', note: of.steps[i]!.notes[0]!, at: (i + 1) * gapMs })
+    }
+    return events.reduce((state, event) => sessionReducer(state, event, of), IDLE_SESSION)
+  }
+
+  it('reads four notes to a beat as the beat, not as four beats', () => {
+    // A note every 200ms is 300 notes a minute, and 75 beats of four.
+    const state = playEvery(200, 8, semiquavers)
+    expect(tempo(state, semiquavers)).toBe(75)
+    // Without the exercise to say so, every gap is taken for a beat.
+    expect(tempo(state)).toBe(300)
+  })
+
+  it('measures each gap against the step it followed', () => {
+    // A long note then short ones, played in time at 60: three beats, then
+    // quarter-beats. Every gap says 60.
+    const mixed: typeof exercise = {
+      ...exercise,
+      steps: exercise.steps.map((step, index) => ({ ...step, beats: index % 2 === 0 ? 3 : 0.5 })),
+    }
+    const events: SessionEvent[] = [{ type: 'start', at: 0 }]
+    let at = 1000
+    for (let i = 0; i < 6; i++) {
+      events.push({ type: 'noteOn', note: mixed.steps[i]!.notes[0]!, at })
+      at += (i % 2 === 0 ? 3 : 0.5) * 1000
+    }
+    const state = events.reduce((s, event) => sessionReducer(s, event, mixed), IDLE_SESSION)
+    expect(tempo(state, mixed)).toBe(60)
+  })
+})
+
 describe('wrong-note flashes', () => {
   it('expire without touching anything else', () => {
     const state = run(

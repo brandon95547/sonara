@@ -825,6 +825,23 @@
   font-family: var(--font-music);
   font-size: 22px;
 }
+/* A beam is the flags of the notes under it, joined: the same ink, and the
+   same quiet ink once every one of them is behind the player. */
+.staff__beam polygon {
+  fill: var(--c-ink);
+}
+.staff__beam[data-played='true'] :is(polygon, .staff__tuplet) {
+  fill: var(--c-ink-played);
+}
+/* The 3 over a triplet. Italic, as it is engraved, and small: it qualifies the
+   beam and must not read as a fingering. */
+.staff__tuplet {
+  fill: var(--c-ink);
+  font-size: 11px;
+  font-style: italic;
+  font-weight: 650;
+  text-anchor: middle;
+}
 .staff__ledger {
   stroke: var(--c-ink);
   stroke-width: 1.4;

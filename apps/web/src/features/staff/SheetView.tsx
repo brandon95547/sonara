@@ -3,6 +3,7 @@ import { useElementSize } from '@/lib/hooks'
 import { HALF_HEIGHT, PaperCards, StaffFrame } from './staff-frame'
 import {
   BarLines,
+  Beams,
   isLive,
   LiveStep,
   Playhead,
@@ -22,6 +23,7 @@ import {
   type Measured,
   type Placed,
 } from './score'
+import { beamsIn, type StepStems } from './beams'
 
 /**
  * The song as printed music: lines, read left to right and then down.
@@ -96,6 +98,8 @@ export function SheetView({
       return {
         ...system,
         placed,
+        // A line at a time: a beam does not cross a system break.
+        beaming: beamsIn(placed),
         top,
         height,
         origin: top - frame.top,
@@ -160,6 +164,7 @@ export function SheetView({
               {PLAYHEAD_SHOWN && system === current && (
                 <Playhead x={system.placed[here - system.from]!.x} />
               )}
+              <Beams beams={system.beaming.beams} roleFor={roleFor} />
               {system.placed.map((entry) => (
                 <StepAt
                   key={entry.index}
@@ -168,6 +173,7 @@ export function SheetView({
                   fifths={fifths}
                   watched={watched}
                   position={here}
+                  stems={system.beaming.stems.get(entry.index)}
                 />
               ))}
             </g>
@@ -185,16 +191,25 @@ function StepAt({
   fifths,
   watched,
   position,
+  stems,
 }: {
   placed: Placed
   role: Role
   fifths: number
   watched: readonly Watched[]
   position: number
+  stems?: StepStems
 }) {
   return isLive(role) ? (
-    <LiveStep placed={placed} role={role} fifths={fifths} watched={watched} position={position} />
+    <LiveStep
+      placed={placed}
+      role={role}
+      fifths={fifths}
+      watched={watched}
+      position={position}
+      stems={stems}
+    />
   ) : (
-    <Step placed={placed} role={role} fifths={fifths} lit="" />
+    <Step placed={placed} role={role} fifths={fifths} lit="" stems={stems} />
   )
 }

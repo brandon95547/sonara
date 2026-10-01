@@ -3,6 +3,7 @@ import { KEY_X, STEP, yOn } from './staff-frame'
 import { Chord, KeySignature, TimeSignature } from './StaffNotes'
 import { useKeyboardStore } from '@/state/keyboard-store'
 import { timeX, type Measured, type Placed } from './score'
+import type { BeamShape, StepStems } from './beams'
 
 /**
  * The marks a system is made of, drawn the same way in both views.
@@ -107,12 +108,19 @@ export const Step = React.memo(function Step({
   role,
   fifths,
   lit,
+  stems,
 }: {
   placed: Placed
   role: Role
   fifths: number
   /** The sounding notes of this chord, comma separated. Almost always empty. */
   lit: string
+  /**
+   * Its stems, where a beam has decided them. The same object from one render
+   * to the next for as long as the page is laid out the same way, so it does
+   * not undo the memo.
+   */
+  stems?: StepStems
 }) {
   const sounding = lit === '' ? null : new Set(lit.split(',').map(Number))
 
@@ -129,10 +137,47 @@ export const Step = React.memo(function Step({
         }))}
         value={placed.value}
         fifths={fifths}
+        stems={stems}
       />
     </g>
   )
 })
+
+/**
+ * The beams of a system, and the number over each tuplet.
+ *
+ * Drawn as their own layer rather than by the chords they join, because a beam
+ * belongs to several chords at once and each chord is drawn — and memoised —
+ * by itself. A beam goes quiet with its notes: once every chord under it is
+ * behind the player, it takes the same ink they do.
+ */
+export function Beams({
+  beams,
+  roleFor,
+}: {
+  beams: readonly BeamShape[]
+  roleFor: (index: number) => Role
+}) {
+  return (
+    <>
+      {beams.map((beam) => {
+        const played = beam.indices.every((index) => roleFor(index) === 'played')
+        return (
+          <g key={beam.key} className="staff__beam" data-played={played ? 'true' : undefined}>
+            {beam.bars.map((bar, at) => (
+              <polygon key={at} points={bar.points} />
+            ))}
+            {beam.tuplet && (
+              <text x={beam.tuplet.x} y={beam.tuplet.y} className="staff__tuplet">
+                {beam.tuplet.text}
+              </text>
+            )}
+          </g>
+        )
+      })}
+    </>
+  )
+}
 
 /** A chord whose keys are watched: where it falls in the piece, and its pitches. */
 export interface Watched {
@@ -215,6 +260,7 @@ export function LiveStep({
   fifths,
   watched,
   position,
+  stems,
 }: {
   placed: Placed
   role: Role
@@ -222,6 +268,7 @@ export function LiveStep({
   watched: readonly Watched[]
   /** The step the player is known to be on, or negative where nobody is. */
   position: number
+  stems?: StepStems
 }) {
   const lit = useKeyboardStore((state) =>
     litNotes(
@@ -231,7 +278,7 @@ export function LiveStep({
       (note) => state.active[note] !== undefined,
     ).join(','),
   )
-  return <Step placed={placed} role={role} fifths={fifths} lit={lit} />
+  return <Step placed={placed} role={role} fifths={fifths} lit={lit} stems={stems} />
 }
 
 /**

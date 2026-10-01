@@ -178,6 +178,9 @@ export function buildProgressionExercise(
       const chordNotes = shape(chordHand, 0, chord)
       push(rootHand === 'left' ? [root, ...chordNotes] : [...chordNotes, root], chord)
     })
+    // Two bars of four, as it is printed: four chords, then the seventh and a
+    // tonic held for the rest of the bar.
+    steps[steps.length - 1] = { ...steps.at(-1)!, beats: 3 }
   }
 
   const numerals = sequence.map((chord) => numeralOf(chord, mode)).join(' – ')
@@ -205,6 +208,7 @@ export function buildProgressionExercise(
       { label: 'Chords', value: sequence.map(symbolOf).join(' – ') },
       { label: 'Numerals', value: numerals },
     ],
+    ...(spec.form === 'positions' ? {} : { meter: { beats: 4, beatType: 4 } }),
     fingerings: hands.map((hand) => {
       const mine = steps.map((step) =>
         step.fingers.filter((finger) => finger.hand === hand).map((finger) => finger.finger),

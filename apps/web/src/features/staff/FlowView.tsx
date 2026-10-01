@@ -3,6 +3,7 @@ import { useElementSize } from '@/lib/hooks'
 import { GUTTER, STAFF_BANDS, STAFF_START, StaffGutter, StaffLines } from './staff-frame'
 import {
   BarLines,
+  Beams,
   isLive,
   LiveStep,
   Playhead,
@@ -14,6 +15,7 @@ import {
   type Watched,
 } from './score-parts'
 import { barLinesIn, frameOf, headerEnd, place, type Measured, type Placed } from './score'
+import { beamsIn, type StepStems } from './beams'
 
 /**
  * The music as one endless system, running past a fixed clef.
@@ -86,6 +88,9 @@ export function FlowView({
   )
   const frame = React.useMemo(() => frameOf(measured), [measured])
   const height = frame.bottom - frame.top
+  // Where the beams run, and the stems they have decided. Once per layout:
+  // the stems are handed to memoised chords and must stay the same objects.
+  const beaming = React.useMemo(() => beamsIn(placed), [placed])
   // The chords listening to the keys, so each can tell whether a pitch it is
   // holding is being played here or somewhere else it is written.
   const watched = React.useMemo(
@@ -173,6 +178,7 @@ export function FlowView({
           <Signatures fifths={fifths} beats={beats} beatType={beatType} withTime={withTime} />
           <BarLines lines={barLinesIn(placed)} numbered={numbered} />
           {PLAYHEAD_SHOWN && placed[here] && <Playhead x={placed[here]!.x} />}
+          <Beams beams={beaming.beams} roleFor={roleFor} />
           {placed.map((entry) => {
             const role = roleFor(entry.index)
             return (
@@ -184,6 +190,7 @@ export function FlowView({
                 fifths={fifths}
                 watched={watched}
                 position={position}
+                stems={beaming.stems.get(entry.index)}
               />
             )
           })}
@@ -201,6 +208,7 @@ function StepAt({
   fifths,
   watched,
   position,
+  stems,
 }: {
   placed: Placed
   role: Role
@@ -208,10 +216,18 @@ function StepAt({
   fifths: number
   watched: readonly Watched[]
   position: number
+  stems?: StepStems
 }) {
   return live ? (
-    <LiveStep placed={placed} role={role} fifths={fifths} watched={watched} position={position} />
+    <LiveStep
+      placed={placed}
+      role={role}
+      fifths={fifths}
+      watched={watched}
+      position={position}
+      stems={stems}
+    />
   ) : (
-    <Step placed={placed} role={role} fifths={fifths} lit="" />
+    <Step placed={placed} role={role} fifths={fifths} lit="" stems={stems} />
   )
 }

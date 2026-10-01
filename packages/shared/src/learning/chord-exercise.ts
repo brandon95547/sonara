@@ -369,6 +369,8 @@ function buildKeyTriadsExercise(spec: ChordSpec, options: ChordExerciseOptions):
       source: 'alfred',
       perStep: 3,
     })),
+    // Broken, each triad is a bar of three, as the page writes it.
+    ...(spec.style === 'broken' ? { meter: { beats: 3, beatType: 4 } } : {}),
   }
 }
 

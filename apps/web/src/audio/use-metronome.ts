@@ -16,8 +16,13 @@ const INTERVAL_MS = 25
  *
  * A tempo change is picked up at the next beat rather than restarting the bar,
  * so nudging the BPM while playing does not throw the pulse.
+ *
+ * `epoch` re-anchors it: when the number changes the click starts again from
+ * the first beat of a bar, a twentieth of a second from now. That is how a
+ * demonstration and the click begin together instead of wherever the click
+ * happened to be.
  */
-export function useMetronome(enabled: boolean, bpm: number, beatsPerBar = 4) {
+export function useMetronome(enabled: boolean, bpm: number, beatsPerBar = 4, epoch = 0) {
   const bpmRef = React.useRef(bpm)
   bpmRef.current = bpm
 
@@ -37,5 +42,5 @@ export function useMetronome(enabled: boolean, bpm: number, beatsPerBar = 4) {
       }
     }, INTERVAL_MS)
     return () => globalThis.clearInterval(timer)
-  }, [enabled, beatsPerBar])
+  }, [enabled, beatsPerBar, epoch])
 }

@@ -25,6 +25,8 @@ import {
   LEARNING_MODE_DESCRIPTIONS,
   LEARNING_MODE_LABELS,
   LEARNING_MODES,
+  NOTES_PER_BEAT,
+  NOTES_PER_BEAT_LABELS,
   SCALE_DIRECTION_LABELS,
   SCALE_DIRECTIONS,
   SCALE_MOTION_LABELS,
@@ -39,6 +41,7 @@ import {
   spellScale,
   type ExerciseKind,
   type LearningMode,
+  type NotesPerBeat,
   type ScaleDirection,
   type ScaleMotion,
   type ScaleSpec,
@@ -244,7 +247,10 @@ export function ScaleEngine() {
   const metronome = useLearningStore((state) => state.metronome)
   const bpm = useLearningStore((state) => state.targetBpm)
   const status = useLearningStore((state) => state.session.status)
-  useMetronome(metronome, bpm)
+  // The bar the click accents is the exercise's own, where it states one.
+  const beatsPerBar = useLearningStore((state) => state.exercise?.meter?.beats ?? 4)
+  const pulseEpoch = useLearningStore((state) => state.pulseEpoch)
+  useMetronome(metronome, bpm, beatsPerBar, pulseEpoch)
 
   // The fanfare for a finished run: on the step from running to complete, so
   // reopening Scales on a run that ended earlier does not play it again. A new
@@ -671,6 +677,13 @@ export function TempoStepper({ className }: { className?: string }) {
 const MIN_BPM = 30
 const MAX_BPM = 208
 
+const NOTES_PER_BEAT_WORDS: Record<NotesPerBeat, string> = {
+  1: 'once',
+  2: 'twice',
+  3: 'three times',
+  4: 'four times',
+}
+
 /**
  * The target tempo, behind one icon.
  *
@@ -681,10 +694,15 @@ const MAX_BPM = 208
 export function TempoButton({ className }: { className?: string }) {
   const bpm = useLearningStore((state) => state.targetBpm)
   const setTargetBpm = useLearningStore((state) => state.setTargetBpm)
+  // How the beat is divided belongs to the scale, and is set where the beat is.
+  const scales = useLearningStore((state) => state.topic === 'scales')
+  const perBeat: NotesPerBeat = useLearningStore((state) => state.spec.notesPerBeat ?? 1)
+  const updateSpec = useLearningStore((state) => state.updateSpec)
   const [open, setOpen] = React.useState(false)
   const triggerRef = React.useRef<HTMLButtonElement>(null)
   const close = React.useCallback(() => setOpen(false), [])
-  const label = `Tempo: ${bpm} BPM`
+  const divided = scales && perBeat > 1
+  const label = `Tempo: ${bpm} BPM${divided ? `, ${NOTES_PER_BEAT_LABELS[perBeat].toLowerCase()}` : ''}`
   const percent = ((bpm - MIN_BPM) / (MAX_BPM - MIN_BPM)) * 100
 
   return (
@@ -730,6 +748,27 @@ export function TempoButton({ className }: { className?: string }) {
             <span>{MIN_BPM}</span>
             <span>{MAX_BPM}</span>
           </div>
+          {scales && (
+            <div className="flex flex-col gap-1.5 border-t border-[var(--ds-border-subtle)] pt-4">
+              <CompactField label="Notes to a beat">
+                <SegmentedControl
+                  label="Notes to a beat"
+                  value={String(perBeat)}
+                  onChange={(next) => updateSpec({ notesPerBeat: Number(next) as NotesPerBeat })}
+                  options={NOTES_PER_BEAT.map((count) => ({
+                    value: String(count),
+                    label: String(count),
+                  }))}
+                />
+              </CompactField>
+              <p className="text-caption text-[var(--ds-fg-muted)]">
+                {NOTES_PER_BEAT_LABELS[perBeat]}
+                {perBeat > 1
+                  ? ` — the click stays at ${bpm}, and the scale goes ${NOTES_PER_BEAT_WORDS[perBeat]} as fast.`
+                  : ' — one note to each click.'}
+              </p>
+            </div>
+          )}
         </div>
       </Popover>
     </>

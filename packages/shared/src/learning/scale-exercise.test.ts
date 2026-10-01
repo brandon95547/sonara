@@ -4,13 +4,14 @@ import {
   buildScaleExercise,
   DEFAULT_PLAYABLE_RANGE,
   DEFAULT_SCALE_SPEC,
+  inEvenNotes,
   scaleHasCadence,
   scaleMotionsFor,
   scaleTexturesFor,
   type ScaleExerciseOptions,
   type ScaleSpec,
 } from './scale-exercise.js'
-import { isInExercise } from './exercise.js'
+import { isInExercise, stepBeats } from './exercise.js'
 import { SCALE_TYPES } from '../music/scales.js'
 
 const build = (spec: Partial<ScaleSpec> = {}, options: ScaleExerciseOptions = {}) =>
@@ -1081,5 +1082,82 @@ describe('the closing cadence', () => {
       plain({ scaleTypeId: 'dorian', ...down }),
     )
     expect(scaleHasCadence(SCALE_TYPES.find((type) => type.id === 'dorian')!)).toBe(false)
+  })
+})
+
+describe('a scale that divides the beat', () => {
+  const lengths = (spec: Partial<ScaleSpec>) =>
+    build({ rootPitchClass: 0, scaleTypeId: 'major', direction: 'up-down', ...spec }).steps.map(
+      stepBeats,
+    )
+
+  it('is one note a beat, with no metre to state, unless asked', () => {
+    const exercise = build()
+    expect(exercise.steps.every((step) => step.beats === undefined)).toBe(true)
+    expect(exercise.meter).toBeUndefined()
+  })
+
+  it('in quavers ends on a minim, as the page ends it', () => {
+    // Alfred p. 18: two octaves up and back is 28 quavers and a half note,
+    // four bars of 4/4.
+    const beats = lengths({ octaves: 2, notesPerBeat: 2 })
+    expect(beats).toHaveLength(29)
+    expect(new Set(beats.slice(0, 28))).toEqual(new Set([0.5]))
+    expect(beats[28]).toBe(2)
+    expect(beats.reduce((sum, length) => sum + length, 0)).toBe(16)
+  })
+
+  it('in semiquavers ends on a crotchet', () => {
+    const beats = lengths({ octaves: 2, notesPerBeat: 4 })
+    expect(new Set(beats.slice(0, 28))).toEqual(new Set([0.25]))
+    expect(beats[28]).toBe(1)
+    expect(beats.reduce((sum, length) => sum + length, 0)).toBe(8)
+  })
+
+  it('holds a last note that lands between beats to the next beat', () => {
+    // One octave up and back in semiquavers: the fifteenth note falls half-way
+    // through a beat, and a quaver finishes it.
+    expect(lengths({ octaves: 1, notesPerBeat: 4 }).at(-1)).toBe(0.5)
+  })
+
+  it('in triplets ends on a triplet where it stops mid-beat', () => {
+    // No plain note is two thirds of a beat long, so there is nothing to hold
+    // it to the next beat with.
+    expect(lengths({ octaves: 2, notesPerBeat: 3 }).at(-1)).toBeCloseTo(1 / 3, 9)
+    expect(lengths({ octaves: 1, direction: 'up', notesPerBeat: 3 }).at(-1)).toBeCloseTo(1 / 3, 9)
+  })
+
+  it('states common time, says what it is in, and is a different exercise', () => {
+    const plain = build({ rootPitchClass: 0, scaleTypeId: 'major' })
+    const divided = build({ rootPitchClass: 0, scaleTypeId: 'major', notesPerBeat: 2 })
+    expect(divided.meter).toEqual({ beats: 4, beatType: 4 })
+    expect(divided.subtitle).toBe('Right Hand · 2 octaves · Up (Ascending) · Eighth Notes')
+    expect(divided.id).not.toBe(plain.id)
+    // The same notes and the same fingers: only how long each lasts.
+    expect(divided.notes).toEqual(plain.notes)
+    expect(divided.fingerings).toEqual(plain.fingerings)
+  })
+
+  it('leaves the closing cadence in whole beats', () => {
+    const exercise = build({
+      rootPitchClass: 0,
+      scaleTypeId: 'major',
+      direction: 'up-down',
+      cadence: true,
+      notesPerBeat: 2,
+    })
+    expect(exercise.steps.slice(-4).map(stepBeats)).toEqual([1, 1, 1, 1])
+  })
+
+  it('fills the bar from a note that lands on a beat, whatever the metre', () => {
+    const steps = Array.from({ length: 5 }, (_, index) => ({
+      id: String(index),
+      notes: [60 + index],
+      fingers: [],
+      label: '',
+    }))
+    // Four quavers and a fifth note on beat three of a bar of three: one beat left.
+    expect(inEvenNotes(steps, 2, { beats: 3, beatType: 4 }).at(-1)!.beats).toBe(1)
+    expect(inEvenNotes(steps, 1).every((step) => step.beats === undefined)).toBe(true)
   })
 })

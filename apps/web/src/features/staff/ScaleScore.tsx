@@ -2,10 +2,13 @@ import * as React from 'react'
 import {
   normalisePitchClass,
   parsePitch,
+  stepBeats,
+  writtenFromQuarters,
   type Exercise,
   type SongNote,
   type SongStep,
   type Spelling,
+  type WrittenNote,
 } from '@sonara/shared'
 import { useLearningStore } from '@/state/learning-store'
 import { measureScore, type ScoreSource } from './score'
@@ -29,16 +32,19 @@ import type { Role } from './score-parts'
  * accent, and the next few carry the lighter wash. Notes you hold light up on
  * the staff as they do on the keys.
  *
- * Written as crotchets in common time, one note a beat. The tempo control
- * counts notes, so that is what 72 BPM on this page means. And the bars are
- * not decoration: an accidental holds until the bar line, so with none at all
- * one printed sharp would cover that line or space for the whole scale, and a
- * scale that comes back down would pass it again unmarked.
+ * Written as the exercise says each step is long: crotchets, one a beat, unless
+ * it states otherwise — a scale in semiquavers is four to a beat under one
+ * beam, a chord held through a bar of three is a dotted minim. The tempo
+ * control counts beats, so that is what 72 BPM on this page means. And the bars
+ * are not decoration: an accidental holds until the bar line, so with none at
+ * all one printed sharp would cover that line or space for the whole scale, and
+ * a scale that comes back down would pass it again unmarked.
  */
 
-/** One step a beat. The length is arbitrary; only the proportions are drawn. */
+/** A beat. The length is arbitrary; only the proportions are drawn. */
 const BEAT_MS = 500
-const BEATS_PER_BAR = 4
+/** The bar an exercise is counted in when it states no metre of its own. */
+const UNSTATED_BEATS = 4
 /** How many steps ahead keep a marking, matching the keyboard in Learn. */
 const LOOKAHEAD = 6
 /** The notes whose fingering the staff prints: none of them. See below. */
@@ -50,17 +56,48 @@ function spellingOf(exercise: Exercise, note: number): Spelling | undefined {
   return (name ? parsePitch(name) : null) ?? undefined
 }
 
-/** The exercise as the score measures music: a step a beat, each note handed and fingered. */
+/**
+ * How a length in beats is written, and the tuplet it is in if it is one.
+ *
+ * A third of a beat is a triplet quaver: written as a quaver, three to the
+ * beat. Anything a plain or dotted value can write is written as that; anything
+ * else is left to be matched, which is what the score does with a length it was
+ * not told.
+ */
+function writtenAs(beats: number, tupletId: number): WrittenNote | undefined {
+  if (Math.abs(beats * 3 - 1) < 1e-6)
+    return { value: 'eighth', dots: 0, tuplet: { id: tupletId, actual: 3, normal: 2 } }
+  const plain = writtenFromQuarters(beats)
+  return plain ? { value: plain.value, dots: plain.dots } : undefined
+}
+
+/**
+ * The parts a beat is counted in, so that positions are whole numbers.
+ *
+ * Three thirds of a beat added up in floating point come to a hair under one,
+ * and a hair under the bar line is the wrong bar: the triplet that should open
+ * bar three was the last note of bar two, alone under no beam. Ninety-six
+ * divides by everything a beat is cut into here — twos, threes, fours, eights.
+ */
+const TICKS = 96
+
+/** The exercise as the score measures music: each step as long as it says, each note handed and fingered. */
 export function scaleSteps(exercise: Exercise): SongStep[] {
-  return exercise.steps.map((step, index) => {
-    const startMs = index * BEAT_MS
+  let ticks = 0
+  return exercise.steps.map((step) => {
+    const length = stepBeats(step)
+    const startMs = (ticks / TICKS) * BEAT_MS
+    // One number for every note of one beat's triplet: the bracket they share.
+    const tupletId = Math.floor(ticks / TICKS) + 1
+    ticks += Math.round(length * TICKS)
     return {
       startMs,
       notes: step.notes.map((note, i): SongNote => ({
         note,
         velocity: 80,
         startMs,
-        durationMs: BEAT_MS,
+        durationMs: (step.holds?.[i] ?? length) * BEAT_MS,
+        written: writtenAs(step.holds?.[i] ?? length, tupletId),
         // Each note's own hand, so the staff it lands on is the hand's and not
         // a guess from middle C — a left-hand scale that climbs past it still
         // reads in the bass, with ledger lines, the way it is printed.
@@ -86,12 +123,16 @@ export const ScaleScore = React.memo(function ScaleScore() {
    * an editor does with those.
    */
   const fifths = exercise?.keyFifths ?? 0
+  const meter = exercise?.meter
+  const beatsPerBar = meter?.beats ?? UNSTATED_BEATS
 
   const measured = React.useMemo(() => {
     if (!exercise) return []
     const source: ScoreSource = {
       bpm: 60000 / BEAT_MS,
-      measureMs: BEAT_MS * BEATS_PER_BAR,
+      measureMs: BEAT_MS * beatsPerBar,
+      // Every length here is stated, so short notes can be joined by the beat.
+      beams: true,
       key: { fifths },
       // A crotchet at the least gap any note gets: even steps, packed as tight
       // as the ink allows, the way a scale book sets a run.
@@ -102,7 +143,7 @@ export const ScaleScore = React.memo(function ScaleScore() {
     // Fingers) where the finger actually lands. On the staff they were a row of
     // digits under a row of notes, doubling the ink for what the eye has to read.
     return measureScore(source, scaleSteps(exercise), NO_FINGERING)
-  }, [exercise, fifths])
+  }, [exercise, fifths, beatsPerBar])
 
   /**
    * Which step is "here" — the same one the keyboard marks.
@@ -142,13 +183,14 @@ export const ScaleScore = React.memo(function ScaleScore() {
       measured={measured}
       here={here}
       fifths={fifths}
-      beats={BEATS_PER_BAR}
-      beatType={4}
+      beats={beatsPerBar}
+      beatType={meter?.beatType ?? 4}
       roleFor={roleFor}
-      // A scale has no metre to state and is too short to need its bars
-      // numbered; the bar lines stay, because they are what the accidentals
-      // are counted against.
-      withTime={false}
+      // A plain scale has no metre to state; an exercise that divides the beat
+      // or holds a chord through a bar has, and prints it. Neither is long
+      // enough to need its bars numbered — the bar lines stay, because they
+      // are what the accidentals are counted against.
+      withTime={meter !== undefined}
       numbered={false}
       // Short enough to watch every note, so a key of the scale lights where
       // it is written — started or not, near your place or not.

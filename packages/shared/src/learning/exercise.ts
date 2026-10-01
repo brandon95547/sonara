@@ -72,6 +72,30 @@ export interface ExerciseStep {
    * the hand ("Left: Cross over"). Each finger carries its own for the keys.
    */
   readonly cue?: string
+  /**
+   * How long until the next step is due, in beats. One when left out.
+   *
+   * A step is still "the notes that have to sound before the next one" — the
+   * engine waits for the player, not for a clock. This is what the step is
+   * *written* as and how long a demonstration gives it: half a beat for a
+   * scale in quavers, three for a chord held through a bar of 3/4.
+   */
+  readonly beats?: number
+  /**
+   * Parallel to `notes`, where some are held past the step: how long each
+   * lasts, in beats. A chord under a moving melody is struck with the first
+   * melody note and outlasts it.
+   */
+  readonly holds?: readonly number[]
+}
+
+/** How long a step lasts, in beats. */
+export const stepBeats = (step: ExerciseStep): number => step.beats ?? 1
+
+/** The metre an exercise is written in: beats to a bar, and the note that takes one. */
+export interface ExerciseMeter {
+  readonly beats: number
+  readonly beatType: number
 }
 
 export interface ExerciseFact {
@@ -123,6 +147,15 @@ export interface Exercise {
   readonly defaultBpm: number
   /** Played detached. A demonstration lifts each step well before the next. */
   readonly staccato?: boolean
+  /**
+   * The metre, where the exercise has one to state.
+   *
+   * Left out for material that is one note a beat with nothing to group — a
+   * plain scale is written in bars of four so its accidentals have something
+   * to be counted against, but it is not *in* four. Stated, the staff prints
+   * the time signature, beams by the beat, and the click accents the bar.
+   */
+  readonly meter?: ExerciseMeter
 }
 
 /** Whether the note belongs to the material, in any octave. */
