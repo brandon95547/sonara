@@ -1,3 +1,4 @@
+import * as React from 'react'
 import { Info, Lightbulb, Minus, Play, Plus, RotateCcw } from 'lucide-react'
 import {
   currentStep,
@@ -8,6 +9,8 @@ import {
   tempo,
   upcomingSteps,
   type Exercise,
+  type ExerciseStep,
+  type Hand,
   type LearningMode,
   type SessionState,
 } from '@sonara/shared'
@@ -34,6 +37,31 @@ import { panelActions } from '@/state/panel-store'
  * these cards render them without being touched: the title, the facts, the
  * current step and the score are all part of the generic model.
  */
+const HAND_NAMES: Record<Hand, string> = { left: 'Left hand', right: 'Right hand' }
+
+/**
+ * The fingers due on a step, grouped by the hand that plays them — left first,
+ * the way the hands sit on the keys.
+ *
+ * Read from the step rather than from a setting, so one hand, both hands, and
+ * a chord split across them all come out of the same few lines.
+ */
+function handsOf(
+  exercise: Exercise,
+  step: ExerciseStep | null | undefined,
+): { hand: Hand; fingers: number[] }[] {
+  const playing = new Set<Hand>(
+    step ? step.fingers.map((finger) => finger.hand) : exercise.fingerings.map((f) => f.hand),
+  )
+  if (playing.size === 0) playing.add('right')
+  return (['left', 'right'] as const)
+    .filter((hand) => playing.has(hand))
+    .map((hand) => ({
+      hand,
+      fingers: step?.fingers.filter((f) => f.hand === hand).map((f) => f.finger) ?? [],
+    }))
+}
+
 export function SessionPanelContent() {
   const { exercise, mode, session, demoStepIndex } = useLearningStore()
 
@@ -100,29 +128,54 @@ function MaterialCard({ exercise }: { exercise: Exercise }) {
         ))}
       </dl>
 
-      {exercise.fingering && (
+      {exercise.fingerings.length > 0 && (
         <>
           <Divider />
           <div className="flex flex-col gap-1.5">
-            <div className="flex flex-wrap items-baseline gap-2">
-              <h4 className="text-label text-[var(--ds-accent-text)]">Recommended fingering</h4>
-              {/* Standard means "this is what method books teach"; derived means
-                  "this follows the same rules". They are different claims and
-                  the card makes the difference visible. */}
-              <Chip tone={exercise.fingering.source === 'standard' ? 'neutral' : 'warning'}>
-                {exercise.fingering.source === 'standard' ? 'Standard' : 'Suggested'}
-              </Chip>
-            </div>
-            <div className="flex flex-wrap gap-1" data-tabular>
-              {exercise.fingering.fingers.map((finger, index) => (
-                <span
-                  key={index}
-                  className="grid h-6 w-6 place-items-center rounded-[var(--radius-xs)] bg-[var(--ds-surface-inset)] text-label-sm text-[var(--ds-fg-secondary)]"
-                >
-                  {finger}
-                </span>
-              ))}
-            </div>
+            {exercise.fingerings.map((fingering, index) => {
+              // Standard means "this is what method books teach"; derived means
+              // "this follows the same rules". They are different claims and
+              // the card makes the difference visible — per hand, because one
+              // hand's fingering can be published where the other's is not.
+              const source = (
+                <Chip tone={fingering.source === 'standard' ? 'neutral' : 'warning'}>
+                  {fingering.source === 'standard' ? 'Standard' : 'Suggested'}
+                </Chip>
+              )
+              const hands = exercise.fingerings.length > 1
+              return (
+                <React.Fragment key={fingering.hand}>
+                  {index === 0 && (
+                    <div className="flex flex-wrap items-baseline gap-2">
+                      <h4 className="text-label text-[var(--ds-accent-text)]">
+                        Recommended fingering
+                      </h4>
+                      {!hands && source}
+                    </div>
+                  )}
+                  {hands && (
+                    <div
+                      className={cn('flex flex-wrap items-baseline gap-2', index > 0 && 'mt-1.5')}
+                    >
+                      <span className="text-label-sm text-[var(--ds-fg-muted)]">
+                        {HAND_NAMES[fingering.hand]}
+                      </span>
+                      {source}
+                    </div>
+                  )}
+                  <div className="flex flex-wrap gap-1" data-tabular>
+                    {fingering.fingers.map((finger, at) => (
+                      <span
+                        key={at}
+                        className="grid h-6 w-6 place-items-center rounded-[var(--radius-xs)] bg-[var(--ds-surface-inset)] text-label-sm text-[var(--ds-fg-secondary)]"
+                      >
+                        {finger}
+                      </span>
+                    ))}
+                  </div>
+                </React.Fragment>
+              )
+            })}
             <p className="text-caption text-[var(--ds-fg-muted)]">
               A suggestion, not a reading. MIDI reports the note and how hard it was played — never
               which finger played it.
@@ -153,8 +206,8 @@ function CurrentStepCard({
   // Whichever playback head is live — the player's, or the demonstration's.
   const here = demoStepIndex ?? session.stepIndex
   const step = exercise.steps[here] ?? null
-  const finger = step?.fingers[0]?.finger ?? null
-  const hand = step?.fingers[0]?.hand ?? exercise.fingering?.hand ?? 'right'
+  const hands = handsOf(exercise, step)
+  const together = hands.length > 1
   const running = session.status === 'running'
   // Practice withholds the answer on purpose. Printing the note here would
   // make it the same exercise as Learn with a different label on it — and a
@@ -190,16 +243,24 @@ function CurrentStepCard({
               {here + 1} of {exercise.steps.length}
               {reveal && step?.degree ? ` · degree ${step.degree}` : ''}
             </span>
-            {reveal && finger && (
-              <span className="text-ui text-[var(--ds-fg)]">
-                Finger {finger} · {FINGER_NAMES[finger]}
-              </span>
-            )}
+            {reveal &&
+              hands.map(({ hand, fingers }) =>
+                fingers.length === 0 ? null : (
+                  <span key={hand} className="text-ui text-[var(--ds-fg)]">
+                    {/* One hand needs no naming; two do, or "Finger 5" is a
+                        question about which. Kept to a word, so each hand
+                        stays on one line beside the two diagrams. */}
+                    {together ? (hand === 'left' ? 'Left' : 'Right') : 'Finger'}{' '}
+                    {fingers.join(', ')}
+                    {fingers.length === 1 && ` · ${FINGER_NAMES[fingers[0]!]}`}
+                  </span>
+                ),
+              )}
             <p className="mt-1 text-body-sm text-[var(--ds-fg-secondary)]">
               {demoing
                 ? `Playing ${step?.label ?? ''}`
                 : reveal
-                  ? `Play ${step?.label} to continue`
+                  ? `Play ${step?.label} ${together ? 'in both hands ' : ''}to continue`
                   : 'Play the next note from memory'}
             </p>
             {reveal && step?.cue && (
@@ -209,8 +270,12 @@ function CurrentStepCard({
             )}
           </div>
           {reveal && (
-            <div className="h-28 w-24 shrink-0" aria-hidden={false}>
-              <HandDiagram hand={hand} fingers={finger === null ? [] : [finger]} />
+            <div className="flex shrink-0 gap-1">
+              {hands.map(({ hand, fingers }) => (
+                <div key={hand} className={cn('h-28', together ? 'w-[4.5rem]' : 'w-24')}>
+                  <HandDiagram hand={hand} fingers={fingers} />
+                </div>
+              ))}
             </div>
           )}
         </div>
@@ -403,27 +468,56 @@ function InstructionsCard({ mode }: { mode: LearningMode }) {
 
 function HandPositionCard({ exercise, session }: { exercise: Exercise; session: SessionState }) {
   const step = currentStep(exercise, session)
-  const hand = step?.fingers[0]?.hand ?? exercise.fingering?.hand ?? 'right'
+  const hands = handsOf(exercise, step)
+  const together = hands.length > 1
   const first = exercise.steps[0]
   // The crossing is the moment a scale is won or lost, so it is named up front
-  // rather than only when it arrives on the key.
-  const crossing = exercise.steps.find((entry) => entry.cue)
+  // rather than only when it arrives on the key. Each hand has its own: they do
+  // not cross on the same note.
+  const advice = hands.map(({ hand }) => {
+    const crossing = exercise.steps.find((entry) =>
+      entry.fingers.some((finger) => finger.hand === hand && finger.cue),
+    )
+    return {
+      hand,
+      start: first?.fingers.find((finger) => finger.hand === hand)?.finger,
+      cue: crossing?.fingers.find((finger) => finger.hand === hand)?.cue?.toLowerCase(),
+      on: crossing?.label,
+    }
+  })
 
   return (
     <Card className="flex gap-3">
-      <div className="h-20 w-16 shrink-0 opacity-70">
-        <HandDiagram hand={hand} fingers={step?.fingers.map((f) => f.finger) ?? []} />
+      <div className="flex shrink-0 gap-1 opacity-70">
+        {hands.map(({ hand, fingers }) => (
+          <div key={hand} className={cn('h-20', together ? 'w-12' : 'w-16')}>
+            <HandDiagram hand={hand} fingers={fingers} />
+          </div>
+        ))}
       </div>
       <div className="flex min-w-0 flex-col gap-1.5">
         <h3 className="flex items-center gap-2 text-label text-[var(--ds-fg)]">
           <Lightbulb size={15} className="text-[var(--ds-warning-text)]" aria-hidden />
           Hand position
         </h3>
-        <p className="text-body-sm leading-relaxed text-[var(--ds-fg-secondary)]">
-          {first && `Start with finger ${first.fingers[0]?.finger} on ${first.label}. `}
-          Keep the wrist level and the fingers curved
-          {crossing ? `, and ${crossing.cue?.toLowerCase()} on ${crossing.label}.` : '.'}
-        </p>
+        {together ? (
+          <p className="text-body-sm leading-relaxed text-[var(--ds-fg-secondary)]">
+            {first &&
+              `Start on ${first.label}: ${advice
+                .map(({ hand, start }) => `${HAND_NAMES[hand].toLowerCase()} finger ${start}`)
+                .join(', ')}. `}
+            Keep the wrists level and the fingers curved.
+            {advice.map(({ hand, cue, on }) =>
+              cue ? ` ${HAND_NAMES[hand]}: ${cue} on ${on}.` : '',
+            )}
+          </p>
+        ) : (
+          <p className="text-body-sm leading-relaxed text-[var(--ds-fg-secondary)]">
+            {first && `Start with finger ${advice[0]?.start} on ${first.label}. `}
+            Keep the wrist level and the fingers curved
+            {advice[0]?.cue ? `, and ${advice[0].cue} on ${advice[0].on}.` : '.'}
+          </p>
+        )}
       </div>
     </Card>
   )

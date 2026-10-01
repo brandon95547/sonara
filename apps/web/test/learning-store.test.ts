@@ -239,3 +239,55 @@ describe('auto tempo', () => {
     expect(store().targetBpm).toBe(72)
   })
 })
+
+/**
+ * Both hands is the first exercise whose steps are more than one note. The
+ * engine has always allowed that; this is the keyboard being told about it.
+ */
+describe('both hands together', () => {
+  const step = (index: number) => store().exercise!.steps[index]!
+
+  beforeEach(() => store().updateSpec({ hand: 'both', octaves: 1 }))
+
+  it('lights a target for each hand, with that hand’s finger', () => {
+    const [left, right] = step(0).notes
+    expect(roleOf(left!)).toBe('target')
+    expect(roleOf(right!)).toBe('target')
+    // A minor: the left hand starts on its little finger, the right on its thumb.
+    expect(store().annotations[left!]?.finger).toBe(5)
+    expect(store().annotations[right!]?.finger).toBe(1)
+  })
+
+  it('waits for both hands before moving on, in either order', () => {
+    const [left, right] = step(0).notes
+    store().start()
+
+    store().noteOn(right!)
+    expect(store().session.stepIndex).toBe(0)
+    expect(store().session.mistakes).toBe(0)
+
+    store().noteOn(left!)
+    expect(store().session.stepIndex).toBe(1)
+    expect(step(1).notes.map(roleOf)).toEqual(['target', 'target'])
+  })
+
+  it('counts the other hand running ahead as a mistake, not as progress', () => {
+    store().start()
+    store().noteOn(step(0).notes[1]!)
+    // The right hand goes on to its next note while the left has not played.
+    store().noteOn(step(1).notes[1]!)
+    expect(store().session.stepIndex).toBe(0)
+    expect(store().session.mistakes).toBe(1)
+  })
+
+  it('draws a crossing cue on the key of the hand that crosses, and only there', () => {
+    // A minor, one octave: the right thumb passes under on D, the fourth step.
+    store().start()
+    for (const index of [0, 1, 2]) for (const note of step(index).notes) store().noteOn(note)
+
+    const [left, right] = step(3).notes
+    expect(step(3).label).toBe('D')
+    expect(store().annotations[right!]?.cue).toBe('Thumb under')
+    expect(store().annotations[left!]?.cue).toBeUndefined()
+  })
+})

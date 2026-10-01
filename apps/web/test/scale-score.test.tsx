@@ -135,6 +135,21 @@ describe('the scale on the staff', () => {
     expect(notes.every((note) => staffFor(note.note, note.hand) === 'bass')).toBe(true)
   })
 
+  it('writes both hands as a grand staff: the left in the bass, the right in the treble', () => {
+    act(() => store().updateSpec({ hand: 'both' }))
+    const steps = scaleSteps(store().exercise!)
+    for (const step of steps) {
+      // One beat, two notes — struck together, not one after the other.
+      expect(step.notes.map((note) => note.hand)).toEqual(['left', 'right'])
+      expect(step.notes.map((note) => staffFor(note.note, note.hand))).toEqual(['bass', 'treble'])
+      expect(new Set(step.notes.map((note) => note.startMs)).size).toBe(1)
+    }
+
+    // And it is still one drawn step per beat, so your place moves a beat at a time.
+    const { container } = render(<ScaleScore />)
+    expect(drawnSteps(container)).toHaveLength(store().exercise!.steps.length)
+  })
+
   it('prints the scale plainly: bar lines, but no metre, no bar numbers and no fingering', () => {
     const { container } = render(<ScaleScore />)
     expect(container.querySelector('.staff__time')).toBeNull()

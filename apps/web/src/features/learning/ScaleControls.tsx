@@ -20,15 +20,18 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import {
+  HAND_LABELS,
   LEARNING_MODE_DESCRIPTIONS,
   LEARNING_MODE_LABELS,
   LEARNING_MODES,
   SCALE_DIRECTION_LABELS,
   SCALE_DIRECTIONS,
+  SCALE_HANDS,
   SCALE_TYPES,
   spellScale,
   type LearningMode,
   type ScaleDirection,
+  type ScaleHands,
 } from '@sonara/shared'
 import { cn } from '@/lib/cn'
 import { Popover, SelectMenu } from '@/ui/Menu'
@@ -58,10 +61,10 @@ import { BarGlyph } from '@/ui/BarGlyph'
  * so every one of them stays one tap away and none is squeezed.
  */
 
-const HAND_OPTIONS = [
-  { value: 'right', label: 'Right Hand' },
-  { value: 'left', label: 'Left Hand' },
-] as const
+const HAND_OPTIONS = SCALE_HANDS.map((hand) => ({ value: hand, label: HAND_LABELS[hand] }))
+
+/** The hand, as the bar's badge says it. Both is both letters, in keyboard order. */
+const HAND_BADGES: Record<ScaleHands, string> = { right: 'R', left: 'L', both: 'LR' }
 
 const OCTAVE_OPTIONS = [1, 2, 3].map((count) => ({
   value: count,
@@ -174,6 +177,7 @@ export function ScalePicker() {
                 options={[
                   { value: 'right', label: 'Right' },
                   { value: 'left', label: 'Left' },
+                  { value: 'both', label: 'Both' },
                 ]}
               />
             </CompactField>
@@ -313,7 +317,7 @@ export function HandMenu() {
       options={HAND_OPTIONS}
       onChange={(next) => updateSpec({ hand: next })}
       iconOnly
-      icon={<BarGlyph icon={<Hand size={18} />} badge={hand === 'right' ? 'R' : 'L'} />}
+      icon={<BarGlyph icon={<Hand size={18} />} badge={HAND_BADGES[hand]} />}
       className="bar-wide"
     />
   )

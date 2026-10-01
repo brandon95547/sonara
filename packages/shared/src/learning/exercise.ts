@@ -21,6 +21,19 @@ export interface StepFinger {
   /** 1 is the thumb, 5 the little finger. A recommendation — see fingering.ts. */
   readonly finger: number
   readonly hand: Hand
+  /**
+   * This hand's movement on this note — "Thumb under". Kept beside the finger
+   * it belongs to so that, with two hands playing, the cue can be drawn on the
+   * key of the hand that moves rather than on both.
+   */
+  readonly cue?: string
+}
+
+/** One hand's recommended fingers for the material, in the order it is taught. */
+export interface ExerciseFingering {
+  readonly hand: Hand
+  readonly fingers: readonly number[]
+  readonly source: 'standard' | 'derived'
 }
 
 export interface ExerciseStep {
@@ -36,6 +49,9 @@ export interface ExerciseStep {
   /**
    * A movement cue, shown only while this step is current — "Thumb under" at
    * the moment the thumb has to pass under, not as a paragraph beforehand.
+   *
+   * The step's cue as a sentence would say it: when both hands play, it names
+   * the hand ("Left: Cross over"). Each finger carries its own for the keys.
    */
   readonly cue?: string
 }
@@ -67,7 +83,7 @@ export interface Exercise {
    * worse, fall back to a fixed sharp/flat preference and print the wrong one.
    */
   readonly pitchNames: Readonly<Record<number, string>>
-  /** The exact notes the exercise walks, in order. */
+  /** The exact notes the exercise walks, in order — every note of every step. */
   readonly notes: readonly number[]
   /** Pitch class to scale degree — `1`, `2`, `♭3`. For the degrees overlay. */
   readonly pitchDegrees?: Readonly<Record<number, string>>
@@ -84,11 +100,8 @@ export interface Exercise {
   readonly keyFifths: number | null
   /** Reference rows for the dashboard. Kind-specific content, generic shape. */
   readonly facts: readonly ExerciseFact[]
-  readonly fingering: {
-    readonly hand: Hand
-    readonly fingers: readonly number[]
-    readonly source: 'standard' | 'derived'
-  } | null
+  /** One per hand that plays, low hand first. Empty where there is none to recommend. */
+  readonly fingerings: readonly ExerciseFingering[]
   readonly defaultBpm: number
 }
 

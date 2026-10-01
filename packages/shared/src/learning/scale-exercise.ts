@@ -31,16 +31,27 @@ export const SCALE_DIRECTION_LABELS: Record<ScaleDirection, string> = {
   'up-down': 'Up then Down',
 }
 
-export const HAND_LABELS: Record<Hand, string> = {
+/**
+ * Which hand plays. `both` is the two together, an octave apart — the form
+ * scale books print first and call "similar motion in octaves".
+ */
+export const SCALE_HANDS = ['right', 'left', 'both'] as const
+export type ScaleHands = (typeof SCALE_HANDS)[number]
+
+export const HAND_LABELS: Record<ScaleHands, string> = {
   right: 'Right Hand',
   left: 'Left Hand',
+  both: 'Both Hands',
 }
+
+/** Which hand a cue belongs to, once there are two it could be. */
+const HAND_CUE_PREFIX: Record<Hand, string> = { right: 'Right', left: 'Left' }
 
 export const scaleSpecSchema = z.object({
   kind: z.literal('scale'),
   rootPitchClass: z.number().int().min(0).max(11),
   scaleTypeId: z.string().min(1),
-  hand: z.enum(['right', 'left']),
+  hand: z.enum(SCALE_HANDS),
   octaves: z.number().int().min(1).max(4),
   direction: z.enum(SCALE_DIRECTIONS),
 })
@@ -70,13 +81,15 @@ export const DEFAULT_SCALE_SPEC: ScaleSpec = {
  * then has to leave.
  *
  * The one exception is a scale so wide the view has no octave to spare below
- * it: four octaves on 61 keys fit in one place, and both hands get it.
+ * it: four octaves on 61 keys fit in one place, and a left hand on its own gets
+ * it. Both hands together cannot share keys, so they stay an octave apart and
+ * that one runs off the bottom of a 61 — it needs the bigger keyboard anyway.
  */
 const PREFERRED_START = 57 // A3
 const COMFORTABLE_BOTTOM = 36 // C2, the bottom of the default 61-key view
 const COMFORTABLE_TOP = 96 // C7, the top of it
 
-function chooseStartNote(pitchClass: number, span: number, hand: Hand): number {
+function placeHands(pitchClass: number, span: number, hands: ScaleHands): Record<Hand, number> {
   // One candidate per octave from C1 to C5.
   const candidates = [24, 36, 48, 60, 72].map((c) => c + normalisePitchClass(pitchClass))
   const fits = candidates.filter((note) => note + span <= COMFORTABLE_TOP)
@@ -84,10 +97,9 @@ function chooseStartNote(pitchClass: number, span: number, hand: Hand): number {
   const right = pool.reduce((best, note) =>
     Math.abs(note - PREFERRED_START) < Math.abs(best - PREFERRED_START) ? note : best,
   )
-  if (hand === 'right') return right
 
-  const left = right - 12
-  return left >= COMFORTABLE_BOTTOM ? left : right
+  const below = right - 12
+  return { right, left: hands === 'both' || below >= COMFORTABLE_BOTTOM ? below : right }
 }
 
 /** `Thumb under` / `Cross over`, placed on the note where the hand actually moves. */
@@ -108,7 +120,9 @@ export function buildScaleExercise(spec: ScaleSpec): Exercise {
   const scale: SpelledScale = spellScale(spec.rootPitchClass, type)
   const offsets = scaleOffsets(type)
   const span = 12 * spec.octaves
-  const start = chooseStartNote(spec.rootPitchClass, span, spec.hand)
+  const starts = placeHands(spec.rootPitchClass, span, spec.hand)
+  // Low hand first, so a step's notes read up the keyboard.
+  const hands: readonly Hand[] = spec.hand === 'both' ? ['left', 'right'] : [spec.hand]
 
   // A scale whose way down is not its way up. Only the melodic minor has one,
   // and reversing the ascending notes for it plays the raised sixth and seventh
@@ -128,7 +142,7 @@ export function buildScaleExercise(spec: ScaleSpec): Exercise {
   const descendingOffsets = differsDescending ? scaleOffsets(descendingType) : offsets
 
   /** Root to octave, in pitch order, for whichever form is asked for. */
-  const climb = (formOffsets: readonly number[]) => {
+  const climb = (start: number, formOffsets: readonly number[]) => {
     const notes: { note: number; degreeIndex: number }[] = []
     for (let octave = 0; octave < spec.octaves; octave++) {
       for (let i = 0; i < formOffsets.length; i++) {
@@ -139,74 +153,100 @@ export function buildScaleExercise(spec: ScaleSpec): Exercise {
     return notes
   }
 
-  const ascending = climb(offsets)
+  /**
+   * One hand's way through the exercise: its own keys, each with its finger.
+   *
+   * Per hand because that is all that differs between them. Both hands play
+   * the same degrees in the same order, an octave apart, and each is fingered
+   * as itself — the left hand is not the right hand's numbers moved down.
+   */
+  const voice = (hand: Hand) => {
+    const start = starts[hand]
+    const ascending = climb(start, offsets)
 
-  const fingering = scaleFingering({
-    rootName: scale.root.name,
-    scaleTypeId: type.id,
-    hand: spec.hand,
-    octaves: spec.octaves,
-    notes: ascending.map((entry) => entry.note),
-  })
+    const fingering = scaleFingering({
+      rootName: scale.root.name,
+      scaleTypeId: type.id,
+      hand,
+      octaves: spec.octaves,
+      notes: ascending.map((entry) => entry.note),
+    })
 
-  // Descending is the ascending shape read backwards, fingers included — which
-  // is how it is taught, and why one stored pattern per scale is enough.
-  //
-  // Unless the way down is a different scale. A melodic minor descends as a
-  // natural minor, and in F♯ and C♯ the two forms are fingered differently: the
-  // source moves the right hand's 4th finger onto the raised sixth going up and
-  // puts it back going down, saying so on the page. Mirroring the ascending
-  // fingering would carry the ascending hand into the descent and contradict
-  // that, so the descending form is fingered as itself.
-  const descending = [...climb(descendingOffsets)].reverse()
-  const descendingFingering = differsDescending
-    ? scaleFingering({
-        rootName: descendingScale.root.name,
-        scaleTypeId: descendingType.id,
-        hand: spec.hand,
-        octaves: spec.octaves,
-        notes: climb(descendingOffsets).map((entry) => entry.note),
-      })
-    : fingering
-  const descendingFingers = [...descendingFingering.fingers].reverse()
+    // Descending is the ascending shape read backwards, fingers included — which
+    // is how it is taught, and why one stored pattern per scale is enough.
+    //
+    // Unless the way down is a different scale. A melodic minor descends as a
+    // natural minor, and in F♯ and C♯ the two forms are fingered differently: the
+    // source moves the right hand's 4th finger onto the raised sixth going up and
+    // puts it back going down, saying so on the page. Mirroring the ascending
+    // fingering would carry the ascending hand into the descent and contradict
+    // that, so the descending form is fingered as itself.
+    const descendingClimb = climb(start, descendingOffsets)
+    const descendingFingering = differsDescending
+      ? scaleFingering({
+          rootName: descendingScale.root.name,
+          scaleTypeId: descendingType.id,
+          hand,
+          octaves: spec.octaves,
+          notes: descendingClimb.map((entry) => entry.note),
+        })
+      : fingering
+    const descendingFingers = [...descendingFingering.fingers].reverse()
 
-  const sequence =
-    spec.direction === 'up'
-      ? ascending.map((entry, i) => ({ ...entry, finger: fingering.fingers[i]!, ascending: true }))
-      : spec.direction === 'down'
-        ? descending.map((entry, i) => ({
-            ...entry,
-            finger: descendingFingers[i]!,
-            ascending: false,
-          }))
-        : [
-            ...ascending.map((entry, i) => ({
-              ...entry,
-              finger: fingering.fingers[i]!,
-              ascending: true,
-            })),
-            // The turn is not played twice.
-            ...descending.slice(1).map((entry, i) => ({
-              ...entry,
-              finger: descendingFingers[i + 1]!,
-              ascending: false,
-            })),
-          ]
+    const up = ascending.map((entry, i) => ({
+      ...entry,
+      finger: fingering.fingers[i]!,
+      ascending: true,
+    }))
+    const down = [...descendingClimb].reverse().map((entry, i) => ({
+      ...entry,
+      finger: descendingFingers[i]!,
+      ascending: false,
+    }))
 
-  const steps: ExerciseStep[] = sequence.map((entry, index) => {
+    return {
+      hand,
+      fingering,
+      sequence:
+        spec.direction === 'up'
+          ? up
+          : spec.direction === 'down'
+            ? down
+            : // The turn is not played twice.
+              [...up, ...down.slice(1)],
+    }
+  }
+
+  const voices = hands.map(voice)
+
+  const steps: ExerciseStep[] = voices[0]!.sequence.map((entry, index) => {
     // Which form this note belongs to decides how it is spelled: the sixth of
     // A melodic minor is F♯ on the way up and F on the way down, and calling
     // both of them F♯ would name a note the player is not being asked for.
     const form = entry.ascending ? scale : descendingScale
     const formType = entry.ascending ? type : descendingType
     const pitch = form.notes[entry.degreeIndex]!
+
+    const fingers = voices.map(({ hand, sequence }) => {
+      const at = sequence[index]!
+      const cue = movementCue(sequence[index - 1]?.finger, at.finger, hand, at.ascending)
+      return { finger: at.finger, hand, ...(cue ? { cue } : {}) }
+    })
+    // The hands do not cross on the same note, so with two of them playing a
+    // bare "Thumb under" does not say whose.
+    const cues = fingers.flatMap((finger) =>
+      finger.cue
+        ? [voices.length > 1 ? `${HAND_CUE_PREFIX[finger.hand]}: ${finger.cue}` : finger.cue]
+        : [],
+    )
+
     return {
       id: `${index}`,
-      notes: [entry.note],
-      fingers: [{ finger: entry.finger, hand: spec.hand }],
+      notes: voices.map(({ sequence }) => sequence[index]!.note),
+      fingers,
       label: pitch.name,
       degree: formType.degrees[entry.degreeIndex],
-      cue: movementCue(sequence[index - 1]?.finger, entry.finger, spec.hand, entry.ascending),
+      cue: cues.length > 0 ? cues.join(' · ') : undefined,
     }
   })
 
@@ -234,7 +274,7 @@ export function buildScaleExercise(spec: ScaleSpec): Exercise {
     pitchClasses: [...new Set(sounding.map((note) => note.pitchClass))],
     rootPitchClass: scale.root.pitchClass,
     pitchNames: Object.fromEntries(sounding.map((note) => [note.pitchClass, note.name])),
-    notes: steps.map((step) => step.notes[0]!),
+    notes: steps.flatMap((step) => step.notes),
     pitchDegrees: Object.fromEntries(
       scale.notes.map((note, index) => [note.pitchClass, type.degrees[index] ?? String(index + 1)]),
     ),
@@ -267,7 +307,11 @@ export function buildScaleExercise(spec: ScaleSpec): Exercise {
       { label: 'Degrees', value: type.degrees.join(' ') },
     ],
     keyFifths: keySignatureOf(scale),
-    fingering: { hand: spec.hand, fingers: fingering.fingers, source: fingering.source },
+    fingerings: voices.map(({ hand, fingering }) => ({
+      hand,
+      fingers: fingering.fingers,
+      source: fingering.source,
+    })),
     defaultBpm: 72,
   }
 }

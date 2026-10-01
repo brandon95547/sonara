@@ -11,6 +11,7 @@ import {
   scaleFingering,
   spellScale,
   tetrachordNotes,
+  type Hand,
 } from '@sonara/shared'
 import { Drawer } from '@/ui/Drawer'
 import { Divider } from '@/ui/Display'
@@ -39,19 +40,31 @@ export function ScaleTheoryDialog({ open, onClose }: { open: boolean; onClose: (
   const halves = tetrachordNotes(noteNames, type)
   const names = degreeNames(type)
   const relative = relativeKey(spec.rootPitchClass, type)
-  const fingering = scaleFingering({
-    rootName: scale.root.name,
-    scaleTypeId: type.id,
-    hand: spec.hand,
-    octaves: 1,
-    // The notes matter for every scale with no published fingering — which is
-    // most of them, the modes and pentatonics included. Passing none left this
-    // dialog showing an empty hand for all of them.
-    notes: octaveNotes(spec.rootPitchClass, type),
-  })
-  const anchors = fourthFingerDegrees(fingering.fingers, spec.hand)
-  const moves = crossings(fingering.fingers, spec.hand, noteNames)
-  const handLabel = spec.hand === 'right' ? 'Right hand' : 'Left hand'
+  // One principle per hand that plays: the two hands anchor on different
+  // degrees and cross in different places, so both hands is two answers.
+  const hands: readonly Hand[] = spec.hand === 'both' ? ['left', 'right'] : [spec.hand]
+  const principles = hands
+    .map((hand) => {
+      const fingering = scaleFingering({
+        rootName: scale.root.name,
+        scaleTypeId: type.id,
+        hand,
+        octaves: 1,
+        // The notes matter for every scale with no published fingering — which
+        // is most of them, the modes and pentatonics included. Passing none
+        // left this dialog showing an empty hand for all of them.
+        notes: octaveNotes(spec.rootPitchClass, type),
+      })
+      return {
+        hand,
+        label: hand === 'right' ? 'Right hand' : 'Left hand',
+        source: fingering.source,
+        anchors: fourthFingerDegrees(fingering.fingers, hand),
+        moves: crossings(fingering.fingers, hand, noteNames),
+      }
+    })
+    .filter((principle) => principle.source === 'standard' && principle.anchors.length > 0)
+  const once = principles.every((principle) => principle.anchors.length === 1)
 
   return (
     <Drawer
@@ -122,37 +135,41 @@ export function ScaleTheoryDialog({ open, onClose }: { open: boolean; onClose: (
           </>
         )}
 
-        {fingering.source === 'standard' && anchors.length > 0 && (
+        {principles.length > 0 && (
           <>
             <Divider />
             <Section title="Fingering principle">
-              <p className="text-body text-[var(--ds-fg)]">
-                {handLabel} 4th-finger anchor:{' '}
-                {anchors.map((degree) => noteNames[degree]).join(' and ')}{' '}
-                <span className="text-[var(--ds-fg-muted)]">
-                  ({anchors.map((degree) => ordinal(degree + 1)).join(' and ')}{' '}
-                  {anchors.length === 1 ? 'degree' : 'degrees'})
-                </span>
-              </p>
+              {principles.map(({ hand, label, anchors }) => (
+                <p key={hand} className="text-body text-[var(--ds-fg)]">
+                  {label} 4th-finger anchor:{' '}
+                  {anchors.map((degree) => noteNames[degree]).join(' and ')}{' '}
+                  <span className="text-[var(--ds-fg-muted)]">
+                    ({anchors.map((degree) => ordinal(degree + 1)).join(' and ')}{' '}
+                    {anchors.length === 1 ? 'degree' : 'degrees'})
+                  </span>
+                </p>
+              ))}
               <p className="text-body-sm text-[var(--ds-fg-secondary)]">
-                The fourth finger is the one that only lands{' '}
-                {anchors.length === 1 ? 'once' : 'twice'} in the octave. Put it{' '}
-                {anchors.length === 1 ? 'there' : 'in those places'} and the rest of the hand has
+                The fourth finger is the one that only lands {once ? 'once' : 'twice'} in the
+                octave. Put it {once ? 'there' : 'in those places'} and the rest of the hand has
                 nowhere else to go — which is why this is worth remembering instead of the eight
                 numbers it produces.
               </p>
-              {moves.length > 0 && (
-                <p className="text-body-sm text-[var(--ds-fg-secondary)]">
-                  {moves.map((move, index) => (
-                    <React.Fragment key={`${move.from}-${move.to}`}>
-                      {index > 0 && ' Then '}
-                      {move.kind === 'thumb-under'
-                        ? `Going up, pass your thumb under the hand after ${move.from} to reach ${move.to}.`
-                        : `Going up, cross your hand over the thumb after ${move.from} to reach ${move.to}.`}
-                    </React.Fragment>
-                  ))}{' '}
-                  Coming back down it happens in reverse, at the same place.
-                </p>
+              {principles.map(({ hand, label, moves }) =>
+                moves.length === 0 ? null : (
+                  <p key={hand} className="text-body-sm text-[var(--ds-fg-secondary)]">
+                    {principles.length > 1 && `${label}: `}
+                    {moves.map((move, index) => (
+                      <React.Fragment key={`${move.from}-${move.to}`}>
+                        {index > 0 && ' Then '}
+                        {move.kind === 'thumb-under'
+                          ? `Going up, pass your thumb under the hand after ${move.from} to reach ${move.to}.`
+                          : `Going up, cross your hand over the thumb after ${move.from} to reach ${move.to}.`}
+                      </React.Fragment>
+                    ))}{' '}
+                    Coming back down it happens in reverse, at the same place.
+                  </p>
+                ),
               )}
             </Section>
           </>

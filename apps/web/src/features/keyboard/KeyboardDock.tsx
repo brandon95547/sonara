@@ -88,13 +88,15 @@ export function KeyboardDock() {
   // On a phone the visible window is two octaves of an eighty-eight key piano,
   // so an exercise starting outside it would open with its first note off
   // screen and stay there until the player guessed where to go.
-  const targetNote = useLearningStore(
-    (state) => state.exercise?.steps[state.session.stepIndex]?.notes[0] ?? null,
+  // Every note of the step: with both hands playing there are two, an octave
+  // apart, and following only the lower one leaves the right hand's off the end.
+  const targetNotes = useLearningStore(
+    (state) => state.exercise?.steps[state.session.stepIndex]?.notes ?? null,
   )
   React.useEffect(() => {
-    if (!follow || targetNote === null) return
-    setWindow((current) => windowIncluding(current, targetNote))
-  }, [follow, targetNote, setWindow])
+    if (!follow || targetNotes === null) return
+    setWindow((current) => targetNotes.reduce(windowIncluding, current))
+  }, [follow, targetNotes, setWindow])
 
   return (
     <section className="keyboard-dock" aria-label="Instrument" ref={measureRef}>

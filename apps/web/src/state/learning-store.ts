@@ -195,7 +195,9 @@ function buildAnnotations(
         role:
           ahead < 0 ? 'scale' : ahead === 0 ? 'target' : ahead <= LOOKAHEAD ? 'upcoming' : 'scale',
         finger: ahead < 0 ? undefined : step.fingers[i]?.finger,
-        cue: ahead === 0 ? step.cue : undefined,
+        // The finger's own cue, not the step's: with both hands on a step only
+        // one of them is crossing, and the cue belongs on that hand's key.
+        cue: ahead === 0 ? step.fingers[i]?.cue : undefined,
         label: step.label,
       }
     })

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { noteName } from '../midi/notes.js'
 import { buildScaleExercise, DEFAULT_SCALE_SPEC, type ScaleSpec } from './scale-exercise.js'
 import { isInExercise } from './exercise.js'
+import { SCALE_TYPES } from '../music/scales.js'
 
 const build = (spec: Partial<ScaleSpec> = {}) =>
   buildScaleExercise({ ...DEFAULT_SCALE_SPEC, ...spec })
@@ -68,16 +69,19 @@ describe('buildScaleExercise', () => {
     // left from A2.
     expect(noteName(build({ hand: 'left' }).notes[0]!)).toBe('A2')
 
-    // In every key, at every width that leaves room for it, in both directions.
-    for (let pitchClass = 0; pitchClass < 12; pitchClass++) {
-      for (const octaves of [1, 2, 3] as const) {
-        for (const direction of ['up', 'down', 'up-down'] as const) {
-          const spec = { rootPitchClass: pitchClass, octaves, direction }
-          const right = build({ ...spec, hand: 'right' }).notes
-          const left = build({ ...spec, hand: 'left' }).notes
-          expect(left, `pc ${pitchClass} x${octaves} ${direction}`).toEqual(
-            right.map((note) => note - 12),
-          )
+    // Every scale type, in every key, at every width that leaves room for it,
+    // whichever way it runs — not only the one that was noticed.
+    for (const { id: scaleTypeId } of SCALE_TYPES) {
+      for (let pitchClass = 0; pitchClass < 12; pitchClass++) {
+        for (const octaves of [1, 2, 3] as const) {
+          for (const direction of ['up', 'down', 'up-down'] as const) {
+            const spec = { scaleTypeId, rootPitchClass: pitchClass, octaves, direction }
+            const right = build({ ...spec, hand: 'right' }).notes
+            const left = build({ ...spec, hand: 'left' }).notes
+            expect(left, `${scaleTypeId} pc ${pitchClass} x${octaves} ${direction}`).toEqual(
+              right.map((note) => note - 12),
+            )
+          }
         }
       }
     }
@@ -149,14 +153,14 @@ describe('buildScaleExercise', () => {
 
   it('gives a different id to every distinct request', () => {
     const ids = new Set<string>()
-    for (const hand of ['right', 'left'] as const) {
+    for (const hand of ['right', 'left', 'both'] as const) {
       for (const octaves of [1, 2] as const) {
         for (const direction of ['up', 'down', 'up-down'] as const) {
           ids.add(build({ hand, octaves, direction }).id)
         }
       }
     }
-    expect(ids.size).toBe(12)
+    expect(ids.size).toBe(18)
   })
 
   it('builds every scale type on every root without throwing', () => {
@@ -164,7 +168,7 @@ describe('buildScaleExercise', () => {
       for (const scaleTypeId of ['major', 'harmonic-minor', 'blues', 'chromatic', 'whole-tone']) {
         const exercise = build({ rootPitchClass: pitchClass, scaleTypeId, octaves: 1 })
         expect(exercise.steps.length).toBeGreaterThan(2)
-        expect(exercise.steps.length).toBe(exercise.fingering!.fingers.length)
+        expect(exercise.steps.length).toBe(exercise.fingerings[0]!.fingers.length)
       }
     }
   })
@@ -267,6 +271,152 @@ describe('the key the exercise is written in', () => {
     expect(labels.slice(13).join(' ')).toBe('B B♭ A A♭ G G♭ F E E♭ D D♭ C')
     expect(exercise.facts.find((fact) => fact.label === 'Coming down')?.value).toBe(
       'C B B♭ A A♭ G G♭ F E E♭ D D♭',
+    )
+  })
+})
+
+/**
+ * Both hands at once: what the scale books print first, "similar motion in
+ * octaves". It is the same exercise model — a step is every note that has to
+ * sound — so the engine, the keys and the staff need nothing new. What has to
+ * be right is here: each hand on its own keys, with its own fingers.
+ */
+describe('both hands together', () => {
+  const both = (spec: Partial<ScaleSpec> = {}) => build({ hand: 'both', ...spec })
+
+  it('says so', () => {
+    expect(both().subtitle).toBe('Both Hands · 2 octaves · Up (Ascending)')
+  })
+
+  it('asks for two notes a step, an octave apart, the left hand below', () => {
+    for (const step of both().steps) {
+      expect(step.notes).toHaveLength(2)
+      expect(step.notes[1]! - step.notes[0]!).toBe(12)
+      expect(step.fingers.map((finger) => finger.hand)).toEqual(['left', 'right'])
+    }
+  })
+
+  it('starts A minor where the book does: left on A2, right on A3', () => {
+    expect(both().steps[0]!.notes.map(noteName)).toEqual(['A2', 'A3'])
+  })
+
+  it('is each hand playing exactly what it plays alone', () => {
+    for (const { id: scaleTypeId } of SCALE_TYPES) {
+      for (let pitchClass = 0; pitchClass < 12; pitchClass++) {
+        for (const direction of ['up', 'down', 'up-down'] as const) {
+          const spec = { scaleTypeId, rootPitchClass: pitchClass, direction }
+          const together = both(spec)
+          for (const [index, hand] of (['left', 'right'] as const).entries()) {
+            const alone = build({ ...spec, hand })
+            const where = `${scaleTypeId} pc ${pitchClass} ${direction} ${hand}`
+            expect(
+              together.steps.map((step) => step.notes[index]),
+              where,
+            ).toEqual(alone.notes)
+            // The fingers too: the left hand is fingered as a left hand, not
+            // given the right hand's numbers an octave down.
+            expect(
+              together.steps.map((step) => step.fingers[index]!.finger),
+              where,
+            ).toEqual(alone.steps.map((step) => step.fingers[0]!.finger))
+          }
+        }
+      }
+    }
+  })
+
+  it('fingers A minor the way the page does: 5 4 3 2 1 3 2 1 under 1 2 3 1 2 3 4 5', () => {
+    const exercise = both({ octaves: 1 })
+    expect(exercise.steps.map((step) => step.fingers[0]!.finger)).toEqual([5, 4, 3, 2, 1, 3, 2, 1])
+    expect(exercise.steps.map((step) => step.fingers[1]!.finger)).toEqual([1, 2, 3, 1, 2, 3, 4, 5])
+    expect(exercise.fingerings.map((fingering) => fingering.hand)).toEqual(['left', 'right'])
+  })
+
+  it('says which hand is moving, because they do not cross on the same note', () => {
+    const exercise = both({ octaves: 1 })
+    const cued = exercise.steps.filter((step) => step.cue)
+    expect(cued.map((step) => `${step.label} — ${step.cue}`)).toEqual([
+      'D — Right: Thumb under',
+      'F — Left: Cross over',
+    ])
+    // And each cue sits on the finger of the hand it is about, so the keyboard
+    // can draw it on that hand's key and not the other's.
+    const [thumbUnder, crossOver] = cued
+    expect(thumbUnder!.fingers.map((finger) => finger.cue)).toEqual([undefined, 'Thumb under'])
+    expect(crossOver!.fingers.map((finger) => finger.cue)).toEqual(['Cross over', undefined])
+  })
+
+  it('stays on a 61-key keyboard at every width the controls offer', () => {
+    for (const { id: scaleTypeId } of SCALE_TYPES) {
+      for (let pitchClass = 0; pitchClass < 12; pitchClass++) {
+        for (const octaves of [1, 2, 3] as const) {
+          const notes = both({ scaleTypeId, rootPitchClass: pitchClass, octaves }).notes
+          const where = `${scaleTypeId} pc ${pitchClass} x${octaves}`
+          expect(Math.min(...notes), where).toBeGreaterThanOrEqual(36)
+          expect(Math.max(...notes), where).toBeLessThanOrEqual(96)
+        }
+      }
+    }
+  })
+
+  it('never puts the two hands on the same key, even with no room to spare', () => {
+    // Four octaves of Db: a left hand alone shares the right hand's position,
+    // but two hands cannot, so they keep their octave and run off a 61 instead.
+    const exercise = both({ rootPitchClass: 1, octaves: 4 })
+    for (const step of exercise.steps) expect(step.notes[1]! - step.notes[0]!).toBe(12)
+  })
+})
+
+/**
+ * The three forms of the minor, which is how the scale books file them: one
+ * key, "A Minor", printed in a harmonic form and a melodic form, with the
+ * natural minor as the melodic form's way back down.
+ */
+describe('the forms of the minor scale', () => {
+  const semitones = (spec: Partial<ScaleSpec>) => {
+    const notes = build({ octaves: 1, ...spec }).steps.map((step) => step.notes[0]!)
+    return notes.map((note) => Math.abs(note - notes[0]!))
+  }
+
+  it('offers all three by name', () => {
+    const names = SCALE_TYPES.filter((type) => type.family === 'minor').map((type) => type.name)
+    expect(names).toEqual(['Natural Minor', 'Harmonic Minor', 'Melodic Minor'])
+  })
+
+  it('builds each form correctly in every key, for either hand', () => {
+    for (const hand of ['right', 'left'] as const) {
+      for (let rootPitchClass = 0; rootPitchClass < 12; rootPitchClass++) {
+        const key = { rootPitchClass, hand }
+        const where = `pc ${rootPitchClass} ${hand}`
+        expect(semitones({ ...key, scaleTypeId: 'natural-minor' }), where).toEqual([
+          0, 2, 3, 5, 7, 8, 10, 12,
+        ])
+        // The seventh raised, both ways.
+        expect(semitones({ ...key, scaleTypeId: 'harmonic-minor' }), where).toEqual([
+          0, 2, 3, 5, 7, 8, 11, 12,
+        ])
+        expect(
+          semitones({ ...key, scaleTypeId: 'harmonic-minor', direction: 'down' }),
+          where,
+        ).toEqual([0, 1, 4, 5, 7, 9, 10, 12])
+        // The sixth and seventh raised going up, and put back coming down.
+        expect(semitones({ ...key, scaleTypeId: 'melodic-minor' }), where).toEqual([
+          0, 2, 3, 5, 7, 9, 11, 12,
+        ])
+        expect(
+          semitones({ ...key, scaleTypeId: 'melodic-minor', direction: 'down' }),
+          where,
+        ).toEqual([0, 2, 4, 5, 7, 9, 10, 12])
+      }
+    }
+  })
+
+  it('spells A harmonic and melodic minor as the book prints them', () => {
+    const labels = (spec: Partial<ScaleSpec>) =>
+      build({ octaves: 1, ...spec }).steps.map((step) => step.label)
+    expect(labels({ scaleTypeId: 'harmonic-minor' }).join(' ')).toBe('A B C D E F G♯ A')
+    expect(labels({ scaleTypeId: 'melodic-minor', direction: 'up-down' }).join(' ')).toBe(
+      'A B C D E F♯ G♯ A G F E D C B A',
     )
   })
 })
