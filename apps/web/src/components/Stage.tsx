@@ -8,6 +8,7 @@ import { ScaleScore } from '@/features/staff/ScaleScore'
 import { SongScore } from '@/features/staff/SongScore'
 import { SongProgress } from '@/features/songs/SongProgress'
 import { RunMeter } from '@/features/learning/RunMeter'
+import { EXERCISE_NOUNS } from '@/features/learning/ScaleControls'
 import { useLearningStore } from '@/state/learning-store'
 import { useCurrentSong, useSongStore } from '@/state/song-store'
 import { useViewStore } from '@/state/view-store'
@@ -35,7 +36,7 @@ export function Stage() {
 
       <div className="stage__notices">
         <EngineNotice />
-        {topic === 'scales' && <RunStatus />}
+        {topic !== 'songs' && <RunStatus />}
       </div>
 
       {showStaff && (
@@ -45,7 +46,7 @@ export function Stage() {
               free play — keeps the picture of the moment. */}
           {scoreOpen ? (
             <SongScore />
-          ) : topic === 'scales' && hasExercise ? (
+          ) : topic !== 'songs' && hasExercise ? (
             <ScaleScore />
           ) : (
             <GrandStaff />
@@ -53,7 +54,7 @@ export function Stage() {
         </div>
       )}
 
-      {topic === 'scales' && <RunComplete />}
+      {topic !== 'songs' && <RunComplete />}
     </main>
   )
 }
@@ -84,13 +85,14 @@ function EngineNotice() {
 function RunStatus() {
   const session = useLearningStore((state) => state.session)
   const total = useLearningStore((state) => state.exercise?.steps.length ?? 0)
+  const what = useLearningStore((state) => EXERCISE_NOUNS[state.exercise?.kind ?? 'scale'])
   if (session.status !== 'running') return null
   return (
     <RunMeter
       done={session.completedSteps}
       total={total}
       mistakes={session.mistakes}
-      label="the scale"
+      label={`the ${what}`}
     />
   )
 }
@@ -105,6 +107,12 @@ function RunStatus() {
 function RunComplete() {
   const session = useLearningStore((state) => state.session)
   const steps = useLearningStore((state) => state.exercise?.steps.length ?? 0)
+  // A step of solid chords is a chord, not a note.
+  const unit = useLearningStore((state) =>
+    state.exercise?.steps.some((step) => step.noteLabels && step.fingers.length > 2)
+      ? 'chords'
+      : 'notes',
+  )
   const start = useLearningStore((state) => state.start)
   if (session.status !== 'complete') return null
   const percent = Math.round(accuracy(session) * 100)
@@ -114,7 +122,7 @@ function RunComplete() {
       <div className="flex flex-col">
         <span className="run-complete__title">Complete</span>
         <span className="run-complete__detail" data-tabular>
-          {steps} notes · {percent}% accuracy ·{' '}
+          {steps} {unit} · {percent}% accuracy ·{' '}
           {session.mistakes === 0
             ? 'clean'
             : `${session.mistakes} ${session.mistakes === 1 ? 'mistake' : 'mistakes'}`}

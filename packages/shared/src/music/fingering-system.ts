@@ -1,3 +1,4 @@
+import type { ChordKind, KeyMode } from './chords.js'
 import type { Hand } from './fingering.js'
 import { TRADITIONAL } from './fingering-traditional.js'
 
@@ -73,6 +74,27 @@ export interface SystemScaleFingering {
   readonly cycle?: readonly number[]
 }
 
+/** A chord in one position, in one hand. */
+export interface ChordFingeringQuery {
+  readonly kind: ChordKind
+  readonly mode: KeyMode
+  /** 0 is root position. Past the last inversion it is the root position again. */
+  readonly position: number
+  readonly hand: Hand
+}
+
+/** An arpeggio: a chord run up the keyboard from one of its positions. */
+export interface ArpeggioFingeringQuery {
+  /** The key's tonic as it is spelled — as for a scale, and for the same reason. */
+  readonly tonic: string
+  readonly mode: KeyMode
+  /** The key's own triad, or its seventh chord. */
+  readonly kind: 'triad' | 'seventh'
+  readonly position: number
+  readonly hand: Hand
+  readonly octaves: number
+}
+
 export interface FingeringSystem {
   readonly id: FingeringSystemId
   /** `Traditional / Orthodox` — as the setting lists it. */
@@ -84,6 +106,10 @@ export interface FingeringSystem {
   readonly reference: string
   /** The fingers for a scale run, or null where the system does not supply any. */
   scale(query: ScaleFingeringQuery): SystemScaleFingering | null
+  /** The fingers for a chord, lowest note first, or null. */
+  chord(query: ChordFingeringQuery): readonly number[] | null
+  /** The fingers for an arpeggio ascending, lowest note first, or null. */
+  arpeggio(query: ArpeggioFingeringQuery): readonly number[] | null
 }
 
 export const FINGERING_SYSTEMS: Readonly<Record<FingeringSystemId, FingeringSystem>> = {

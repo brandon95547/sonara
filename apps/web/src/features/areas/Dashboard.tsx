@@ -19,10 +19,13 @@ import { AREAS, COMING_NEXT, type Area } from './areas'
  * rather than being missing, so the shape of the app is visible from day one.
  */
 export function Dashboard() {
-  const scale = useLearningStore((state) => state.exercise?.title)
+  // What the practice areas are set to. Only the one that was last open has an
+  // exercise built, so that is the one that can say where it was left.
+  const topic = useLearningStore((state) => state.topic)
+  const exercise = useLearningStore((state) => state.exercise?.title)
   const song = useCurrentSong()
   const where: Partial<Record<Area['topic'], string>> = {
-    scales: scale,
+    [topic]: exercise,
     songs: song?.title,
   }
 

@@ -32,6 +32,7 @@ import {
   SCALE_TYPES,
   scaleSpellings,
   spellScale,
+  type ExerciseKind,
   type LearningMode,
   type ScaleDirection,
   type ScaleMotion,
@@ -149,6 +150,15 @@ const DIRECTION_ICONS: Record<ScaleDirection, LucideIcon> = {
   up: ArrowUp,
   down: ArrowDown,
   'up-down': ArrowUpDown,
+}
+
+/** What an exercise is called in a sentence: "Hear the scale", "the arpeggio". */
+export const EXERCISE_NOUNS: Record<ExerciseKind, string> = {
+  scale: 'scale',
+  chord: 'chords',
+  arpeggio: 'arpeggio',
+  progression: 'progression',
+  exercise: 'exercise',
 }
 
 /** Shared with Songs, so a mode looks the same wherever it is chosen. */
@@ -349,7 +359,7 @@ export function ScalePicker() {
   )
 }
 
-function CompactField({ label, children }: { label: string; children: React.ReactNode }) {
+export function CompactField({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-1.5">
       <span className="text-label-sm text-[var(--ds-fg-muted)]">{label}</span>
@@ -365,7 +375,7 @@ function CompactField({ label, children }: { label: string; children: React.Reac
  * works everywhere else; twelve keys that were each a Tab stop would put the
  * scale types twelve presses away.
  */
-function RadioGrid<T extends string | number>({
+export function RadioGrid<T extends string | number>({
   label,
   value,
   options,
@@ -653,17 +663,19 @@ export function MetronomeToggle({ className }: { className?: string }) {
  */
 export function DemoButton() {
   const running = useLearningStore((state) => state.session.status === 'running')
+  // What is about to be heard, in the words of the area it is in.
+  const what = useLearningStore((state) => EXERCISE_NOUNS[state.exercise?.kind ?? 'scale'])
   const demo = useScaleDemo()
   const playing = demo.status === 'playing'
   // The label is the tooltip too, so a disabled button says why it is off
   // instead of leaving a dead control to be puzzled over.
   const label = running
-    ? 'Stop the run to hear the scale'
+    ? `Stop the run to hear the ${what}`
     : playing
       ? 'Pause'
       : demo.status === 'paused'
-        ? 'Resume the scale'
-        : 'Hear the scale'
+        ? `Resume the ${what}`
+        : `Hear the ${what}`
 
   return (
     <button

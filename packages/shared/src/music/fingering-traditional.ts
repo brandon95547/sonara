@@ -1,6 +1,12 @@
 import { isBlackKey } from '../midi/notes.js'
 import type { Hand } from './fingering.js'
-import type { FingeringSystem, ScaleFingeringQuery } from './fingering-system.js'
+import type { KeyMode } from './chords.js'
+import type {
+  ArpeggioFingeringQuery,
+  ChordFingeringQuery,
+  FingeringSystem,
+  ScaleFingeringQuery,
+} from './fingering-system.js'
 import { normalisePitchClass, parsePitch } from './pitch.js'
 
 /**
@@ -365,6 +371,160 @@ function scale(query: ScaleFingeringQuery) {
   return { ...layOut(cycle, ends, query.octaves, startDegree), cycle }
 }
 
+/**
+ * Chords, solid and broken.
+ *
+ * The book prints these under every key and fingers them the same way in every
+ * key: a chord's fingering follows its shape, not its notes. One row per
+ * position, lowest note first.
+ *
+ * The 3rd finger and the 4th trade places as the gaps move: whichever hand has
+ * the wide gap next to its little finger takes the 4th finger there.
+ */
+const CHORD_SHAPES: Readonly<
+  Record<'triad' | 'four-note' | 'dominant' | 'diminished', Record<Hand, readonly string[]>>
+> = {
+  // Root position, 1st inversion, 2nd inversion.
+  triad: { right: ['135', '125', '135'], left: ['531', '531', '521'] },
+  // The triad with its octave: four notes under one hand.
+  'four-note': { right: ['1235', '1245', '1245'], left: ['5421', '5421', '5321'] },
+  // Root position and three inversions.
+  dominant: {
+    right: ['1245', '1245', '1235', '1245'],
+    left: ['5421', '5421', '5321', '5421'],
+  },
+  // Every position of a diminished seventh is the same shape — minor thirds
+  // all the way up — so every position is fingered alike.
+  diminished: {
+    right: ['1245', '1245', '1245', '1245'],
+    left: ['5421', '5421', '5421', '5421'],
+  },
+}
+
+function chord(query: ChordFingeringQuery) {
+  const shape =
+    CHORD_SHAPES[
+      query.kind !== 'seventh' ? query.kind : query.mode === 'major' ? 'dominant' : 'diminished'
+    ][query.hand]
+  return digits(shape[((query.position % shape.length) + shape.length) % shape.length]!)
+}
+
+/**
+ * Arpeggios, two octaves, as printed under each key.
+ *
+ * Unlike the chords these are different in every key, because where the thumb
+ * can go depends on which of the notes are black. So they are a table: for
+ * each key, each position, the right hand and then the left, ascending.
+ *
+ * The page prints the way down as well. It is the way up read backwards in all
+ * but a handful of places, where one finger near the turn differs; those few
+ * are not recorded, and the descent is the ascent mirrored.
+ */
+type ArpeggioPosition = readonly [right: string, left: string]
+
+/** Root position, 1st inversion, 2nd inversion. */
+const TONIC_ARPEGGIOS: Readonly<Record<KeyMode, Readonly<Record<string, string>>>> = {
+  // 'right hand × 3 | left hand × 3'
+  major: {
+    C: '1231235 1241245 1241245 | 5421421 5421421 5321321',
+    G: '1231235 1241245 1241245 | 5421421 5421421 5321321',
+    D: '1231235 2124124 1241245 | 5421421 4214212 5321321',
+    A: '1231235 2124124 1241245 | 5421421 4214212 5321321',
+    E: '1231235 2124124 1241245 | 5421421 4214212 5321321',
+    B: '1231235 2312312 2123123 | 5321321 3213212 2132132',
+    // All black keys, so nothing is gained by keeping the thumb off them.
+    'F♯': '1231235 1241245 1241245 | 5421421 5421421 5321321',
+    F: '1231235 1241245 1241245 | 5421421 5421421 5321321',
+    'B♭': '2124124 1241245 1241245 | 4214212 5421421 5321321',
+    'E♭': '2124124 1241245 2412412 | 2142142 5421421 4214212',
+    'A♭': '2124124 1241245 2412412 | 2142142 5421421 4214212',
+    'D♭': '2124124 1241245 2412412 | 2142142 5421421 4214212',
+  },
+  minor: {
+    A: '1231235 1241245 1241245 | 5421421 5421421 5321321',
+    E: '1231235 1241245 1241245 | 5421421 5421421 5321321',
+    B: '1231235 1241245 2124124 | 5421421 5421421 4214212',
+    'F♯': '2124124 1241245 2412412 | 2142142 5421421 4214212',
+    'C♯': '2124124 1241245 2412412 | 2142142 5421421 4214212',
+    'G♯': '2124124 1241245 2412412 | 2142142 5421421 4214212',
+    'D♯': '1231235 1241245 1241245 | 5421421 5421421 5321321',
+    D: '1231235 1241245 1241245 | 5421421 5421421 5321321',
+    G: '1231235 2124124 1241245 | 5421421 4214212 5321321',
+    C: '1231235 2124124 1241245 | 5421421 4214212 5321321',
+    F: '1231235 2124124 1241245 | 5421421 4214212 5321321',
+    'B♭': '2312312 2123123 1231235 | 3213212 2132132 5321321',
+  },
+}
+
+/** The white-key shape: four fingers, thumb under, and the little finger on top. */
+const W: ArpeggioPosition = ['123412345', '543214321']
+/** Starting on a black key with the thumb on the next note up. */
+const B: ArpeggioPosition = ['212341234', '432143212']
+/** Two black keys before the thumb, taken 2 3. */
+const BB: ArpeggioPosition = ['231234123', '432143212']
+
+/**
+ * The seventh chord of each key — dominant seventh in the major keys,
+ * diminished seventh in the minor — in its four positions.
+ */
+const SEVENTH_ARPEGGIOS: Readonly<
+  Record<KeyMode, Readonly<Record<string, readonly ArpeggioPosition[]>>>
+> = {
+  major: {
+    C: [W, W, W, W],
+    G: [W, B, W, W],
+    D: [W, B, W, W],
+    A: [W, B, W, W],
+    E: [W, BB, ['212341234', '321432132'], W],
+    B: [['234123412', '432143212'], ['341234123', '321432143'], ['212341234', '214321432'], W],
+    'F♯': [['212341234', '214321432'], W, B, W],
+    F: [W, W, W, B],
+    'B♭': [W, W, W, B],
+    'E♭': [['212341234', '321432143'], W, W, BB],
+    'A♭': [['212341234', '214321432'], W, ['234123412', '432143212'], ['341234123', '321432143']],
+    'D♭': [['212341234', '214321432'], W, ['234123412', '432143212'], ['341234123', '321432143']],
+  },
+  minor: {
+    A: [B, W, W, W],
+    E: [BB, ['312341234', '321432143'], W, W],
+    B: [BB, ['212341234', '321432143'], W, W],
+    'F♯': [W, B, W, W],
+    'C♯': [W, BB, ['212341234', '321432132'], W],
+    'G♯': [W, BB, ['212341234', '321432132'], W],
+    'D♯': [W, W, B, W],
+    D: [['212341234', '321432143'], W, W, BB],
+    G: [['212341234', '321432143'], W, W, BB],
+    C: [W, W, W, B],
+    // The one place the page takes a black key with the 4th finger on the way
+    // to the thumb: B♭ 2, D♭ 4, E 1.
+    F: [W, W, ['241234123', '432143212'], ['212341234', '321432143']],
+    'B♭': [W, W, BB, ['212341234', '321432143']],
+  },
+}
+
+function arpeggio(query: ArpeggioFingeringQuery) {
+  // The page prints two octaves. A fingering that opens and turns its own way
+  // in every key is not something to stretch or cut by guesswork.
+  if (query.octaves !== 2) return null
+
+  const tonic = parsePitch(query.tonic)?.name
+  if (tonic === undefined) return null
+  const from = PLAYED_FROM[query.mode][tonic]
+  const hand = query.hand === 'right' ? 0 : 1
+
+  if (query.kind === 'triad') {
+    const keys = TONIC_ARPEGGIOS[query.mode]
+    const page = keys[tonic] ?? (from ? keys[from] : undefined)
+    const run = page?.split(' | ')[hand]?.split(' ')[query.position]
+    return run ? digits(run) : null
+  }
+
+  const keys = SEVENTH_ARPEGGIOS[query.mode]
+  const page = keys[tonic] ?? (from ? keys[from] : undefined)
+  const run = page?.[query.position]?.[hand]
+  return run ? digits(run) : null
+}
+
 export const TRADITIONAL: FingeringSystem = {
   id: 'traditional',
   name: 'Traditional / Orthodox',
@@ -374,4 +534,6 @@ export const TRADITIONAL: FingeringSystem = {
   reference:
     'Scales, Chords and Arpeggios for Piano — The Brown Scale Book (Frederick Harris Music, ©1948)',
   scale,
+  chord,
+  arpeggio,
 }

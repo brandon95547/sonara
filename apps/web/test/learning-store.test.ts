@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { DEFAULT_SCALE_SPEC } from '@sonara/shared'
+import { DEFAULT_ARPEGGIO_SPEC, DEFAULT_CHORD_SPEC, DEFAULT_SCALE_SPEC } from '@sonara/shared'
 import { useLearningStore } from '@/state/learning-store'
 
 /**
@@ -175,7 +175,7 @@ describe('changing the exercise', () => {
   })
 
   it('clears the keyboard when the topic has no builder yet', () => {
-    store().setTopic('chords')
+    store().setTopic('progressions')
     expect(store().exercise).toBeNull()
     expect(Object.keys(store().annotations)).toHaveLength(0)
   })
@@ -437,5 +437,67 @@ describe('the keys the player has', () => {
     const session = store().session
     store().setPlayableRange({ low: 21, high: 108 })
     expect(store().session).toBe(session)
+  })
+})
+
+/**
+ * Chords and arpeggios are areas of their own, with their own settings, built
+ * by the same store and drawn on the same keys.
+ */
+describe('the chords and arpeggios areas', () => {
+  afterEach(() => {
+    store().updateChordSpec({ ...DEFAULT_CHORD_SPEC, tonic: undefined })
+    store().updateArpeggioSpec({ ...DEFAULT_ARPEGGIO_SPEC, tonic: undefined })
+  })
+
+  it('builds the area that is open from that area’s own settings', () => {
+    store().setTopic('chords')
+    expect(store().exercise!.kind).toBe('chord')
+    expect(store().exercise!.title).toBe('C Major Triads')
+
+    store().setTopic('arpeggios')
+    expect(store().exercise!.kind).toBe('arpeggio')
+
+    // And the scale is as it was left.
+    store().setTopic('scales')
+    expect(store().exercise!.title).toBe('A Natural Minor')
+  })
+
+  it('lights a whole chord as one target, each key with its own note and finger', () => {
+    store().setTopic('chords')
+    const [c, e, g] = store().exercise!.steps[0]!.notes
+    for (const note of [c, e, g]) expect(roleOf(note!)).toBe('target')
+    expect(store().annotations[c!]).toMatchObject({ label: 'C', finger: 1 })
+    expect(store().annotations[e!]).toMatchObject({ label: 'E', finger: 3 })
+    expect(store().annotations[g!]).toMatchObject({ label: 'G', finger: 5 })
+  })
+
+  it('moves on only when every note of the chord has been played', () => {
+    store().setTopic('chords')
+    store().start()
+    const [c, e, g] = store().exercise!.steps[0]!.notes
+    store().noteOn(c!)
+    store().noteOn(g!)
+    expect(store().session.stepIndex).toBe(0)
+    store().noteOn(e!)
+    expect(store().session.stepIndex).toBe(1)
+    expect(store().session.mistakes).toBe(0)
+  })
+
+  it('runs an arpeggio a note at a time, with the book’s fingers on the keys', () => {
+    store().setTopic('arpeggios')
+    store().updateArpeggioSpec({ rootPitchClass: 3, direction: 'up' })
+    // E♭ major: the thumb waits for G.
+    const steps = store().exercise!.steps
+    expect(steps.map((step) => step.fingers[0]!.finger).join('')).toBe('2124124')
+    expect(store().annotations[steps[0]!.notes[0]!]?.finger).toBe(2)
+  })
+
+  it('forgets a key’s other name when the key changes, in these areas too', () => {
+    store().setTopic('arpeggios')
+    store().updateArpeggioSpec({ rootPitchClass: 3, mode: 'minor', tonic: 'E♭' })
+    expect(store().exercise!.title).toBe('E♭ Minor Arpeggio')
+    store().updateArpeggioSpec({ rootPitchClass: 9 })
+    expect(store().arpeggioSpec.tonic).toBeUndefined()
   })
 })

@@ -39,11 +39,11 @@ const DETAILS: Record<LearningTopic, { icon: LucideIcon; description: string }> 
   },
   chords: {
     icon: Layers,
-    description: 'Shapes, inversions and voicings under your hands.',
+    description: 'Triads, four-note chords and sevenths in every position, solid and broken.',
   },
   arpeggios: {
     icon: Waves,
-    description: 'Chords broken into runs across the keyboard.',
+    description: 'Each key’s chords run up the keyboard, from every position.',
   },
   progressions: {
     icon: Route,

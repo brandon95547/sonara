@@ -86,7 +86,7 @@ export function SettingsDrawer({
             <Divider />
           </>
         )}
-        {topic === 'scales' ? <PracticeSection /> : <SongSection />}
+        {topic !== 'songs' ? <PracticeSection /> : <SongSection />}
         <Divider />
         <Section title="Keyboard & MIDI" description={<MidiLine />}>
           <Button

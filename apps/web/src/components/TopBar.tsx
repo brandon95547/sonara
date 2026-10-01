@@ -21,6 +21,7 @@ import { pageActions, usePageStore } from '@/state/page-store'
 import { useRecordingStore } from '@/state/recording-store'
 import { AREAS, COMING_NEXT } from '@/features/areas/areas'
 import { LastTakeButton, RecordButton } from '@/features/recording/RecordControls'
+import { ArpeggioSettings, ChordSettings } from '@/features/learning/ChordControls'
 import {
   DemoButton,
   DirectionMenu,
@@ -89,6 +90,26 @@ export function TopBar() {
           </>
         )}
 
+        {(area === 'chords' || area === 'arpeggios') && (
+          <>
+            <span className="top-bar__divider bar-sm" aria-hidden />
+            {area === 'chords' ? <ChordSettings /> : <ArpeggioSettings />}
+
+            <span className="top-bar__spacer" />
+
+            <GuidanceMenu />
+            <TempoButton />
+            <MetronomeToggle className="bar-mid" />
+            <span className="top-bar__divider" aria-hidden />
+            <DemoButton />
+            <span className="bar-mid top-bar__cluster">
+              <RecordButton />
+              <LastTakeButton />
+            </span>
+            <StartButton />
+          </>
+        )}
+
         {area === 'songs' && (
           <>
             <span className="top-bar__divider bar-sm" aria-hidden />
@@ -141,7 +162,7 @@ function Utilities({ area }: { area: string | null }) {
    * item exactly where its `bar-*` twin is hidden.
    */
   const folded: MenuAction[] = [
-    ...(area === 'scales'
+    ...(area && area !== 'songs'
       ? [
           {
             id: 'record',

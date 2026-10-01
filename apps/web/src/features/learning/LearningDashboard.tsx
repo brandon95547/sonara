@@ -107,14 +107,18 @@ function MaterialCard({ exercise }: { exercise: Exercise }) {
           <h3 className="text-h2 text-[var(--ds-fg)]">{exercise.title}</h3>
           <p className="text-caption text-[var(--ds-fg-muted)]">{exercise.subtitle}</p>
         </div>
-        <IconButton
-          size="sm"
-          variant="text"
-          className="-mr-1 shrink-0"
-          label="Understand this scale"
-          icon={<Info />}
-          onClick={() => panelActions.open('theory')}
-        />
+        {/* The explanation is the scale's: how it is built, what its degrees
+            are called. A chord has no such page yet, so it has no button. */}
+        {exercise.kind === 'scale' && (
+          <IconButton
+            size="sm"
+            variant="text"
+            className="-mr-1 shrink-0"
+            label="Understand this scale"
+            icon={<Info />}
+            onClick={() => panelActions.open('theory')}
+          />
+        )}
       </div>
 
       <dl className="flex flex-col gap-2">
@@ -220,7 +224,8 @@ function CurrentStepCard({
   return (
     <Card variant="elevated" className="flex flex-col gap-3">
       <h3 className="text-label text-[var(--ds-fg-muted)] uppercase tracking-[0.09em]">
-        Current note
+        {/* A step of solid chords is a chord, not a note. */}
+        {step && step.fingers.length > hands.length ? 'Current chord' : 'Current note'}
       </h3>
 
       {mode === 'explore' ? (
@@ -292,8 +297,9 @@ function ExploreBody({ exercise }: { exercise: Exercise }) {
   return (
     <div className="flex flex-col gap-2">
       <p className="text-body-sm text-[var(--ds-fg-secondary)]">
-        Every {exercise.title} key is lit across the whole keyboard. Play freely and listen to where
-        the scale wants to go.
+        {exercise.kind === 'scale'
+          ? `Every ${exercise.title} key is lit across the whole keyboard. Play freely and listen to where the scale wants to go.`
+          : 'Every note of the chord is lit across the whole keyboard. Play freely and listen to how it sits.'}
       </p>
       <div className="flex flex-wrap gap-1.5 pt-1">
         {/* Scale order, not pitch-class order: A minor starts on A, and a chip
@@ -314,7 +320,7 @@ function CompleteBody({ session, exercise }: { session: SessionState; exercise: 
     <div className="flex flex-col gap-2 py-2">
       <span className="text-h1 text-[var(--ds-success-text)]">Complete</span>
       <p className="text-body-sm text-[var(--ds-fg-secondary)]">
-        {exercise.steps.length} notes, {score}% accuracy
+        {exercise.steps.length} steps, {score}% accuracy
         {session.mistakes > 0
           ? `, ${session.mistakes} ${session.mistakes === 1 ? 'mistake' : 'mistakes'}.`
           : ', clean.'}
@@ -348,8 +354,8 @@ function ProgressCard({
           Progress
         </h3>
         <p className="text-body-sm text-[var(--ds-fg-muted)]">
-          Nothing is being scored in Explore. Switch to Learn or Practice to run the scale and keep
-          a record of it.
+          Nothing is being scored in Explore. Switch to Learn or Practice to run it and keep a
+          record.
         </p>
       </Card>
     )
@@ -470,6 +476,10 @@ function InstructionsCard({ mode }: { mode: LearningMode }) {
   )
 }
 
+/** `finger 1`, `fingers 1 3 5`. */
+const fingerWord = (fingers: string | undefined) =>
+  fingers && fingers.length > 1 ? 'fingers' : 'finger'
+
 function HandPositionCard({ exercise, session }: { exercise: Exercise; session: SessionState }) {
   const step = currentStep(exercise, session)
   const hands = handsOf(exercise, step)
@@ -484,7 +494,11 @@ function HandPositionCard({ exercise, session }: { exercise: Exercise; session: 
     )
     return {
       hand,
-      start: first?.fingers.find((finger) => finger.hand === hand)?.finger,
+      // Every finger this hand starts on: one for a scale, three or four for a chord.
+      start: first?.fingers
+        .filter((finger) => finger.hand === hand)
+        .map((finger) => finger.finger)
+        .join(' '),
       cue: crossing?.fingers.find((finger) => finger.hand === hand)?.cue?.toLowerCase(),
       on: crossing?.label,
     }
@@ -508,7 +522,10 @@ function HandPositionCard({ exercise, session }: { exercise: Exercise; session: 
           <p className="text-body-sm leading-relaxed text-[var(--ds-fg-secondary)]">
             {first &&
               `Start on ${first.label}: ${advice
-                .map(({ hand, start }) => `${HAND_NAMES[hand].toLowerCase()} finger ${start}`)
+                .map(
+                  ({ hand, start }) =>
+                    `${HAND_NAMES[hand].toLowerCase()} ${fingerWord(start)} ${start}`,
+                )
                 .join(', ')}. `}
             Keep the wrists level and the fingers curved.
             {advice.map(({ hand, cue, on }) =>
@@ -517,7 +534,8 @@ function HandPositionCard({ exercise, session }: { exercise: Exercise; session: 
           </p>
         ) : (
           <p className="text-body-sm leading-relaxed text-[var(--ds-fg-secondary)]">
-            {first && `Start with finger ${advice[0]?.start} on ${first.label}. `}
+            {first &&
+              `Start with ${fingerWord(advice[0]?.start)} ${advice[0]?.start} on ${first.label}. `}
             Keep the wrist level and the fingers curved
             {advice[0]?.cue ? `, and ${advice[0].cue} on ${advice[0].on}.` : '.'}
           </p>

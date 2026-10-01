@@ -47,6 +47,11 @@ touchscreen or a USB MIDI keyboard, and watch every note land on the keys.
   Fingering system setting built to take more than one.
 - **Play it to hear it.** A demo button walks the scale at the tempo you have
   set, driving the same finger and target guidance Learn uses.
+- **Chords and arpeggios.** Two more areas, built on the same engine: each
+  key's triad, its four-note form and its seventh chord (dominant in a major
+  key, diminished in a minor) in every position, solid and broken; and the
+  same chords as two-octave arpeggios from each position. Fingered from The
+  Brown Scale Book in all twenty-four keys.
 - **"Understand this scale"** explains the one you have selected: how it is
   built from its tetrachords, its degrees, its relative key, and the fingering
   principle behind the hand you are being shown.
@@ -238,10 +243,11 @@ packages/shared/src/learning/   the Exercise model, builders, the session engine
 ```
 
 Nothing downstream — not the engine, not the keyboard, not the dashboard — knows
-which of those it is looking at. Adding Chords, Arpeggios, Progressions or
-Exercises is a builder that returns steps; the highlighting, the finger badges,
-the scoring and the dashboard already work on them. The topic tabs for those are
-shown and disabled rather than hidden, because the shape of the thing is the
+which of those it is looking at. Chords and Arpeggios arrived that way: a
+builder each (`learning/chord-exercise.ts`) that returns steps, and the
+highlighting, the finger badges, the staff, the scoring and the dashboard worked
+on them as they were. Progressions and Exercises are still to come; their cards
+are shown and locked rather than hidden, because the shape of the thing is the
 promise.
 
 The session engine is a **pure reducer over note events**, deliberately:
@@ -269,8 +275,10 @@ _A fingering system_ answers for the scales its source prints. There is one,
 **Traditional / Orthodox**, chosen under Settings ▸ Fingering, and it is a
 transcription of the fingering printed in _Scales, Chords and Arpeggios for
 Piano — The Brown Scale Book_ (Frederick Harris): every major key, every minor
-key in its harmonic and melodic forms, and the chromatic scale. It is held to
-one rule — it says what the page says:
+key in its harmonic and melodic forms, and the chromatic scale; each key's
+chords, which the book fingers alike in every key; and each key's arpeggios,
+which it fingers differently in every one. It is held to one rule — it says
+what the page says:
 
 - **The ends of a run are kept as printed.** The book opens A♭ major in the
   right hand on `2 3` and only takes `3 4` on those notes an octave later; it

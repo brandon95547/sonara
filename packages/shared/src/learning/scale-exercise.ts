@@ -273,7 +273,7 @@ function placeHands(
 }
 
 /** `Thumb under` / `Cross over`, placed on the note where the hand actually moves. */
-function movementCue(
+export function movementCue(
   previousFinger: number | undefined,
   finger: number,
   hand: Hand,

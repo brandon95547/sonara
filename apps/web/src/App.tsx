@@ -141,7 +141,7 @@ function Shell() {
           must keep playing, and a metronome keep time, while a menu is shut.
           Leaving for the dashboard is leaving the area, and stops them. */}
       <KeyboardRangeSync />
-      {page === 'area' && topic === 'scales' && <ScaleEngine />}
+      {page === 'area' && topic !== 'songs' && <ScaleEngine />}
       {page === 'area' && topic === 'songs' && <SongEngine />}
 
       <SettingsDrawer

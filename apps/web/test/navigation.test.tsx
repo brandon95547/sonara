@@ -51,7 +51,8 @@ describe('moving between the dashboard and the areas', () => {
     pageActions.openArea('songs')
     await waitFor(() => expect(usePageStore.getState().page).toBe('area'))
 
-    globalThis.location.hash = '#/chords'
+    // Progressions has no builder yet; Chords and Arpeggios now do.
+    globalThis.location.hash = '#/progressions'
     await waitFor(() => expect(usePageStore.getState().page).toBe('dashboard'))
   })
 })

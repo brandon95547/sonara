@@ -1,6 +1,10 @@
 import { create } from 'zustand'
 import {
+  buildArpeggioExercise,
+  buildChordExercise,
   buildScaleExercise,
+  DEFAULT_ARPEGGIO_SPEC,
+  DEFAULT_CHORD_SPEC,
   DEFAULT_FINGERING_SYSTEM,
   DEFAULT_PLAYABLE_RANGE,
   DEFAULT_SCALE_SPEC,
@@ -14,6 +18,8 @@ import {
   sessionReducer,
   tempo,
   WRONG_NOTE_FLASH_MS,
+  type ArpeggioSpec,
+  type ChordSpec,
   type Exercise,
   type FingeringSystemId,
   type LearningMode,
@@ -57,7 +63,15 @@ export const LEARNING_TOPIC_LABELS: Record<LearningTopic, string> = {
 }
 
 /** Topics with a builder. The rest are announced honestly rather than faked. */
-export const AVAILABLE_TOPICS: readonly LearningTopic[] = ['songs', 'scales']
+export const AVAILABLE_TOPICS: readonly LearningTopic[] = ['songs', 'scales', 'chords', 'arpeggios']
+
+/** What each area is set to. One per area, so leaving one and coming back finds it as it was. */
+interface Specs {
+  spec: ScaleSpec
+  chordSpec: ChordSpec
+  arpeggioSpec: ArpeggioSpec
+}
+type SpecKey = keyof Specs
 
 export type KeyRole = 'scale' | 'root' | 'upcoming' | 'target' | 'wrong'
 
@@ -88,6 +102,8 @@ interface LearningState {
   topic: LearningTopic
   mode: LearningMode
   spec: ScaleSpec
+  chordSpec: ChordSpec
+  arpeggioSpec: ArpeggioSpec
   exercise: Exercise | null
   session: SessionState
   annotations: Readonly<Record<number, KeyAnnotation>>
@@ -143,6 +159,8 @@ interface LearningState {
   setTopic: (topic: LearningTopic) => void
   setMode: (mode: LearningMode) => void
   updateSpec: (patch: Partial<ScaleSpec>) => void
+  updateChordSpec: (patch: Partial<ChordSpec>) => void
+  updateArpeggioSpec: (patch: Partial<ArpeggioSpec>) => void
   start: () => void
   reset: () => void
   setDemoStep: (index: number | null) => void
@@ -164,13 +182,23 @@ const LOOKAHEAD = 6
 
 function buildExercise(
   topic: LearningTopic,
-  spec: ScaleSpec,
+  specs: Specs,
   fingering: FingeringSystemId,
   range: NoteRange,
 ): Exercise | null {
-  // One switch, and it is the only place that maps a topic to a builder. Adding
-  // chords is a case here plus a builder in shared — no other file changes.
-  return topic === 'scales' ? buildScaleExercise(spec, { fingering, range }) : null
+  // One switch, and it is the only place that maps a topic to a builder. A new
+  // area is a case here plus a builder in shared.
+  const options = { fingering, range }
+  switch (topic) {
+    case 'scales':
+      return buildScaleExercise(specs.spec, options)
+    case 'chords':
+      return buildChordExercise(specs.chordSpec, options)
+    case 'arpeggios':
+      return buildArpeggioExercise(specs.arpeggioSpec, options)
+    default:
+      return null
+  }
 }
 
 const FINGERING_SYSTEM_KEY = 'sonara.fingering.system'
@@ -289,13 +317,13 @@ const initialExercise = buildScaleExercise(DEFAULT_SCALE_SPEC, {
 export const useLearningStore = create<LearningState>((set, get) => {
   const rebuild = (
     topic: LearningTopic,
-    spec: ScaleSpec,
+    specs: Specs,
     mode: LearningMode,
     session: SessionState,
     fingering: FingeringSystemId = get().fingeringSystem,
     range: NoteRange = get().playableRange,
   ) => {
-    const exercise = buildExercise(topic, spec, fingering, range)
+    const exercise = buildExercise(topic, specs, fingering, range)
     // Any rebuild is a new exercise or a new mode, and the demonstration does
     // not survive either — so the playback head resets with it.
     // A new scale is a new question; whatever was drawn on the keys was about
@@ -308,10 +336,45 @@ export const useLearningStore = create<LearningState>((set, get) => {
     }
   }
 
+  /** Changes one area's settings and rebuilds what is on the keys from them. */
+  const respec = <K extends SpecKey>(key: K, patch: Partial<Specs[K]>) =>
+    set((state) => {
+      const next = { ...state[key], ...patch } as Specs[K] & { tonic?: string }
+      const change = patch as { rootPitchClass?: number }
+      // A key's other name belongs to that key. Carried to a new one it
+      // would lie dormant — C has no E♭ — and then come back unasked the
+      // next time the player returned to where they had chosen it.
+      if (
+        change.rootPitchClass !== undefined &&
+        change.rootPitchClass !== state[key].rootPitchClass &&
+        !('tonic' in patch)
+      ) {
+        delete next.tonic
+      }
+      // A new scale is a new run: the score does not carry across. But a run
+      // that was going keeps going, on the new scale from its first note.
+      // Dropping to idle instead looked the same from the keys — the scale is
+      // still lit — so a player who turned the direction round mid-run and
+      // played on had every note ignored, and finished with nothing counted.
+      const session =
+        state.session.status === 'running'
+          ? sessionReducer(IDLE_SESSION, { type: 'start', at: Date.now() }, null)
+          : IDLE_SESSION
+      const specs = {
+        spec: state.spec,
+        chordSpec: state.chordSpec,
+        arpeggioSpec: state.arpeggioSpec,
+        [key]: next,
+      } as Specs
+      return { ...specs, ...rebuild(state.topic, specs, state.mode, session) }
+    })
+
   return {
     topic: 'scales',
     mode: 'learn',
     spec: DEFAULT_SCALE_SPEC,
+    chordSpec: DEFAULT_CHORD_SPEC,
+    arpeggioSpec: DEFAULT_ARPEGGIO_SPEC,
     exercise: initialExercise,
     session: IDLE_SESSION,
     annotations: buildAnnotations(initialExercise, 'learn', IDLE_SESSION),
@@ -326,38 +389,17 @@ export const useLearningStore = create<LearningState>((set, get) => {
     songAnnotations: {},
 
     setTopic: (topic) =>
-      set((state) => ({ topic, ...rebuild(topic, state.spec, state.mode, IDLE_SESSION) })),
+      set((state) => ({ topic, ...rebuild(topic, state, state.mode, IDLE_SESSION) })),
 
     setMode: (mode) =>
       // Changing mode ends the run. Half a scale learned with the answers on
       // screen is not half a scale practised, and merging the two scores would
       // say it was.
-      set((state) => ({ mode, ...rebuild(state.topic, state.spec, mode, IDLE_SESSION) })),
+      set((state) => ({ mode, ...rebuild(state.topic, state, mode, IDLE_SESSION) })),
 
-    updateSpec: (patch) =>
-      set((state) => {
-        const spec = { ...state.spec, ...patch }
-        // A key's other name belongs to that key. Carried to a new one it
-        // would lie dormant — C has no E♭ — and then come back unasked the
-        // next time the player returned to where they had chosen it.
-        if (
-          patch.rootPitchClass !== undefined &&
-          patch.rootPitchClass !== state.spec.rootPitchClass &&
-          !('tonic' in patch)
-        ) {
-          delete spec.tonic
-        }
-        // A new scale is a new run: the score does not carry across. But a run
-        // that was going keeps going, on the new scale from its first note.
-        // Dropping to idle instead looked the same from the keys — the scale is
-        // still lit — so a player who turned the direction round mid-run and
-        // played on had every note ignored, and finished with nothing counted.
-        const session =
-          state.session.status === 'running'
-            ? sessionReducer(IDLE_SESSION, { type: 'start', at: Date.now() }, null)
-            : IDLE_SESSION
-        return { spec, ...rebuild(state.topic, spec, state.mode, session) }
-      }),
+    updateSpec: (patch) => respec('spec', patch),
+    updateChordSpec: (patch) => respec('chordSpec', patch),
+    updateArpeggioSpec: (patch) => respec('arpeggioSpec', patch),
 
     start: () =>
       set((state) => {
@@ -397,12 +439,7 @@ export const useLearningStore = create<LearningState>((set, get) => {
         }
         // The same notes, re-fingered. The run carries on from where it is:
         // nothing about what has been played is any less true.
-        const exercise = buildExercise(
-          state.topic,
-          state.spec,
-          fingeringSystem,
-          state.playableRange,
-        )
+        const exercise = buildExercise(state.topic, state, fingeringSystem, state.playableRange)
         return {
           fingeringSystem,
           exercise,
@@ -415,18 +452,13 @@ export const useLearningStore = create<LearningState>((set, get) => {
         const playableRange = range ?? DEFAULT_PLAYABLE_RANGE
         const current = state.playableRange
         if (playableRange.low === current.low && playableRange.high === current.high) return {}
-        const exercise = buildExercise(
-          state.topic,
-          state.spec,
-          state.fingeringSystem,
-          playableRange,
-        )
+        const exercise = buildExercise(state.topic, state, state.fingeringSystem, playableRange)
         // Most exercises sit where they sat. One that has moved to another
         // octave is a different set of keys, and a run on the old ones is over.
         if (exercise?.id === state.exercise?.id) return { playableRange }
         return {
           playableRange,
-          ...rebuild(state.topic, state.spec, state.mode, IDLE_SESSION, undefined, playableRange),
+          ...rebuild(state.topic, state, state.mode, IDLE_SESSION, undefined, playableRange),
         }
       }),
 
