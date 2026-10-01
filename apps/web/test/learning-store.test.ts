@@ -1,5 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { DEFAULT_ARPEGGIO_SPEC, DEFAULT_CHORD_SPEC, DEFAULT_SCALE_SPEC } from '@sonara/shared'
+import {
+  DEFAULT_ARPEGGIO_SPEC,
+  DEFAULT_CHORD_SPEC,
+  DEFAULT_SCALE_SPEC,
+  tempo,
+} from '@sonara/shared'
 import { useLearningStore } from '@/state/learning-store'
 
 /**
@@ -182,10 +187,12 @@ describe('changing the exercise', () => {
     expect(store().session.status).toBe('idle')
   })
 
-  it('clears the keyboard when the topic has no builder yet', () => {
-    store().setTopic('exercises')
-    expect(store().exercise).toBeNull()
-    expect(Object.keys(store().annotations)).toHaveLength(0)
+  it('builds something to play in every area that has exercises', () => {
+    for (const topic of ['scales', 'chords', 'arpeggios', 'progressions', 'exercises'] as const) {
+      store().setTopic(topic)
+      expect(store().exercise, topic).not.toBeNull()
+      expect(Object.keys(store().annotations).length, topic).toBeGreaterThan(0)
+    }
   })
 })
 
@@ -591,5 +598,50 @@ describe('the Progressions area', () => {
       expect(store().annotations[note]?.role).toBe('target')
       expect(store().annotations[note]?.label).toBe(first.noteLabels![index])
     }
+  })
+})
+
+describe('the Exercises area', () => {
+  beforeEach(() => {
+    store().setTopic('exercises')
+    store().updateRoutineSpec({
+      routine: 'blocked',
+      hand: 'right',
+      rootPitchClass: 0,
+      mode: 'major',
+    })
+  })
+
+  it('opens on the blocked scale of C major', () => {
+    expect(store().exercise?.kind).toBe('exercise')
+    expect(store().exercise?.title).toBe('C Major Blocked Scale')
+  })
+
+  it('asks for every note of a block before it moves on', () => {
+    store().setMode('learn')
+    store().start()
+    const [tonic, block] = store().exercise!.steps
+    store().noteOn(tonic!.notes[0]!)
+    expect(store().session.stepIndex).toBe(1)
+    store().noteOn(block!.notes[0]!)
+    expect(store().session.stepIndex).toBe(1)
+    store().noteOn(block!.notes[1]!)
+    expect(store().session.stepIndex).toBe(2)
+    expect(store().session.mistakes).toBe(0)
+  })
+
+  it('measures the tempo in beats, however many notes go to one', () => {
+    vi.useFakeTimers()
+    store().updateRoutineSpec({ routine: 'grand-form' })
+    store().setMode('practice')
+    store().start()
+    // The grand form at 60: an eighth is half a second, a sixteenth a quarter.
+    const steps = store().exercise!.steps
+    for (const step of steps.slice(0, 14)) {
+      for (const note of step.notes) store().noteOn(note)
+      vi.advanceTimersByTime((step.beats ?? 1) * 1000)
+    }
+    expect(tempo(store().session, store().exercise)).toBe(60)
+    vi.useRealTimers()
   })
 })

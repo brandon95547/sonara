@@ -51,7 +51,7 @@ const DETAILS: Record<LearningTopic, { icon: LucideIcon; description: string }> 
   },
   exercises: {
     icon: Settings,
-    description: 'Drills for evenness, speed and independent hands.',
+    description: 'Blocked, expanding and accelerating scales, the Grand Form, and more.',
   },
 }
 

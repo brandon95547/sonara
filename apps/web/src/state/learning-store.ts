@@ -3,10 +3,12 @@ import {
   buildArpeggioExercise,
   buildChordExercise,
   buildProgressionExercise,
+  buildRoutineExercise,
   buildScaleExercise,
   DEFAULT_ARPEGGIO_SPEC,
   DEFAULT_CHORD_SPEC,
   DEFAULT_PROGRESSION_SPEC,
+  DEFAULT_ROUTINE_SPEC,
   DEFAULT_FINGERING_SYSTEM,
   DEFAULT_PLAYABLE_RANGE,
   DEFAULT_SCALE_SPEC,
@@ -27,6 +29,7 @@ import {
   type LearningMode,
   type NoteRange,
   type ProgressionSpec,
+  type RoutineSpec,
   type ScaleSpec,
   type SessionState,
 } from '@sonara/shared'
@@ -65,14 +68,11 @@ export const LEARNING_TOPIC_LABELS: Record<LearningTopic, string> = {
   exercises: 'Exercises',
 }
 
-/** Topics with a builder. The rest are announced honestly rather than faked. */
-export const AVAILABLE_TOPICS: readonly LearningTopic[] = [
-  'songs',
-  'scales',
-  'chords',
-  'arpeggios',
-  'progressions',
-]
+/**
+ * Topics with a builder — which is all of them now. Kept as a list, so an area
+ * added before it is built can be announced honestly rather than faked.
+ */
+export const AVAILABLE_TOPICS: readonly LearningTopic[] = LEARNING_TOPICS
 
 /** What each area is set to. One per area, so leaving one and coming back finds it as it was. */
 interface Specs {
@@ -80,6 +80,7 @@ interface Specs {
   chordSpec: ChordSpec
   arpeggioSpec: ArpeggioSpec
   progressionSpec: ProgressionSpec
+  routineSpec: RoutineSpec
 }
 type SpecKey = keyof Specs
 
@@ -115,6 +116,7 @@ interface LearningState {
   chordSpec: ChordSpec
   arpeggioSpec: ArpeggioSpec
   progressionSpec: ProgressionSpec
+  routineSpec: RoutineSpec
   exercise: Exercise | null
   session: SessionState
   annotations: Readonly<Record<number, KeyAnnotation>>
@@ -178,6 +180,7 @@ interface LearningState {
   updateChordSpec: (patch: Partial<ChordSpec>) => void
   updateArpeggioSpec: (patch: Partial<ArpeggioSpec>) => void
   updateProgressionSpec: (patch: Partial<ProgressionSpec>) => void
+  updateRoutineSpec: (patch: Partial<RoutineSpec>) => void
   start: () => void
   reset: () => void
   setDemoStep: (index: number | null) => void
@@ -215,6 +218,8 @@ function buildExercise(
       return buildArpeggioExercise(specs.arpeggioSpec, options)
     case 'progressions':
       return buildProgressionExercise(specs.progressionSpec, options)
+    case 'exercises':
+      return buildRoutineExercise(specs.routineSpec, options)
     default:
       return null
   }
@@ -384,6 +389,7 @@ export const useLearningStore = create<LearningState>((set, get) => {
         chordSpec: state.chordSpec,
         arpeggioSpec: state.arpeggioSpec,
         progressionSpec: state.progressionSpec,
+        routineSpec: state.routineSpec,
         [key]: next,
       } as Specs
       return { ...specs, ...rebuild(state.topic, specs, state.mode, session) }
@@ -396,6 +402,7 @@ export const useLearningStore = create<LearningState>((set, get) => {
     chordSpec: DEFAULT_CHORD_SPEC,
     arpeggioSpec: DEFAULT_ARPEGGIO_SPEC,
     progressionSpec: DEFAULT_PROGRESSION_SPEC,
+    routineSpec: DEFAULT_ROUTINE_SPEC,
     exercise: initialExercise,
     session: IDLE_SESSION,
     annotations: buildAnnotations(initialExercise, 'learn', IDLE_SESSION),
@@ -423,6 +430,7 @@ export const useLearningStore = create<LearningState>((set, get) => {
     updateChordSpec: (patch) => respec('chordSpec', patch),
     updateArpeggioSpec: (patch) => respec('arpeggioSpec', patch),
     updateProgressionSpec: (patch) => respec('progressionSpec', patch),
+    updateRoutineSpec: (patch) => respec('routineSpec', patch),
 
     start: () =>
       set((state) => {

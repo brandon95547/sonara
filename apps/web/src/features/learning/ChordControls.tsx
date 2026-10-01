@@ -3,6 +3,7 @@ import {
   ArrowDown,
   ArrowUp,
   ArrowUpDown,
+  Dumbbell,
   Hand,
   Layers,
   ListOrdered,
@@ -25,6 +26,11 @@ import {
   HAND_LABELS,
   KEY_MODE_LABELS,
   KEY_MODES,
+  ROUTINE_DESCRIPTIONS,
+  ROUTINE_LABELS,
+  routineHands,
+  routineHasMode,
+  ROUTINES,
   SCALE_DIRECTION_LABELS,
   SCALE_DIRECTIONS,
   SCALE_HANDS,
@@ -38,6 +44,7 @@ import {
   type ChordStyle,
   type KeyMode,
   type ProgressionSpec,
+  type Routine,
   type ScaleDirection,
   type ScaleHands,
 } from '@sonara/shared'
@@ -57,22 +64,32 @@ import { CompactField, RadioGrid } from './ScaleControls'
  * popover.
  */
 
-type Area = 'chords' | 'arpeggios' | 'progressions'
+type Area = 'chords' | 'arpeggios' | 'progressions' | 'exercises'
 
 /** The area's settings and the action that changes them, whichever area it is. */
 function useKey(area: Area) {
   const chord = useLearningStore((state) => state.chordSpec)
   const arpeggio = useLearningStore((state) => state.arpeggioSpec)
   const progression = useLearningStore((state) => state.progressionSpec)
+  const routine = useLearningStore((state) => state.routineSpec)
   const updateChord = useLearningStore((state) => state.updateChordSpec)
   const updateArpeggio = useLearningStore((state) => state.updateArpeggioSpec)
   const updateProgression = useLearningStore((state) => state.updateProgressionSpec)
-  const spec = area === 'chords' ? chord : area === 'arpeggios' ? arpeggio : progression
+  const updateRoutine = useLearningStore((state) => state.updateRoutineSpec)
+  const spec = {
+    chords: chord,
+    arpeggios: arpeggio,
+    progressions: progression,
+    exercises: routine,
+  }[area]
   // The fields the areas share. Each action takes its own area's patch; a key,
   // a mode and a hand are part of all of them.
-  const update = (
-    area === 'chords' ? updateChord : area === 'arpeggios' ? updateArpeggio : updateProgression
-  ) as (patch: {
+  const update = {
+    chords: updateChord,
+    arpeggios: updateArpeggio,
+    progressions: updateProgression,
+    exercises: updateRoutine,
+  }[area] as (patch: {
     rootPitchClass?: number
     tonic?: string
     mode?: KeyMode
@@ -130,11 +147,14 @@ function KeyPicker({
   area,
   children,
   hands = true,
+  modes = true,
 }: {
   area: Area
   children: React.ReactNode
   /** False where the setting above it has already decided which hands play. */
   hands?: boolean
+  /** False where what is played is built on a note rather than in a key. */
+  modes?: boolean
 }) {
   const { spec, update } = useKey(area)
   const title = useLearningStore((state) => state.exercise?.title ?? 'Choose a key')
@@ -142,7 +162,9 @@ function KeyPicker({
   const triggerRef = React.useRef<HTMLButtonElement>(null)
   const close = React.useCallback(() => setOpen(false), [])
 
-  const type = keyScale(spec.mode)
+  // Built on a note, it is named as the major key on that note is.
+  const mode: KeyMode = modes ? spec.mode : 'major'
+  const type = keyScale(mode)
   const roots = Array.from({ length: 12 }, (_, pitchClass) => ({
     value: pitchClass,
     label: spellScale(pitchClass, type, pitchClass === spec.rootPitchClass ? spec.tonic : undefined)
@@ -150,7 +172,8 @@ function KeyPicker({
   }))
   const key = roots[spec.rootPitchClass]?.label ?? ''
   const names = scaleSpellings(spec.rootPitchClass, type).map((scale) => scale.root.name)
-  const label = `Key: ${key} ${KEY_MODE_LABELS[spec.mode]} — ${title}`
+  const what = modes ? 'Key' : 'Root'
+  const label = `${what}: ${key}${modes ? ` ${KEY_MODE_LABELS[mode]}` : ''} — ${title}`
 
   return (
     <>
@@ -165,34 +188,39 @@ function KeyPicker({
         onClick={() => setOpen((current) => !current)}
       >
         {/* `Am`, the way a chord chart writes a minor key. */}
-        <BarGlyph icon={<Music size={18} />} badge={spec.mode === 'minor' ? `${key}m` : key} />
+        <BarGlyph icon={<Music size={18} />} badge={mode === 'minor' ? `${key}m` : key} />
       </button>
       <Popover
         open={open}
         onClose={close}
         anchorRef={triggerRef}
-        label="Key"
+        label={what}
         className="popover--scale"
       >
         <div className="flex flex-col gap-4 p-4">
           <RadioGrid
-            label="Key"
+            label={what}
             columns={6}
             value={spec.rootPitchClass}
             options={roots}
             // A new key starts under its usual name.
             onChange={(rootPitchClass) => update({ rootPitchClass, tonic: undefined })}
           />
-          <CompactField label="Major or minor">
-            <SegmentedControl<KeyMode>
-              label="Major or minor"
-              value={spec.mode}
-              // The other mode on the same tonic is a different key, with its
-              // own names: D♯ minor's major is E♭.
-              onChange={(mode) => update({ mode, tonic: undefined })}
-              options={KEY_MODES.map((mode) => ({ value: mode, label: KEY_MODE_LABELS[mode] }))}
-            />
-          </CompactField>
+          {modes && (
+            <CompactField label="Major or minor">
+              <SegmentedControl<KeyMode>
+                label="Major or minor"
+                value={spec.mode}
+                // The other mode on the same tonic is a different key, with its
+                // own names: D♯ minor's major is E♭.
+                onChange={(next) => update({ mode: next, tonic: undefined })}
+                options={KEY_MODES.map((option) => ({
+                  value: option,
+                  label: KEY_MODE_LABELS[option],
+                }))}
+              />
+            </CompactField>
+          )}
           {names.length > 1 && (
             <CompactField label="Written as">
               <SegmentedControl
@@ -543,6 +571,77 @@ export function ProgressionSettings() {
         className="bar-wide"
       />
       {positions && <HandsMenu area="progressions" />}
+    </>
+  )
+}
+
+/** What the bar's badge calls each routine: a word's worth, at badge size. */
+const ROUTINE_BADGES: Record<Routine, string> = {
+  blocked: 'Blk',
+  'expanding-1': 'Ex1',
+  'expanding-2': 'Ex2',
+  accelerating: 'Acc',
+  'grand-form': 'GF',
+  'harmonized-bass': 'HB',
+  'harmonized-treble': 'HT',
+  'triad-chain': 'TC',
+}
+
+/** The left of the bar in the Exercises area. */
+export function ExerciseSettings() {
+  const spec = useLearningStore((state) => state.routineSpec)
+  const update = useLearningStore((state) => state.updateRoutineSpec)
+  // A routine written for two hands is played with two, whatever was last
+  // chosen; the choice is kept for the routines that have one.
+  const choosesHand = routineHands(spec.routine).length > 1
+
+  return (
+    <>
+      <KeyPicker area="exercises" hands={choosesHand} modes={routineHasMode(spec.routine)}>
+        <CompactField label="Routine">
+          <Select
+            size="sm"
+            aria-label="Routine"
+            value={spec.routine}
+            onChange={(event) => update({ routine: event.target.value as Routine })}
+            options={ROUTINES.map((routine) => ({
+              value: routine,
+              label: ROUTINE_LABELS[routine],
+            }))}
+          />
+        </CompactField>
+      </KeyPicker>
+      <SelectMenu<Routine>
+        label="Routine"
+        value={spec.routine}
+        options={ROUTINES.map((routine) => ({
+          value: routine,
+          label: ROUTINE_LABELS[routine],
+          description: ROUTINE_DESCRIPTIONS[routine],
+        }))}
+        onChange={(routine) => update({ routine })}
+        iconOnly
+        icon={<BarGlyph icon={<Dumbbell size={18} />} badge={ROUTINE_BADGES[spec.routine]} />}
+        className="bar-wide"
+      />
+      {choosesHand ? (
+        <HandsMenu area="exercises" />
+      ) : (
+        <SelectMenu<ScaleHands>
+          label="Hands"
+          value="both"
+          options={HAND_OPTIONS.map((option) => ({
+            ...option,
+            description:
+              option.value === 'both' ? 'This routine is written for two hands.' : undefined,
+            disabled: option.value !== 'both',
+          }))}
+          onChange={() => {}}
+          iconOnly
+          icon={<BarGlyph icon={<Hand size={18} />} badge={HAND_BADGES.both} />}
+          className="bar-wide"
+        />
+      )}
     </>
   )
 }

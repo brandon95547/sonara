@@ -46,14 +46,21 @@ describe('moving between the dashboard and the areas', () => {
     expect(useSongStore.getState().playing).toBe(false)
   })
 
-  it('treats an area that is not open yet as the dashboard', async () => {
+  it('treats an address that names no area as the dashboard', async () => {
     renderHook(() => usePageSync())
     pageActions.openArea('songs')
     await waitFor(() => expect(usePageStore.getState().page).toBe('area'))
 
-    // Exercises has no builder yet; every other area now does.
-    globalThis.location.hash = '#/exercises'
+    // Every area is open now, so the only way to miss is a name that is not one.
+    globalThis.location.hash = '#/etudes'
     await waitFor(() => expect(usePageStore.getState().page).toBe('dashboard'))
+  })
+
+  it('opens Exercises, the last area to get its builder', async () => {
+    renderHook(() => usePageSync())
+    globalThis.location.hash = '#/exercises'
+    await waitFor(() => expect(usePageStore.getState().page).toBe('area'))
+    expect(useLearningStore.getState().topic).toBe('exercises')
   })
 })
 

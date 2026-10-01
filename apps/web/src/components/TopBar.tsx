@@ -24,6 +24,7 @@ import { LastTakeButton, RecordButton } from '@/features/recording/RecordControl
 import {
   ArpeggioSettings,
   ChordSettings,
+  ExerciseSettings,
   ProgressionSettings,
 } from '@/features/learning/ChordControls'
 import {
@@ -96,15 +97,20 @@ export function TopBar() {
           </>
         )}
 
-        {(area === 'chords' || area === 'arpeggios' || area === 'progressions') && (
+        {(area === 'chords' ||
+          area === 'arpeggios' ||
+          area === 'progressions' ||
+          area === 'exercises') && (
           <>
             <span className="top-bar__divider bar-sm" aria-hidden />
             {area === 'chords' ? (
               <ChordSettings />
             ) : area === 'arpeggios' ? (
               <ArpeggioSettings />
-            ) : (
+            ) : area === 'progressions' ? (
               <ProgressionSettings />
+            ) : (
+              <ExerciseSettings />
             )}
 
             <span className="top-bar__spacer" />
