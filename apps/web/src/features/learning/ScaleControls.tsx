@@ -28,6 +28,7 @@ import {
   SCALE_DIRECTIONS,
   SCALE_HANDS,
   SCALE_TYPES,
+  scaleSpellings,
   spellScale,
   type LearningMode,
   type ScaleDirection,
@@ -92,11 +93,19 @@ export const MODE_ICONS: Record<LearningMode, LucideIcon> = {
   practice: Target,
 }
 
-function rootOptions(scaleTypeId: string) {
+/**
+ * The twelve keys, each under its usual name — and the selected one under the
+ * name it has actually been given, where it has two.
+ */
+function rootOptions(scaleTypeId: string, selected: { pitchClass: number; tonic?: string }) {
   const type = SCALE_TYPES.find((entry) => entry.id === scaleTypeId) ?? SCALE_TYPES[0]!
   return Array.from({ length: 12 }, (_, pitchClass) => ({
     value: pitchClass,
-    label: spellScale(pitchClass, type).root.name,
+    label: spellScale(
+      pitchClass,
+      type,
+      pitchClass === selected.pitchClass ? selected.tonic : undefined,
+    ).root.name,
   }))
 }
 
@@ -127,8 +136,14 @@ export function ScalePicker() {
   const [open, setOpen] = React.useState(false)
   const triggerRef = React.useRef<HTMLButtonElement>(null)
   const close = React.useCallback(() => setOpen(false), [])
-  const roots = rootOptions(spec.scaleTypeId)
+  const roots = rootOptions(spec.scaleTypeId, {
+    pitchClass: spec.rootPitchClass,
+    tonic: spec.tonic,
+  })
   const key = roots[spec.rootPitchClass]?.label
+  // The key's names, where it has more than one: D♯ minor is also E♭ minor.
+  const type = SCALE_TYPES.find((entry) => entry.id === spec.scaleTypeId) ?? SCALE_TYPES[0]!
+  const names = scaleSpellings(spec.rootPitchClass, type).map((scale) => scale.root.name)
 
   return (
     <>
@@ -157,8 +172,22 @@ export function ScalePicker() {
             columns={6}
             value={spec.rootPitchClass}
             options={roots}
-            onChange={(rootPitchClass) => updateSpec({ rootPitchClass })}
+            // A new key starts under its usual name.
+            onChange={(rootPitchClass) => updateSpec({ rootPitchClass, tonic: undefined })}
           />
+          {/* Two keys on the same piano keys are still two keys — other
+              signature, other note names — so which one is a choice. Shown
+              only for a key that has a twin somebody actually writes in. */}
+          {names.length > 1 && key && (
+            <CompactField label="Written as">
+              <SegmentedControl
+                label="Written as"
+                value={key}
+                onChange={(tonic) => updateSpec({ tonic })}
+                options={names.map((name) => ({ value: name, label: name }))}
+              />
+            </CompactField>
+          )}
           <RadioGrid
             label="Scale type"
             columns={2}

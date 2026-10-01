@@ -6,6 +6,7 @@ import {
   keySignatureOf,
   scaleFormula,
   scaleOffsets,
+  scaleSpellings,
   SCALE_TYPES,
   spellScale,
   spellScaleFrom,
@@ -153,14 +154,55 @@ describe('spelling', () => {
 })
 
 describe('naming the enharmonic keys', () => {
-  it('names the tied keys the way the reference books print them', () => {
-    // Six sharps or six flats: F♯ major, and E♭ minor.
+  it('names the tied keys the way the Brown Scale Book prints them', () => {
+    // Six sharps or six flats. The book has an F♯ major page and a D♯ minor
+    // page, in every form — the harmonic and melodic's double sharp does not
+    // tip them over to E♭.
     expect(spellScale(6, findScaleType('major')!).root.name).toBe('F♯')
-    expect(spellScale(3, findScaleType('natural-minor')!).root.name).toBe('E♭')
-    expect(spellScale(3, findScaleType('harmonic-minor')!).root.name).toBe('E♭')
-    // And the scales built on a minor follow the minor.
+    for (const form of ['natural-minor', 'harmonic-minor', 'melodic-minor']) {
+      expect(spellScale(3, findScaleType(form)!).root.name, form).toBe('D♯')
+    }
+    expect(names(3, 'harmonic-minor')).toBe('D♯ E♯ F♯ G♯ A♯ B C𝄪')
+    // The blues and pentatonic scales built on a minor go the other way.
     expect(spellScale(3, findScaleType('blues')!).root.name).toBe('E♭')
     expect(spellScale(3, findScaleType('minor-pentatonic')!).root.name).toBe('E♭')
+  })
+
+  it('keeps a key and its enharmonic twin as two keys', () => {
+    const minor = findScaleType('natural-minor')!
+    const sharp = spellScale(3, minor)
+    const flat = spellScale(3, minor, 'E♭')
+    // Same piano keys, different key: six sharps or six flats, and not one
+    // note name in common.
+    expect(sharp.notes.map((n) => n.pitchClass)).toEqual(flat.notes.map((n) => n.pitchClass))
+    expect(sharp.notes.map((n) => n.name).join(' ')).toBe('D♯ E♯ F♯ G♯ A♯ B C♯')
+    expect(flat.notes.map((n) => n.name).join(' ')).toBe('E♭ F G♭ A♭ B♭ C♭ D♭')
+    expect(keySignatureOf(sharp)).toBe(6)
+    expect(keySignatureOf(flat)).toBe(-6)
+  })
+
+  it('offers the other name only where it is a key somebody writes in', () => {
+    const offered = (pitchClass: number, typeId: string) =>
+      scaleSpellings(pitchClass, findScaleType(typeId)!).map((scale) => scale.root.name)
+
+    // The book's own two: "F♯ Major (Enharmonic G♭ Major)", "D♭ Major
+    // (Enharmonic C♯ Major)".
+    expect(offered(6, 'major')).toEqual(['F♯', 'G♭'])
+    expect(offered(1, 'major')).toEqual(['D♭', 'C♯'])
+    expect(offered(3, 'harmonic-minor')).toEqual(['D♯', 'E♭'])
+    expect(offered(8, 'natural-minor')).toEqual(['G♯', 'A♭'])
+    // C major is not also B♯ major, and C♯ minor is not also D♭ minor.
+    expect(offered(0, 'major')).toEqual(['C'])
+    expect(offered(1, 'natural-minor')).toEqual(['C♯'])
+    // A name that is not one of the scale's keys falls back to its usual one.
+    expect(spellScale(0, findScaleType('major')!, 'D♭').root.name).toBe('C')
+  })
+
+  it('names the scales with no signature by their natural root', () => {
+    // These were F♭ chromatic and C♭ whole tone.
+    expect(spellScale(4, findScaleType('chromatic')!).root.name).toBe('E')
+    expect(spellScale(11, findScaleType('whole-tone')!).root.name).toBe('B')
+    expect(names(4, 'chromatic')).toBe('E E♯ F♯ G G♯ A A♯ B B♯ C♯ D D♯')
   })
 
   it('still names G♯ minor by its five sharps, double sharp and all', () => {
@@ -195,7 +237,7 @@ describe('key signatures', () => {
     expect(fifths(9, 'harmonic-minor')).toBe(0)
     expect(fifths(9, 'melodic-minor')).toBe(0)
     expect(fifths(8, 'harmonic-minor')).toBe(5) // G♯ minor
-    expect(fifths(3, 'natural-minor')).toBe(-6) // E♭ minor
+    expect(fifths(3, 'natural-minor')).toBe(6) // D♯ minor
   })
 
   it('gives a mode the signature of its parent major', () => {

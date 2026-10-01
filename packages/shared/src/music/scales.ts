@@ -195,6 +195,8 @@ export const SCALE_TYPES: readonly ScaleType[] = [
     // Falling, the same twelve keys are lowered notes: C B B♭ A A♭ G G♭ …
     descendingDegrees: ['1', '♭2', '2', '♭3', '3', '4', '♭5', '5', '♭6', '6', '♭7', '7'],
     family: 'other',
+    // E chromatic's ♯2 is an F𝄪 by the letter rule; it is written G.
+    respellDoubles: true,
     description: 'Every key in order. A technique exercise more than a colour.',
   },
   {
@@ -203,6 +205,7 @@ export const SCALE_TYPES: readonly ScaleType[] = [
     steps: [2, 2, 2, 2, 2, 2],
     degrees: ['1', '2', '3', '♯4', '♯5', '♯6'],
     family: 'other',
+    respellDoubles: true,
     description: 'Nothing but whole steps. No leading tone, so no gravity at all.',
   },
 ]
@@ -295,31 +298,27 @@ export function spellScaleFrom(
 }
 
 /**
- * Spells a scale on a pitch class, choosing the root spelling a musician would.
+ * Every key a scale on this pitch class can be written in, the usual one first.
  *
  * Both enharmonic roots are spelled out and the one needing fewer accidentals
- * wins — which is why pitch class 1 comes out as D♭ major (five flats) and not
- * C♯ major (seven sharps), and as C♯ minor (four sharps) and not D♭ minor
- * (eight flats). It is the same reasoning a key signature encodes, arrived at
- * from the notes rather than from a lookup table that has to be right for every
- * combination of root and mode.
+ * comes first — which is why pitch class 1 is D♭ major (five flats) before
+ * C♯ major (seven sharps), and C♯ minor (four sharps) and not D♭ minor
+ * (eight flats) at all. It is the same reasoning a key signature encodes,
+ * arrived at from the notes rather than from a lookup table that has to be
+ * right for every combination of root and mode.
+ *
+ * The others are kept, and are not aliases. D♯ minor and E♭ minor are the same
+ * keys on a piano and two different keys on a page: six sharps or six flats,
+ * a C𝄪 or a D♮. A player reading one of them needs that one, so each is its own
+ * entry here, offered only where it is a key somebody actually writes in — one
+ * with a signature of seven accidentals or fewer.
  */
-export function spellScale(pitchClass: number, type: ScaleType): SpelledScale {
+export function scaleSpellings(pitchClass: number, type: ScaleType): SpelledScale[] {
   const candidates = spellingsFor(normalisePitchClass(pitchClass))
     .map((root) => spellScaleFrom(root, type))
     .filter((scale): scale is SpelledScale => scale !== null)
 
-  if (candidates.length === 0) {
-    // Cannot happen for the scales above, but a fallback beats a throw in a
-    // path that renders a keyboard.
-    return {
-      root: makePitch(0, 0),
-      notes: [makePitch(0, 0)],
-      type,
-    }
-  }
-
-  return candidates.sort((a, b) => {
+  const ranked = candidates.sort((a, b) => {
     // The signature first, where the scale has one: G♯ harmonic minor
     // carries an F𝄪 that A♭ harmonic minor does not, and counting the
     // accidentals in the notes would call it a tie — but G♯ minor is five
@@ -331,27 +330,67 @@ export function spellScale(pitchClass: number, type: ScaleType): SpelledScale {
     }
     const bySignature = signature(a) - signature(b)
     if (bySignature !== 0) return bySignature
+
+    const side = () =>
+      prefersFlats(type)
+        ? a.root.accidental - b.root.accidental
+        : b.root.accidental - a.root.accidental
+
+    // Two signatures can only tie at six of each: F♯ major and G♭ major,
+    // D♯ minor and E♭ minor. Both are in real use, so the choice is which the
+    // reference book prints — The Brown Scale Book has an F♯ major page and a
+    // D♯ minor page — and it is made here, on the key, before the notes are
+    // counted. Counted first, the harmonic and melodic forms' double sharp
+    // tips them to E♭ while the natural form stays D♯: one key, two names.
+    // The pentatonic and blues scales built on a minor go the other way,
+    // because nobody calls for a D♯ blues.
+    if (signature(a) !== 99) return side()
+
+    // No signature to go by — chromatic, whole tone. A natural root before an
+    // altered one, then the fewest accidentals. The other way round, the flats
+    // a falling chromatic scale is written in out-voted the root, and the
+    // scales on E and B were named F♭ chromatic and C♭ whole tone.
+    const byRoot = Math.abs(a.root.accidental) - Math.abs(b.root.accidental)
+    if (byRoot !== 0) return byRoot
     const weight = (scale: SpelledScale) =>
       scale.notes.reduce((total, note) => total + Math.abs(note.accidental), 0)
     const byWeight = weight(a) - weight(b)
     if (byWeight !== 0) return byWeight
-    // A tie means both spellings are in real use — F♯ major and G♭ major are
-    // six of one, and so are D♯ minor and E♭ minor. Prefer the simpler root,
-    // then the side the reference books print: the sharp name for a major
-    // key and the flat name for a minor one, so the app says F♯ major and
-    // E♭ minor everywhere it names them. The blues and pentatonic scales
-    // built on a minor follow the minor.
-    const byRoot = Math.abs(a.root.accidental) - Math.abs(b.root.accidental)
-    if (byRoot !== 0) return byRoot
-    return prefersFlats(type)
-      ? a.root.accidental - b.root.accidental
-      : b.root.accidental - a.root.accidental
-  })[0]!
+    return side()
+  })
+
+  // The first is always offered, whatever its signature: it is the best name
+  // there is for the scale. Any other has to be a real key to be worth a place.
+  return ranked.filter((scale, index) => {
+    if (index === 0) return true
+    const fifths = keySignatureOf(scale)
+    return fifths !== null && Math.abs(fifths) <= 7
+  })
+}
+
+/**
+ * Spells a scale on a pitch class — as `tonic` names it where that is one of
+ * its keys, and otherwise the way a musician would by default.
+ */
+export function spellScale(pitchClass: number, type: ScaleType, tonic?: string): SpelledScale {
+  const spellings = scaleSpellings(pitchClass, type)
+
+  if (spellings.length === 0) {
+    // Cannot happen for the scales above, but a fallback beats a throw in a
+    // path that renders a keyboard.
+    return {
+      root: makePitch(0, 0),
+      notes: [makePitch(0, 0)],
+      type,
+    }
+  }
+
+  return spellings.find((scale) => scale.root.name === tonic) ?? spellings[0]!
 }
 
 /** Whether a scale's root, on a tie, is named on the flat side. */
 export function prefersFlats(type: ScaleType): boolean {
-  return type.family === 'minor' || type.signatureDegree === 6
+  return type.family !== 'minor' && type.signatureDegree === 6
 }
 
 /**

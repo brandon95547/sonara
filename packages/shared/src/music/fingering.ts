@@ -1,5 +1,5 @@
 import { isBlackKey } from '../midi/notes.js'
-import { normalisePitchClass, parsePitch } from './pitch.js'
+import { fingeringSystem, type FingeringSystemId } from './fingering-system.js'
 
 /**
  * Recommended scale fingering.
@@ -13,15 +13,15 @@ import { normalisePitchClass, parsePitch } from './pitch.js'
  *
  * ## Where the numbers come from
  *
- * Major, minor and chromatic carry the fingerings method books teach, checked
- * against The Complete Book of Scales, Chords, Arpeggios & Cadences (Palmer,
- * Manus & Lethco, Alfred, 1994). The transcribed tables and the reasoning
- * behind them are in `sites/piano-content`.
+ * From a fingering system — see `fingering-system.ts`. The notes of a scale
+ * are one thing and the fingers a school puts on them are another, so this
+ * file holds no table of its own: it asks the chosen system, and the system
+ * answers for the scales its source prints.
  *
- * Everything else — the modes, the pentatonics, blues, whole tone — is worked
- * out from the rules those published fingerings themselves follow, and is
- * marked `derived`, because "this is the standard" and "this is a reasonable
- * suggestion" are different claims.
+ * Everything a system does not supply — the modes, the pentatonics, blues,
+ * whole tone — is worked out here from the rules published fingerings
+ * themselves follow, and is marked `derived`, because "this is the standard"
+ * and "this is a reasonable suggestion" are different claims.
  */
 
 export type Hand = 'right' | 'left'
@@ -36,157 +36,13 @@ export interface Fingering {
    * or lost, and worth calling out at the moment it arrives.
    */
   readonly crossings: readonly number[]
-}
-
-/** One octave, root to octave inclusive — eight notes for a seven-note scale. */
-type OctavePattern = readonly number[]
-
-interface HandPatterns {
-  readonly right: OctavePattern
-  readonly left: OctavePattern
-}
-
-const f = (digits: string): OctavePattern => [...digits].map(Number)
-
-/**
- * The published fingerings, keyed by the root's pitch class.
- *
- * Pitch class rather than name, because a key has more than one name and the
- * app's speller picks whichever the key signature calls for. Keyed by name,
- * `D♯ minor` misses the `E♭ minor` entry and silently falls through to a
- * worked-out fingering — which is exactly what used to happen.
- */
-const MAJOR: Record<number, HandPatterns> = {
-  0: { right: f('12312345'), left: f('54321321') }, // C
-  7: { right: f('12312345'), left: f('54321321') }, // G
-  2: { right: f('12312345'), left: f('54321321') }, // D
-  9: { right: f('12312345'), left: f('54321321') }, // A
-  4: { right: f('12312345'), left: f('54321321') }, // E
-  11: { right: f('12312345'), left: f('43214321') }, // B
-  6: { right: f('23412312'), left: f('43213214') }, // F♯ / G♭
-  1: { right: f('23123412'), left: f('32143213') }, // D♭ / C♯
-  8: { right: f('34123123'), left: f('32143213') }, // A♭
-  3: { right: f('31234123'), left: f('32143213') }, // E♭
-  10: { right: f('41231234'), left: f('32143213') }, // B♭
-  5: { right: f('12341234'), left: f('54321321') }, // F
-}
-
-/**
- * The book's minor chart.
- *
- * Printed as the harmonic minor, and used for the natural and melodic forms as
- * well: the per-key pages give one fingering per minor key and apply it to all
- * three. The two flat left hands are the exceptions the source names to "a
- * major scale and its parallel harmonic minor are fingered alike" — both put
- * the 4th finger on G♭ rather than following the parallel major.
- */
-const MINOR: Record<number, HandPatterns> = {
-  9: { right: f('12312345'), left: f('54321321') }, // A
-  4: { right: f('12312345'), left: f('54321321') }, // E
-  11: { right: f('12312345'), left: f('43214321') }, // B
-  6: { right: f('34123123'), left: f('43213214') }, // F♯
-  1: { right: f('34123123'), left: f('32143213') }, // C♯
-  8: { right: f('34123123'), left: f('32143213') }, // G♯ / A♭
-  3: { right: f('31234123'), left: f('21432132') }, // E♭ / D♯ — 4th finger on G♭
-  10: { right: f('41231234'), left: f('21321432') }, // B♭ / A♯ — 4th finger on G♭
-  5: { right: f('12341234'), left: f('54321321') }, // F
-  0: { right: f('12312345'), left: f('54321321') }, // C
-  7: { right: f('12312345'), left: f('54321321') }, // G
-  2: { right: f('12312345'), left: f('54321321') }, // D
-}
-
-/**
- * The natural minor is the chart above with one substitution.
- *
- * G♯ is the only scale in the book whose natural-minor left hand differs from
- * its harmonic minor, and the page says so itself: natural takes the 4th finger
- * on F♯, the 7th degree, where harmonic takes it on C♯, the 4th.
- */
-const NATURAL_MINOR: Record<number, HandPatterns> = {
-  ...MINOR,
-  8: { right: MINOR[8]!.right, left: f('32132143') },
-}
-
-/**
- * The melodic minor raises the sixth, and in two keys that changes the hand.
- *
- * Everywhere else the raised sixth and seventh land where the harmonic minor's
- * fingering already expects them, which is why the source prints one fingering
- * per minor key. In F♯ and C♯ the raised sixth turns a white key black directly
- * under the thumb, so the source moves the right hand's 4th finger onto it and
- * says so on the page: "RH 4th finger on D♯ ascending" for F♯, "on A♯
- * ascending" for C♯. Both come out as the same shape, and it is the one D♭
- * major uses — an identically coloured run of keys.
- *
- * Ascending only. Coming down, a melodic minor is a natural minor and takes the
- * natural minor's fingering, which is why the exercise builder fingers the two
- * directions from their own forms rather than mirroring one into the other.
- *
- * The last digit is the terminal finger, used once at the very top and not on
- * the octave notes along the way — the repeating body is `2 3 1 2 3 4 1`. It is
- * a 3 rather than a 2 because the top note is played once and the descent that
- * follows begins on 3. Ending the ascent on 2 would ask two different fingers
- * for one note, and put the same finger on the two notes either side of the
- * turn.
- */
-const MELODIC_MINOR: Record<number, HandPatterns> = {
-  ...MINOR,
-  6: { right: f('23123413'), left: MINOR[6]!.left }, // F♯ — 4th finger to D♯
-  1: { right: f('23123413'), left: MINOR[1]!.left }, // C♯ — 4th finger to A♯
-}
-
-function publishedPattern(scaleTypeId: string, pitchClass: number): HandPatterns | undefined {
-  switch (scaleTypeId) {
-    case 'major':
-      return MAJOR[pitchClass]
-    case 'natural-minor':
-      return NATURAL_MINOR[pitchClass]
-    case 'harmonic-minor':
-      return MINOR[pitchClass]
-    case 'melodic-minor':
-      return MELODIC_MINOR[pitchClass]
-    default:
-      return undefined
-  }
-}
-
-/**
- * Extends a one-octave pattern across several octaves.
- *
- * The two hands extend differently, and it is not a detail. The right hand's 5
- * is a *terminal* finger — it appears only on the very last note — so the first
- * seven fingers repeat and the 5 is appended once. The left hand's 5 is an
- * *initial* finger, on the very first note, so it is placed once and the
- * remaining seven repeat. Extending either one the other way puts the little
- * finger in the middle of the scale, which is unplayable.
- */
-function extend(pattern: OctavePattern, octaves: number, hand: Hand): number[] {
-  const body = hand === 'right' ? pattern.slice(0, -1) : pattern.slice(1)
-  const fingers: number[] = hand === 'right' ? [] : [pattern[0]!]
-  for (let octave = 0; octave < octaves; octave++) fingers.push(...body)
-  if (hand === 'right') fingers.push(pattern.at(-1)!)
-  return fingers
-}
-
-/**
- * The chromatic scale, which is given rather than worked out.
- *
- * Every black key takes the 3rd finger. Every white key takes the thumb —
- * except where two white keys are adjacent, at E–F and B–C, where one of the
- * pair has to give way, since the thumb cannot play both. Which one gives way
- * is what separates the hands: the source puts the right hand's 2nd finger on
- * C and F, and the left hand's on E and B.
- */
-const CHROMATIC_SECOND_FINGER: Record<Hand, readonly number[]> = {
-  right: [0, 5], // C and F
-  left: [4, 11], // E and B
-}
-
-function chromaticFingers(notes: readonly number[], hand: Hand): number[] {
-  const seconds = CHROMATIC_SECOND_FINGER[hand]
-  return notes.map((note) =>
-    isBlackKey(note) ? 3 : seconds.includes(normalisePitchClass(note)) ? 2 : 1,
-  )
+  /**
+   * One finger per scale degree, tonic first, as the scale runs mid-passage —
+   * clear of how a particular run opens or turns. Present only for a fingering
+   * a system supplied as a repeating shape; it is what "where does the 4th
+   * finger go" is a question about.
+   */
+  readonly cycle?: readonly number[]
 }
 
 // --- Working a fingering out ------------------------------------------------
@@ -337,35 +193,42 @@ function derive(notes: readonly number[], hand: Hand): number[] {
 }
 
 export interface FingeringRequest {
-  /** The app's own spelling of the root, e.g. `E♭`. Resolved to a pitch class. */
+  /**
+   * The tonic as the key is spelled, e.g. `E♭`. Passed to the fingering system
+   * as written: a key and its enharmonic twin are different keys.
+   */
   readonly rootName: string
   readonly scaleTypeId: string
   readonly hand: Hand
   readonly octaves: number
-  /** The actual notes, needed for every scale with no published fingering. */
+  /** The actual notes, needed for every scale a system fingers by rule or not at all. */
   readonly notes: readonly number[]
+  /** Which system to ask. The default one when left out. */
+  readonly system?: FingeringSystemId
 }
 
 export function scaleFingering(request: FingeringRequest): Fingering {
-  const pitchClass = parsePitch(request.rootName)?.pitchClass
-  const published =
-    pitchClass === undefined ? undefined : publishedPattern(request.scaleTypeId, pitchClass)
+  const supplied = fingeringSystem(request.system).scale({
+    tonic: request.rootName,
+    scaleTypeId: request.scaleTypeId,
+    hand: request.hand,
+    octaves: request.octaves,
+    notes: request.notes,
+  })
 
   // Source travels with the fingers rather than being worked out again from
   // the request: asking twice is how the chromatic scale came to report itself
   // as published while returning nothing at all.
-  const { fingers, source }: { fingers: number[]; source: Fingering['source'] } = published
-    ? {
-        fingers: extend(published[request.hand], request.octaves, request.hand),
-        source: 'standard',
-      }
-    : // The chromatic fingering is the source's own, applied by rule rather
-      // than stored as a pattern, so it counts as published too.
-      request.scaleTypeId === 'chromatic' && request.notes.length > 0
-      ? { fingers: chromaticFingers(request.notes, request.hand), source: 'standard' }
-      : { fingers: derive(request.notes, request.hand), source: 'derived' }
+  const { fingers, source }: { fingers: number[]; source: Fingering['source'] } = supplied
+    ? { fingers: [...supplied.fingers], source: 'standard' }
+    : { fingers: derive(request.notes, request.hand), source: 'derived' }
 
-  return { fingers, source, crossings: findCrossings(fingers, request.hand) }
+  return {
+    fingers,
+    source,
+    crossings: findCrossings(fingers, request.hand),
+    ...(supplied?.cycle ? { cycle: supplied.cycle } : {}),
+  }
 }
 
 /**

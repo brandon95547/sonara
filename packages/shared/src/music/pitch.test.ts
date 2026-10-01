@@ -113,4 +113,18 @@ describe('the older helpers', () => {
     expect(pitchToMidi(parsePitch('Cb')!, 4)).toBe(59)
     expect(pitchToMidi(parsePitch('A')!, 4)).toBe(69)
   })
+
+  it('reads back every name it writes, double accidentals included', () => {
+    // 𝄪 and 𝄫 are outside the basic plane. They did not parse, so a scale
+    // with a C𝄪 in it — D♯ harmonic minor — lost that spelling on the way to
+    // the staff and had it drawn as a D♮.
+    for (let letter = 0; letter < 7; letter++) {
+      for (const accidental of [-2, -1, 0, 1, 2] as const) {
+        const pitch = makePitch(letter, accidental)
+        expect(parsePitch(pitch.name), pitch.name).toEqual(pitch)
+      }
+    }
+    expect(parsePitch('C𝄪')?.pitchClass).toBe(2)
+    expect(parsePitch('B𝄫')?.pitchClass).toBe(9)
+  })
 })

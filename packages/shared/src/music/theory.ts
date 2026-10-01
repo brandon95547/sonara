@@ -1,4 +1,4 @@
-import type { Hand } from './fingering.js'
+import type { Fingering, Hand } from './fingering.js'
 import { normalisePitchClass } from './pitch.js'
 import { findScaleType, scaleOffsets, spellScale, type ScaleType } from './scales.js'
 
@@ -42,6 +42,24 @@ export function fourthFingerDegrees(fingers: readonly number[], hand: Hand): num
   return [...degrees].sort((a, b) => a - b)
 }
 
+/**
+ * The same question asked of a fingering rather than of a row of digits.
+ *
+ * A system that prints a scale as a repeating shape hands that shape over, and
+ * the anchor is read straight off it. That is the only honest place to read it:
+ * a single octave as the page prints it may open on a different finger from the
+ * one the same note takes further up — A♭ major's right hand starts `2 3` and
+ * only takes `3 4` an octave later — so one octave of printed digits can hide
+ * the very finger the anchor is about.
+ */
+export function fourthFingerAnchors(
+  fingering: Pick<Fingering, 'fingers' | 'cycle'>,
+  hand: Hand,
+): number[] {
+  if (!fingering.cycle) return fourthFingerDegrees(fingering.fingers, hand)
+  return fingering.cycle.flatMap((finger, degree) => (finger === 4 ? [degree] : []))
+}
+
 /** `1st`, `2nd`, `3rd`… for degree indices. */
 export function ordinal(n: number): string {
   const teen = n % 100
@@ -80,7 +98,11 @@ export interface RelativeKey {
  * seven notes. Derived from the degree rather than tabulated, so C major gives
  * A minor and G major gives E minor without a list to get wrong.
  */
-export function relativeKey(rootPitchClass: number, type: ScaleType): RelativeKey | null {
+export function relativeKey(
+  rootPitchClass: number,
+  type: ScaleType,
+  tonic?: string,
+): RelativeKey | null {
   const pairs: Record<string, { toId: string; degree: number }> = {
     // The relative minor starts on the 6th degree of its major.
     major: { toId: 'natural-minor', degree: 6 },
@@ -102,7 +124,14 @@ export function relativeKey(rootPitchClass: number, type: ScaleType): RelativeKe
   const semitones = offsets[pair.degree - 1]
   if (semitones === undefined) return null
 
-  const scale = spellScale(normalisePitchClass(rootPitchClass + semitones), target)
+  // Named from this scale's own notes, so the pair stay on one side of the
+  // circle: E♭ minor's relative is G♭ major, and D♯ minor's is F♯ major.
+  const own = spellScale(rootPitchClass, type, tonic)
+  const scale = spellScale(
+    normalisePitchClass(rootPitchClass + semitones),
+    target,
+    own.notes[pair.degree - 1]?.name,
+  )
   return { name: scale.root.name, typeName: target.name, fromDegree: pair.degree }
 }
 

@@ -291,3 +291,80 @@ describe('both hands together', () => {
     expect(store().annotations[left!]?.cue).toBeUndefined()
   })
 })
+
+/**
+ * The fingering system is a setting beside the music, not part of it: it puts
+ * numbers on the notes the spec already chose.
+ */
+describe('the fingering system', () => {
+  const rightHand = () => store().exercise!.steps.map((step) => step.fingers[0]!.finger)
+
+  it('is Traditional / Orthodox unless told otherwise', () => {
+    expect(store().fingeringSystem).toBe('traditional')
+  })
+
+  it('fingers a scale the way the Brown Scale Book prints it', () => {
+    // A♭ major, right hand: opened on 2 3, and 3 4 on those notes an octave up.
+    store().updateSpec({ rootPitchClass: 8, scaleTypeId: 'major', octaves: 2 })
+    expect(rightHand().join('')).toBe('231231234123123')
+    expect(store().exercise!.fingerings[0]!.source).toBe('standard')
+    // And it reaches the keys: the first target carries the book's finger.
+    const first = store().exercise!.steps[0]!.notes[0]!
+    expect(store().annotations[first]?.finger).toBe(2)
+  })
+
+  it('re-fingers the same notes without ending the run', () => {
+    store().start()
+    store().noteOn(notes()[0]!)
+    const before = { notes: notes(), session: store().session }
+
+    store().setFingeringSystem('traditional')
+
+    expect(notes()).toEqual(before.notes)
+    expect(store().session).toBe(before.session)
+    expect(window.localStorage.getItem('sonara.fingering.system')).toBe('traditional')
+  })
+})
+
+/**
+ * D♯ minor and E♭ minor are the same piano keys and two different keys. The
+ * book prints the first; the player may be reading the second.
+ */
+describe('a key and its enharmonic twin', () => {
+  beforeEach(() => store().updateSpec({ rootPitchClass: 3, scaleTypeId: 'harmonic-minor' }))
+
+  it('is D♯ minor first, as the book has it', () => {
+    expect(store().exercise!.title).toBe('D♯ Harmonic Minor')
+    expect(store().exercise!.keyFifths).toBe(6)
+  })
+
+  it('can be written as E♭ minor: other names, other signature, same keys and fingers', () => {
+    const sharp = store().exercise!
+    store().updateSpec({ tonic: 'E♭' })
+    const flat = store().exercise!
+
+    expect(flat.title).toBe('E♭ Harmonic Minor')
+    expect(flat.keyFifths).toBe(-6)
+    expect(flat.id).not.toBe(sharp.id)
+    expect(
+      flat.steps
+        .map((step) => step.label)
+        .slice(0, 8)
+        .join(' '),
+    ).toBe('E♭ F G♭ A♭ B♭ C♭ D E♭')
+    expect(flat.notes).toEqual(sharp.notes)
+    expect(flat.steps.map((step) => step.fingers[0]!.finger)).toEqual(
+      sharp.steps.map((step) => step.fingers[0]!.finger),
+    )
+  })
+
+  it('leaves the other name behind when the key changes', () => {
+    store().updateSpec({ tonic: 'E♭' })
+    // C has one name. A leftover E♭ must not follow the player there.
+    store().updateSpec({ rootPitchClass: 0 })
+    expect(store().exercise!.title).toBe('C Harmonic Minor')
+    // Nor wait there for them: back on this key it is D♯ minor again.
+    store().updateSpec({ rootPitchClass: 3 })
+    expect(store().exercise!.title).toBe('D♯ Harmonic Minor')
+  })
+})

@@ -4,6 +4,7 @@ import {
   currentStep,
   accuracy,
   FINGER_NAMES,
+  fingeringSystem,
   LEARNING_MODE_DESCRIPTIONS,
   progress,
   tempo,
@@ -98,6 +99,7 @@ export function SessionPanelContent() {
  * play.
  */
 function MaterialCard({ exercise }: { exercise: Exercise }) {
+  const system = fingeringSystem(useLearningStore((state) => state.fingeringSystem))
   return (
     <Card variant="elevated" className="flex flex-col gap-4">
       <div className="flex items-start gap-3">
@@ -133,13 +135,14 @@ function MaterialCard({ exercise }: { exercise: Exercise }) {
           <Divider />
           <div className="flex flex-col gap-1.5">
             {exercise.fingerings.map((fingering, index) => {
-              // Standard means "this is what method books teach"; derived means
-              // "this follows the same rules". They are different claims and
+              // Named for the system means "this is what its source prints";
+              // Suggested means "the source does not print this scale, and
+              // this follows the same rules". They are different claims and
               // the card makes the difference visible — per hand, because one
-              // hand's fingering can be published where the other's is not.
+              // hand's fingering can be printed where the other's is not.
               const source = (
                 <Chip tone={fingering.source === 'standard' ? 'neutral' : 'warning'}>
-                  {fingering.source === 'standard' ? 'Standard' : 'Suggested'}
+                  {fingering.source === 'standard' ? system.shortName : 'Suggested'}
                 </Chip>
               )
               const hands = exercise.fingerings.length > 1

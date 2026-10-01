@@ -1,8 +1,10 @@
 import { create } from 'zustand'
 import {
   buildScaleExercise,
+  DEFAULT_FINGERING_SYSTEM,
   DEFAULT_SCALE_SPEC,
   IDLE_SESSION,
+  isFingeringSystemId,
   isInExercise,
   normalisePitchClass,
   PIANO_HIGHEST_NOTE,
@@ -12,6 +14,7 @@ import {
   tempo,
   WRONG_NOTE_FLASH_MS,
   type Exercise,
+  type FingeringSystemId,
   type LearningMode,
   type ScaleSpec,
   type SessionState,
@@ -108,6 +111,13 @@ interface LearningState {
    * the same finger Start would light on that note.
    */
   demoStepIndex: number | null
+  /**
+   * Whose fingering is recommended.
+   *
+   * Beside the spec, not in it: the spec is the music, and this is one school's
+   * opinion about how to play it. Changing it re-fingers the same notes.
+   */
+  fingeringSystem: FingeringSystemId
   /** View settings. What is drawn on the keys, not what the keys mean. */
   keyLabels: KeyLabels
   showStructure: boolean
@@ -126,6 +136,7 @@ interface LearningState {
   start: () => void
   reset: () => void
   setDemoStep: (index: number | null) => void
+  setFingeringSystem: (system: FingeringSystemId) => void
   setSongAnnotations: (annotations: Record<number, KeyAnnotation>) => void
   setKeyLabels: (labels: KeyLabels) => void
   setShowStructure: (show: boolean) => void
@@ -139,10 +150,26 @@ interface LearningState {
 /** How many notes ahead carry a finger badge in Learn mode. */
 const LOOKAHEAD = 6
 
-function buildExercise(topic: LearningTopic, spec: ScaleSpec): Exercise | null {
+function buildExercise(
+  topic: LearningTopic,
+  spec: ScaleSpec,
+  fingering: FingeringSystemId,
+): Exercise | null {
   // One switch, and it is the only place that maps a topic to a builder. Adding
   // chords is a case here plus a builder in shared — no other file changes.
-  return topic === 'scales' ? buildScaleExercise(spec) : null
+  return topic === 'scales' ? buildScaleExercise(spec, { fingering }) : null
+}
+
+const FINGERING_SYSTEM_KEY = 'sonara.fingering.system'
+
+function loadFingeringSystem(): FingeringSystemId {
+  try {
+    const stored = window.localStorage.getItem(FINGERING_SYSTEM_KEY)
+    // A system this version does not have — saved by a later one — is the default.
+    return isFingeringSystemId(stored) ? stored : DEFAULT_FINGERING_SYSTEM
+  } catch {
+    return DEFAULT_FINGERING_SYSTEM
+  }
 }
 
 function buildAnnotations(
@@ -241,7 +268,10 @@ function describe(
   return annotations
 }
 
-const initialExercise = buildScaleExercise(DEFAULT_SCALE_SPEC)
+const initialFingeringSystem = loadFingeringSystem()
+const initialExercise = buildScaleExercise(DEFAULT_SCALE_SPEC, {
+  fingering: initialFingeringSystem,
+})
 
 export const useLearningStore = create<LearningState>((set, get) => {
   const rebuild = (
@@ -249,8 +279,9 @@ export const useLearningStore = create<LearningState>((set, get) => {
     spec: ScaleSpec,
     mode: LearningMode,
     session: SessionState,
+    fingering: FingeringSystemId = get().fingeringSystem,
   ) => {
-    const exercise = buildExercise(topic, spec)
+    const exercise = buildExercise(topic, spec, fingering)
     // Any rebuild is a new exercise or a new mode, and the demonstration does
     // not survive either — so the playback head resets with it.
     // A new scale is a new question; whatever was drawn on the keys was about
@@ -274,6 +305,7 @@ export const useLearningStore = create<LearningState>((set, get) => {
     autoTempo: false,
     metronome: false,
     demoStepIndex: null,
+    fingeringSystem: initialFingeringSystem,
     keyLabels: 'notes',
     showStructure: false,
     songAnnotations: {},
@@ -290,6 +322,16 @@ export const useLearningStore = create<LearningState>((set, get) => {
     updateSpec: (patch) =>
       set((state) => {
         const spec = { ...state.spec, ...patch }
+        // A key's other name belongs to that key. Carried to a new one it
+        // would lie dormant — C has no E♭ — and then come back unasked the
+        // next time the player returned to where they had chosen it.
+        if (
+          patch.rootPitchClass !== undefined &&
+          patch.rootPitchClass !== state.spec.rootPitchClass &&
+          !('tonic' in patch)
+        ) {
+          delete spec.tonic
+        }
         // A new scale is a new run: the score does not carry across. But a run
         // that was going keeps going, on the new scale from its first note.
         // Dropping to idle instead looked the same from the keys — the scale is
@@ -330,6 +372,23 @@ export const useLearningStore = create<LearningState>((set, get) => {
         demoStepIndex: index,
         annotations: buildAnnotations(state.exercise, state.mode, state.session, index),
       })),
+
+    setFingeringSystem: (fingeringSystem) =>
+      set((state) => {
+        try {
+          window.localStorage.setItem(FINGERING_SYSTEM_KEY, fingeringSystem)
+        } catch {
+          // Private browsing. The choice holds for this session.
+        }
+        // The same notes, re-fingered. The run carries on from where it is:
+        // nothing about what has been played is any less true.
+        const exercise = buildExercise(state.topic, state.spec, fingeringSystem)
+        return {
+          fingeringSystem,
+          exercise,
+          annotations: buildAnnotations(exercise, state.mode, state.session, state.demoStepIndex),
+        }
+      }),
 
     setSongAnnotations: (songAnnotations) => set({ songAnnotations }),
 

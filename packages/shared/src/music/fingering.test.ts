@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { scaleFingering } from './fingering.js'
+import {
+  DEFAULT_FINGERING_SYSTEM,
+  FINGERING_SYSTEM_IDS,
+  fingeringSystem,
+} from './fingering-system.js'
+import { fourthFingerAnchors } from './theory.js'
 import { buildScaleExercise } from '../learning/scale-exercise.js'
 import { SCALE_TYPES, findScaleType, octaveNotes, spellScale } from './scales.js'
 
@@ -13,7 +19,8 @@ describe('standard fingerings', () => {
     expect(digits(scale('C', 'major', 'right').fingers)).toBe('12312345')
     expect(digits(scale('C', 'major', 'left').fingers)).toBe('54321321')
     expect(digits(scale('F', 'major', 'right').fingers)).toBe('12341234')
-    expect(digits(scale('B♭', 'major', 'right').fingers)).toBe('41231234')
+    // The book opens B♭ on the 2nd finger; the 4th arrives an octave up.
+    expect(digits(scale('B♭', 'major', 'right').fingers)).toBe('21231234')
     expect(digits(scale('B', 'major', 'left').fingers)).toBe('43214321')
   })
 
@@ -69,8 +76,16 @@ describe('extending across octaves', () => {
     }
   })
 
-  it('extends a black-key scale without dropping its opening finger', () => {
-    expect(digits(scale('B♭', 'major', 'right', 2).fingers)).toBe('412312341231234')
+  it('opens a black-key scale as the page does, at any length', () => {
+    // 2 on the first B♭ only. Every B♭ after it takes the 4th finger.
+    expect(digits(scale('B♭', 'major', 'right', 2).fingers)).toBe('212312341231234')
+    expect(digits(scale('B♭', 'major', 'right', 3).fingers)).toBe('2123123412312341231234')
+  })
+
+  it('turns at the top as the page does, at any length', () => {
+    // F♯ major's left hand takes F♯ with the 4th finger, except the last one.
+    expect(digits(scale('F♯', 'major', 'left', 1).fingers)).toBe('43213212')
+    expect(digits(scale('F♯', 'major', 'left', 3).fingers)).toBe('4321321432132143213212')
   })
 })
 
@@ -104,46 +119,212 @@ function isBlack(note: number): boolean {
 }
 
 /**
- * Checked against The Complete Book of Scales, Chords, Arpeggios & Cadences
- * (Palmer, Manus & Lethco, Alfred, 1994) — its Guide to Fingering and its two
- * fingering charts. The extracted tables live in sites/piano-content.
+ * The Traditional system, checked line by line against the page.
  *
- * These are pinned by the degree the 4th finger falls on, which is how that
- * book indexes every scale, and it is the thing that was wrong: the two flat
- * minor left hands had been given their parallel major's shape, which puts the
- * 4th finger on the wrong note of the scale.
+ * Every string below is one hand of one line of *The Brown Scale Book* —
+ * "Similar motion in octaves", two octaves — read off the printed digits and
+ * filled in between them the only way consecutive fingers allow. Typed out
+ * here rather than generated, so that a slip in the tables shows up as a
+ * disagreement instead of agreeing with itself.
+ *
+ * What these pin above all is the ends of each run. The book opens and turns
+ * several scales on a finger the same note never takes again, and it is exactly
+ * those digits that a tidier fingering smooths away.
  */
-describe('published fingerings', () => {
-  /** Which degree of the octave the 4th finger lands on, 1-based. */
-  const fourthOn = (root: string, type: string, hand: 'right' | 'left') =>
-    scale(root, type, hand).fingers.indexOf(4) + 1
+describe('the Brown Scale Book, as printed', () => {
+  const WHITE_RH = '123123412312345'
+  const WHITE_LH = '543213214321321'
 
-  it('places the left-hand 4th finger where the source does', () => {
-    // Exceptions to "a major scale and its parallel harmonic minor are
-    // fingered alike" — the source names exactly these two.
-    expect(digits(scale('E♭', 'natural-minor', 'left').fingers)).toBe('21432132')
-    expect(fourthOn('E♭', 'natural-minor', 'left')).toBe(3)
+  const run = (root: string, type: string, hand: 'right' | 'left') =>
+    digits(scale(root, type, hand, 2).fingers)
 
-    expect(digits(scale('B♭', 'natural-minor', 'left').fingers)).toBe('21321432')
-    expect(fourthOn('B♭', 'natural-minor', 'left')).toBe(6)
+  // [tonic, right hand, left hand] — ascending, bottom note first.
+  it.each([
+    ['C', WHITE_RH, WHITE_LH],
+    ['G', WHITE_RH, WHITE_LH],
+    ['D', WHITE_RH, WHITE_LH],
+    ['A', WHITE_RH, WHITE_LH],
+    ['E', WHITE_RH, WHITE_LH],
+    ['B', WHITE_RH, '432143213214321'],
+    ['F♯', '234123123412312', '432132143213212'],
+    ['F', '123412312341234', WHITE_LH],
+    ['B♭', '212312341231234', '321432132143213'],
+    ['E♭', '212341231234123', '321432132143212'],
+    ['A♭', '231231234123123', '321432132143212'],
+    ['D♭', '231234123123412', '321432132143212'],
+  ])('%s major', (tonic, right, left) => {
+    expect(run(tonic, 'major', 'right')).toBe(right)
+    expect(run(tonic, 'major', 'left')).toBe(left)
   })
 
-  it('keeps G♯ minor on its own left hand', () => {
-    // The one scale whose natural-minor LH differs from its harmonic minor:
-    // the 4th finger sits on F♯, the 7th degree, not on C♯, the 4th.
-    expect(digits(scale('G♯', 'natural-minor', 'left').fingers)).toBe('32132143')
-    expect(fourthOn('G♯', 'natural-minor', 'left')).toBe(7)
+  it.each([
+    ['A', WHITE_RH, WHITE_LH],
+    ['E', WHITE_RH, WHITE_LH],
+    ['B', WHITE_RH, '432143213214321'],
+    ['F♯', '231231234123123', '432132143213212'],
+    ['C♯', '231231234123123', '321432132143212'],
+    ['G♯', '231231234123123', '321432132143212'],
+    ['D♯', '212341231234123', '214321321432132'],
+    ['D', WHITE_RH, WHITE_LH],
+    ['G', WHITE_RH, WHITE_LH],
+    ['C', WHITE_RH, WHITE_LH],
+    ['F', '123412312341234', WHITE_LH],
+    // The one left hand that opens a black-key scale on the little finger.
+    ['B♭', '212312341231234', '543214321321432'],
+  ])('%s minor, harmonic form', (tonic, right, left) => {
+    expect(run(tonic, 'harmonic-minor', 'right')).toBe(right)
+    expect(run(tonic, 'harmonic-minor', 'left')).toBe(left)
   })
 
-  it('agrees with the major chart', () => {
-    expect(digits(scale('C', 'major', 'right').fingers)).toBe('12312345')
-    expect(digits(scale('F', 'major', 'right').fingers)).toBe('12341234')
-    expect(digits(scale('B', 'major', 'left').fingers)).toBe('43214321')
-    expect(digits(scale('F♯', 'major', 'right').fingers)).toBe('23412312')
-    expect(digits(scale('F♯', 'major', 'left').fingers)).toBe('43213214')
-    expect(digits(scale('D♭', 'major', 'right').fingers)).toBe('23123412')
-    expect(digits(scale('A♭', 'major', 'right').fingers)).toBe('34123123')
-    expect(digits(scale('E♭', 'major', 'right').fingers)).toBe('31234123')
+  /** The whole melodic line as it is played: up, and back down from the top. */
+  const melodic = (pitchClass: number, hand: 'right' | 'left') => {
+    const fingers = buildScaleExercise({
+      kind: 'scale',
+      rootPitchClass: pitchClass,
+      scaleTypeId: 'melodic-minor',
+      hand,
+      octaves: 2,
+      direction: 'up-down',
+    }).steps.map((step) => step.fingers[0]!.finger)
+    return [digits(fingers.slice(0, 15)), digits(fingers.slice(14))]
+  }
+
+  const WHITE_RH_DOWN = '543213214321321'
+  const WHITE_LH_DOWN = '123123412312345'
+
+  // [tonic, pitch class, RH up, RH down, LH up, LH down] — down is read from
+  // the top note, which the two halves share.
+  it.each([
+    ['A', 9, WHITE_RH, WHITE_RH_DOWN, WHITE_LH, WHITE_LH_DOWN],
+    ['E', 4, WHITE_RH, WHITE_RH_DOWN, WHITE_LH, WHITE_LH_DOWN],
+    ['B', 11, WHITE_RH, WHITE_RH_DOWN, '432143213214321', '123412312341234'],
+    ['F♯', 6, '231234123123413', '321321432132132', '432132143213212', '212312341231234'],
+    ['C♯', 1, '231234123123413', '321321432132132', '321432132143212', '212341231234123'],
+    // Opens 3 4 where the harmonic form on the same page opens 2 3, and the
+    // left hand comes off the top 2 3 1.
+    ['G♯', 8, '341231234123123', '321321432132143', '321432132143212', '231231234123123'],
+    ['D♯', 3, '212341231234123', '321432132143212', '214321321432132', '231234123123412'],
+    ['D', 2, WHITE_RH, WHITE_RH_DOWN, WHITE_LH, WHITE_LH_DOWN],
+    ['G', 7, WHITE_RH, WHITE_RH_DOWN, WHITE_LH, WHITE_LH_DOWN],
+    ['C', 0, WHITE_RH, WHITE_RH_DOWN, WHITE_LH, WHITE_LH_DOWN],
+    ['F', 5, '123412312341234', '432143213214321', WHITE_LH, WHITE_LH_DOWN],
+    ['B♭', 10, '212312341231234', '432132143213212', '213214321321432', '234123123412312'],
+  ])('%s minor, melodic form', (_tonic, pitchClass, rightUp, rightDown, leftUp, leftDown) => {
+    expect(melodic(pitchClass, 'right')).toEqual([rightUp, rightDown])
+    expect(melodic(pitchClass, 'left')).toEqual([leftUp, leftDown])
+  })
+
+  it('comes back down the way it went up, in every major and harmonic minor key', () => {
+    // The book prints the descent and it is the ascent read backwards — the
+    // closing finger included: A♭ major is printed ending 3 2.
+    for (const scaleTypeId of ['major', 'harmonic-minor']) {
+      for (let pitchClass = 0; pitchClass < 12; pitchClass++) {
+        for (const hand of ['right', 'left'] as const) {
+          const fingers = buildScaleExercise({
+            kind: 'scale',
+            rootPitchClass: pitchClass,
+            scaleTypeId,
+            hand,
+            octaves: 2,
+            direction: 'up-down',
+          }).steps.map((step) => step.fingers[0]!.finger)
+          expect(fingers.slice(14), `${scaleTypeId} pc ${pitchClass} ${hand}`).toEqual(
+            fingers.slice(0, 15).reverse(),
+          )
+        }
+      }
+    }
+    expect(digits(scale('A♭', 'major', 'right', 2).fingers.slice(0, 2))).toBe('23')
+  })
+
+  it('fingers a natural minor as the melodic form comes down', () => {
+    // The book has no natural minor line of its own. The notes are the
+    // melodic form's descent, and that is the fingering it prints for them.
+    expect(digits(scale('G♯', 'natural-minor', 'left', 2).fingers)).toBe('321321432132132')
+    expect(digits(scale('F♯', 'natural-minor', 'right', 2).fingers)).toBe('231231234123123')
+  })
+
+  it('says nothing about a scale the book does not print', () => {
+    for (const scaleTypeId of ['dorian', 'lydian', 'blues', 'whole-tone', 'minor-pentatonic']) {
+      const result = fingeringSystem('traditional').scale({
+        tonic: 'C',
+        scaleTypeId,
+        hand: 'right',
+        octaves: 1,
+        notes: [60, 62, 64, 65, 67, 69, 71, 72],
+      })
+      expect(result, scaleTypeId).toBeNull()
+    }
+  })
+})
+
+/**
+ * A key is its name, not its piano keys.
+ *
+ * The book prints D♯ minor. E♭ minor is the same seven keys and a different
+ * key — six flats, every note renamed — so the tables hold D♯ minor under that
+ * name and the step from E♭ minor to it is a stated one.
+ */
+describe('keys and their enharmonic twins', () => {
+  it('prints D♯ minor, and plays E♭ minor from that page', () => {
+    for (const form of ['natural-minor', 'harmonic-minor', 'melodic-minor']) {
+      for (const hand of ['right', 'left'] as const) {
+        const printed = scale('D♯', form, hand, 2)
+        const borrowed = scale('E♭', form, hand, 2)
+        expect(printed.source).toBe('standard')
+        expect(borrowed.source).toBe('standard')
+        expect(digits(borrowed.fingers), `${form} ${hand}`).toBe(digits(printed.fingers))
+      }
+    }
+  })
+
+  it('follows the book’s own two: F♯ major is G♭ major, D♭ major is C♯ major', () => {
+    expect(digits(scale('G♭', 'major', 'right', 2).fingers)).toBe('234123123412312')
+    expect(digits(scale('C♯', 'major', 'left', 2).fingers)).toBe('321432132143212')
+  })
+
+  it('does not find a key by its piano keys alone', () => {
+    // D♭ minor is not a key the book prints or a twin it names. Pitch class 1
+    // has a minor page — C♯ minor — and a lookup by pitch class would hand
+    // that over; a lookup by name does not.
+    expect(scale('D♭', 'harmonic-minor', 'right').source).toBe('derived')
+    expect(scale('C♯', 'harmonic-minor', 'right').source).toBe('standard')
+  })
+
+  it('reads a tonic however it is typed', () => {
+    expect(digits(scale('Bb', 'major', 'right').fingers)).toBe(
+      digits(scale('B♭', 'major', 'right').fingers),
+    )
+  })
+})
+
+describe('fingering systems', () => {
+  it('has one, and it is the default', () => {
+    expect(FINGERING_SYSTEM_IDS).toEqual(['traditional'])
+    expect(DEFAULT_FINGERING_SYSTEM).toBe('traditional')
+    expect(fingeringSystem().name).toBe('Traditional / Orthodox')
+    // Anything unrecognised — a setting saved by a later version — is the default.
+    expect(fingeringSystem('no-such-system').id).toBe('traditional')
+  })
+
+  it('changes the fingers and never the notes', () => {
+    // The spec says what is played; the system only says how it is fingered.
+    for (const type of SCALE_TYPES) {
+      for (let pitchClass = 0; pitchClass < 12; pitchClass++) {
+        const spec = {
+          kind: 'scale',
+          rootPitchClass: pitchClass,
+          scaleTypeId: type.id,
+          hand: 'both',
+          octaves: 2,
+          direction: 'up-down',
+        } as const
+        const plain = buildScaleExercise(spec)
+        const named = buildScaleExercise(spec, { fingering: 'traditional' })
+        expect(named.notes, `${type.id} pc ${pitchClass}`).toEqual(plain.notes)
+        expect(named.steps.map((step) => step.label)).toEqual(plain.steps.map((step) => step.label))
+      }
+    }
   })
 })
 
@@ -268,14 +449,13 @@ describe('every scale the app can build', () => {
 })
 
 /**
- * The page headers, which is how the source itself indexes a scale.
+ * Where the 4th finger falls, which is the handle a scale is remembered by.
  *
- * Every per-key page names the degree its 4th finger falls on, for each hand,
- * before it prints a note. Checking against that rather than against the digits
- * catches a wrong pattern that happens to be playable — which is what the minor
- * scales used to be, handed the parallel major's shape.
+ * Checking it as well as the digits catches a wrong pattern that happens to be
+ * playable — which is what the minor scales once were, handed the parallel
+ * major's shape.
  */
-describe('checked against the page headers', () => {
+describe('where the 4th finger falls', () => {
   const anchorDegrees = (pitchClass: number, typeId: string, hand: 'right' | 'left') => {
     const type = findScaleType(typeId)!
     const fingering = scaleFingering({
@@ -285,10 +465,9 @@ describe('checked against the page headers', () => {
       octaves: 1,
       notes: octaveNotes(pitchClass, type),
     })
-    // Degrees 1-7. The octave note carries whichever finger opens the next
-    // octave, which is not an anchor — the source counts the 4th finger once
-    // per octave, inside the scale.
-    return fingering.fingers.slice(0, 7).flatMap((finger, i) => (finger === 4 ? [i + 1] : []))
+    // Degrees 1-7, from the body of the run: the finger each note takes
+    // mid-scale, clear of how one printed octave happens to open or turn.
+    return fourthFingerAnchors(fingering, hand).map((degree) => degree + 1)
   }
 
   // [pitch class, left-hand degrees, right-hand degrees]
@@ -298,7 +477,7 @@ describe('checked against the page headers', () => {
     [2, [2], [7]],
     [9, [2], [7]],
     [4, [2], [7]],
-    [11, [1, 5], [7]],
+    [11, [5], [7]],
     [6, [1], [3]],
     [1, [4], [6]],
     [8, [4], [2]],
@@ -313,7 +492,7 @@ describe('checked against the page headers', () => {
   it.each([
     [9, [2], [7]],
     [4, [2], [7]],
-    [11, [1, 5], [7]],
+    [11, [5], [7]],
     [6, [1], [2]],
     [1, [4], [2]],
     [8, [4], [2]],
@@ -329,10 +508,10 @@ describe('checked against the page headers', () => {
   })
 
   it('moves the melodic minor 4th finger onto the raised sixth', () => {
-    // "Melodic minor scale... RH 4th finger on A♯ ascending, D♯ descending"
-    // (C♯ minor) and "on D♯ ascending, G♯ descending" (F♯ minor). Everywhere
-    // else the raised sixth lands where the harmonic fingering already puts a
-    // finger, which is why only these two keys differ.
+    // C♯ minor: the right hand's 4th finger is on A♯ going up and D♯ coming
+    // down. F♯ minor: on D♯ going up and G♯ coming down. Everywhere else the
+    // raised sixth lands where the harmonic fingering already puts a finger,
+    // which is why only these two keys differ.
     expect(anchorDegrees(1, 'melodic-minor', 'right')).toEqual([6])
     expect(anchorDegrees(6, 'melodic-minor', 'right')).toEqual([6])
     expect(anchorDegrees(1, 'melodic-minor', 'left')).toEqual([4])
@@ -358,7 +537,9 @@ describe('checked against the page headers', () => {
         rootPitchClass: pitchClass,
         scaleTypeId: 'melodic-minor',
         hand,
-        octaves: 1,
+        // Two octaves: in one, the page's own opening covers the very notes
+        // the 4th finger would otherwise be seen on.
+        octaves: 2,
         direction: 'up-down',
       })
       const turn = exercise.steps.findIndex(
@@ -372,9 +553,8 @@ describe('checked against the page headers', () => {
   })
 
   it('finds a key under either of its names', () => {
-    // The speller writes pitch class 3 as D♯ in a minor key and E♭ in a major
-    // one. Keyed by name, the minor lookup missed and the scale silently fell
-    // through to a worked-out fingering; keyed by pitch class it cannot.
+    // The book prints D♯ minor; E♭ minor is played from that page, and says
+    // so. Neither falls through to a worked-out fingering.
     expect(scale('D♯', 'natural-minor', 'left').source).toBe('standard')
     expect(digits(scale('D♯', 'natural-minor', 'left').fingers)).toBe(
       digits(scale('E♭', 'natural-minor', 'left').fingers),
@@ -450,8 +630,10 @@ describe('working a fingering out', () => {
       octaves: 1,
       notes,
     })
-    // RH takes 2 on C and F; LH takes 2 on E and B.
-    expect(digits(right.fingers)).toBe('2313123131312')
+    // RH takes 2 on C and F; LH takes 2 on E and B. And the right hand's
+    // lowest note is a thumb even though it is a C: the page starts and ends
+    // its chromatic line on 1 and plays the Cs above on 2.
+    expect(digits(right.fingers)).toBe('1313123131312')
     expect(digits(left.fingers)).toBe('1313213131321')
     expect(right.source).toBe('standard')
   })

@@ -12,6 +12,7 @@ import {
   type SpelledScale,
 } from '../music/scales.js'
 import { scaleFingering, type Hand } from '../music/fingering.js'
+import type { FingeringSystemId } from '../music/fingering-system.js'
 import { tetrachords } from '../music/theory.js'
 import type { Exercise, ExerciseStep } from './exercise.js'
 
@@ -51,6 +52,14 @@ const HAND_CUE_PREFIX: Record<Hand, string> = { right: 'Right', left: 'Left' }
 export const scaleSpecSchema = z.object({
   kind: z.literal('scale'),
   rootPitchClass: z.number().int().min(0).max(11),
+  /**
+   * Which of the key's names it is written under — `E♭` rather than `D♯`.
+   *
+   * Left out, the scale takes its usual name. Named, because two keys on the
+   * same piano keys are still two keys: different signatures, different
+   * spellings, and in a method book, different pages.
+   */
+  tonic: z.string().optional(),
   scaleTypeId: z.string().min(1),
   hand: z.enum(SCALE_HANDS),
   octaves: z.number().int().min(1).max(4),
@@ -137,9 +146,17 @@ function movementCue(
   return previousFinger === 1 && finger > 1 ? 'Cross over' : undefined
 }
 
-export function buildScaleExercise(spec: ScaleSpec): Exercise {
+export interface ScaleExerciseOptions {
+  /**
+   * Which fingering system puts the numbers on the notes. Not part of the
+   * spec: the spec says what is played, and this only says how it is fingered.
+   */
+  readonly fingering?: FingeringSystemId
+}
+
+export function buildScaleExercise(spec: ScaleSpec, options: ScaleExerciseOptions = {}): Exercise {
   const type = findScaleType(spec.scaleTypeId) ?? SCALE_TYPES[0]!
-  const scale: SpelledScale = spellScale(spec.rootPitchClass, type)
+  const scale: SpelledScale = spellScale(spec.rootPitchClass, type, spec.tonic)
   const offsets = scaleOffsets(type)
   const span = 12 * spec.octaves
   const starts = placeHands(spec.rootPitchClass, type, span, spec.hand)
@@ -157,7 +174,8 @@ export function buildScaleExercise(spec: ScaleSpec): Exercise {
   // chromatic scale falls in flats. Spelled from the same root, so the scale
   // keeps one name whichever way it is going.
   const descendingScale = differsDescending
-    ? spellScale(spec.rootPitchClass, descendingType)
+    ? // From the same tonic, so a scale keeps one name both ways.
+      spellScale(spec.rootPitchClass, descendingType, scale.root.name)
     : type.descendingDegrees
       ? (spellScaleFrom(scale.root, type, type.descendingDegrees) ?? scale)
       : scale
@@ -192,6 +210,7 @@ export function buildScaleExercise(spec: ScaleSpec): Exercise {
       hand,
       octaves: spec.octaves,
       notes: ascending.map((entry) => entry.note),
+      system: options.fingering,
     })
 
     // Descending is the ascending shape read backwards, fingers included — which
@@ -211,6 +230,7 @@ export function buildScaleExercise(spec: ScaleSpec): Exercise {
           hand,
           octaves: spec.octaves,
           notes: descendingClimb.map((entry) => entry.note),
+          system: options.fingering,
         })
       : fingering
     const descendingFingers = [...descendingFingering.fingers].reverse()

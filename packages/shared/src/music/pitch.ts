@@ -80,7 +80,10 @@ export function spellingsFor(pitchClass: number): Pitch[] {
 
 /** Parses `A`, `Bb`, `F#`, `E♭`. Returns null for anything else. */
 export function parsePitch(name: string): Pitch | null {
-  const match = /^([A-Ga-g])(bb|##|[b#♭♯𝄫𝄪]?)$/.exec(name.trim())
+  // The `u` flag is load-bearing: 𝄪 and 𝄫 lie outside the basic plane, and
+  // without it the character class sees two half-characters and matches
+  // neither — so the app could not read back its own `C𝄪`.
+  const match = /^([A-Ga-g])(bb|##|[b#♭♯𝄫𝄪]?)$/u.exec(name.trim())
   if (!match) return null
   const letter = LETTERS.indexOf(match[1]!.toUpperCase() as Letter)
   if (letter < 0) return null

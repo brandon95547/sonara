@@ -4,7 +4,7 @@ import {
   crossings,
   degreeNames,
   findScaleType,
-  fourthFingerDegrees,
+  fourthFingerAnchors,
   octaveNotes,
   ordinal,
   relativeKey,
@@ -33,13 +33,14 @@ export function ScaleTheoryDialog({ open, onClose }: { open: boolean; onClose: (
   const spec = useLearningStore((state) => state.spec)
 
   const type = findScaleType(spec.scaleTypeId)
-  const scale = type ? spellScale(spec.rootPitchClass, type) : null
+  const system = useLearningStore((state) => state.fingeringSystem)
+  const scale = type ? spellScale(spec.rootPitchClass, type, spec.tonic) : null
   if (!type || !scale) return null
 
   const noteNames = scale.notes.map((note) => note.name)
   const halves = tetrachordNotes(noteNames, type)
   const names = degreeNames(type)
-  const relative = relativeKey(spec.rootPitchClass, type)
+  const relative = relativeKey(spec.rootPitchClass, type, spec.tonic)
   // One principle per hand that plays: the two hands anchor on different
   // degrees and cross in different places, so both hands is two answers.
   const hands: readonly Hand[] = spec.hand === 'both' ? ['left', 'right'] : [spec.hand]
@@ -54,12 +55,13 @@ export function ScaleTheoryDialog({ open, onClose }: { open: boolean; onClose: (
         // is most of them, the modes and pentatonics included. Passing none
         // left this dialog showing an empty hand for all of them.
         notes: octaveNotes(spec.rootPitchClass, type),
+        system,
       })
       return {
         hand,
         label: hand === 'right' ? 'Right hand' : 'Left hand',
         source: fingering.source,
-        anchors: fourthFingerDegrees(fingering.fingers, hand),
+        anchors: fourthFingerAnchors(fingering, hand),
         moves: crossings(fingering.fingers, hand, noteNames),
       }
     })

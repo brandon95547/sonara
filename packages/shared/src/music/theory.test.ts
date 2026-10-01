@@ -1,23 +1,23 @@
 import { describe, expect, it } from 'vitest'
 import { scaleFingering } from './fingering.js'
 import { findScaleType, spellScale } from './scales.js'
-import { degreeNames, fourthFingerDegrees, ordinal, relativeKey, tetrachords } from './theory.js'
+import { degreeNames, fourthFingerAnchors, ordinal, relativeKey, tetrachords } from './theory.js'
 
 const anchor = (rootName: string, scaleTypeId: string, hand: 'right' | 'left', octaves = 1) =>
-  fourthFingerDegrees(
-    scaleFingering({ rootName, scaleTypeId, hand, octaves, notes: [] }).fingers,
+  fourthFingerAnchors(
+    scaleFingering({ rootName, scaleTypeId, hand, octaves, notes: [] }),
     hand,
   ).map((index) => index + 1)
 
 /**
- * The book states one 4th-finger anchor per hand per key, in the header of
- * every scale page, and builds its whole teaching around it. This pins our
- * derivation to all twenty-four of those answers.
+ * Where the 4th finger falls in each hand, in every key the Brown Scale Book
+ * prints — read off the body of its fingering, clear of how a run opens or
+ * turns.
  *
- * Extracted from PDF pages 20-79; the full table is kept in
- * sites/piano-content/fourth-finger-anchors.json. Repeated here rather than
- * read from there because a test may not reach outside the repository — and
- * because a pinned expectation is worth reading next to the thing it pins.
+ * That last part is the point of the table. The book opens some scales on a
+ * finger the note never takes again (B major's left hand starts on 4 and plays
+ * every later B with the thumb), and an anchor is a place the hand keeps coming
+ * back to, so only the 4ths inside the run are counted.
  */
 const BOOK: [root: string, type: string, lh: number[], rh: number[]][] = [
   ['C', 'major', [2], [7]],
@@ -25,26 +25,25 @@ const BOOK: [root: string, type: string, lh: number[], rh: number[]][] = [
   ['D', 'major', [2], [7]],
   ['A', 'major', [2], [7]],
   ['E', 'major', [2], [7]],
-  // "LH: 4th finger on B and F# (1st and 5th degrees)" — twice in the octave.
-  ['B', 'major', [1, 5], [7]],
+  ['B', 'major', [5], [7]],
   ['F♯', 'major', [1], [3]],
   ['D♭', 'major', [4], [6]],
   ['A♭', 'major', [4], [2]],
   ['E♭', 'major', [4], [5]],
   ['B♭', 'major', [4], [1]],
-  // "RH: 4th finger on Bb (4th degree)" — the trailing 4 ends the scale and is
-  // not an anchor, which is the rule the derivation has to get right.
+  // The 4 that ends F major's right hand is where the run stops, not an
+  // anchor: mid-run that F is a thumb.
   ['F', 'major', [2], [4]],
 
   ['A', 'natural-minor', [2], [7]],
   ['E', 'natural-minor', [2], [7]],
-  ['B', 'natural-minor', [1, 5], [7]],
+  ['B', 'natural-minor', [5], [7]],
   ['F♯', 'natural-minor', [1], [2]],
   ['C♯', 'natural-minor', [4], [2]],
-  // The natural-minor exception the book prints on the page itself: F♯, the
-  // 7th degree, where the harmonic minor takes C♯, the 4th.
+  // Coming down the melodic form the left hand's 4th finger is on F♯, the
+  // 7th degree; in the harmonic form it is on C♯, the 4th.
   ['G♯', 'natural-minor', [7], [2]],
-  ['E♭', 'natural-minor', [3], [5]],
+  ['D♯', 'natural-minor', [3], [5]],
   ['B♭', 'natural-minor', [6], [1]],
   ['F', 'natural-minor', [2], [4]],
   ['C', 'natural-minor', [2], [7]],

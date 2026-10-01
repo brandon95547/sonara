@@ -38,6 +38,9 @@ touchscreen or a USB MIDI keyboard, and watch every note land on the keys.
   octaves, ascending, descending or both. Right hand, left hand, or both
   together: the left hand sits an octave below the right, the way scale books
   print a scale "in octaves".
+- **Fingering from the book.** The recommended fingers for major, minor and
+  chromatic scales are the ones printed in The Brown Scale Book, under a
+  Fingering system setting built to take more than one.
 - **Play it to hear it.** A demo button walks the scale at the tempo you have
   set, driving the same finger and target guidance Learn uses.
 - **"Understand this scale"** explains the one you have selected: how it is
@@ -258,31 +261,50 @@ not pretend otherwise — the cards say so.
 Two sources answer two different questions, and which one applies decides what
 the answer is labelled.
 
-_Published tables_ cover major, all three minor forms and the chromatic scale,
-in every key and both hands, checked against the degree each page names for its
-4th finger — which is how the source indexes a scale, and what catches a wrong
-pattern that happens to be playable. Three of those keys are exceptions worth
-knowing about: G♯ minor's left hand differs between its natural and harmonic
-forms, and F♯ and C♯ **melodic** minor move the right hand's 4th finger onto the
-raised sixth going up. A melodic minor descends as a natural minor and is
-fingered as one, because mirroring the ascent lands the same finger on both
-notes either side of the turn. Tables are keyed by pitch class rather than by
-name: D♯ minor and E♭ minor are one scale, and a caller will ask for whichever
-name you did not store.
+_A fingering system_ answers for the scales its source prints. There is one,
+**Traditional / Orthodox**, chosen under Settings ▸ Fingering, and it is a
+transcription of the fingering printed in _Scales, Chords and Arpeggios for
+Piano — The Brown Scale Book_ (Frederick Harris): every major key, every minor
+key in its harmonic and melodic forms, and the chromatic scale. It is held to
+one rule — it says what the page says:
 
-_Worked out_ covers everything else. For scales with no published fingering the
+- **The ends of a run are kept as printed.** The book opens A♭ major in the
+  right hand on `2 3` and only takes `3 4` on those notes an octave later; it
+  turns the left hand at the top of F♯ major on the 2nd finger though F♯ takes
+  the 4th everywhere below. A run is stored as what repeats plus what the page
+  does differently on its lowest and highest notes, so those survive at any
+  length.
+- **Printed digits only.** The scan it was read from has a previous owner's
+  pencil over several openings. The print underneath is what counts.
+- **A melodic minor is fingered as two scales**, up and down, because the page
+  prints both — and a natural minor, which has no line of its own in the book,
+  is fingered as the melodic form's descent.
+- **Keys are looked up by name, not by pitch class.** D♯ minor and E♭ minor are
+  the same piano keys and different keys: other signature, other note names.
+  The book prints D♯ minor, so that is the page; E♭ minor is played _from_ that
+  page by a stated step, the way the book's own titles read "F♯ Major
+  (Enharmonic G♭ Major)". The key picker offers both names where both are real
+  keys.
+
+The notes of a scale live in `music/scales.ts` and know nothing about fingers.
+A system is asked, separately, which fingers it puts on them
+(`music/fingering-system.ts`), so adding one is a new file and a line in a
+table, and no scale definition changes.
+
+_Worked out_ covers everything else — the modes, the pentatonics, blues, whole
+tone. For scales with no published fingering the
 thumb positions are planned across the whole passage by shortest path and the
 fingers filled in afterwards, which makes the result playable by construction —
 no finger reachable twice, the little finger only at an end. Run over the notes
-of the 24 published scales it reproduces every one, exactly or as the primary
-where the table stores the variant that continues into the next octave. Two
+of the 24 published scales it reproduces the body of every one, differing only
+at the outer notes where the page opens or turns its own way. Two
 rules do that work, and their order is the whole point: "the thumb avoids black
 keys" is a preference, "the hand has five fingers" is anatomy, and enforcing the
 first absolutely while letting the second slide produces fingerings that ask the
 little finger for three rising notes in a row.
 
-Anything worked out is labelled _Suggested_ rather than _Standard_, because
-those are different claims.
+Anything worked out is labelled _Suggested_, and anything a system supplied is
+labelled with the system's name, because those are different claims.
 
 ### Songs
 

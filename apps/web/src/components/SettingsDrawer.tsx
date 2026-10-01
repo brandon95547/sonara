@@ -1,5 +1,13 @@
 import { ChevronLeft, ChevronRight, Piano, Volume2, VolumeX } from 'lucide-react'
-import { noteName, type Instrument } from '@sonara/shared'
+import {
+  DEFAULT_FINGERING_SYSTEM,
+  FINGERING_SYSTEM_IDS,
+  FINGERING_SYSTEMS,
+  fingeringSystem,
+  isFingeringSystemId,
+  noteName,
+  type Instrument,
+} from '@sonara/shared'
 import { Drawer } from '@/ui/Drawer'
 import { Button, IconButton } from '@/ui/Button'
 import { Field, SegmentedControl, Select, Slider, Switch } from '@/ui/Controls'
@@ -70,6 +78,14 @@ export function SettingsDrawer({
         <Divider />
         <StaffSection />
         <Divider />
+        {/* A song brings its own fingering, from its file or worked out for
+            its notes. A system is about the material a method book prints. */}
+        {topic !== 'songs' && (
+          <>
+            <FingeringSection />
+            <Divider />
+          </>
+        )}
         {topic === 'scales' ? <PracticeSection /> : <SongSection />}
         <Divider />
         <Section title="Keyboard & MIDI" description={<MidiLine />}>
@@ -269,6 +285,43 @@ function StaffSection() {
           </Field>
         </>
       )}
+    </Section>
+  )
+}
+
+/**
+ * Whose fingering the recommended numbers are.
+ *
+ * A select with one entry, on purpose. It says where the numbers come from,
+ * which is worth knowing even before there is a choice — and the next system
+ * is then an option in this list rather than a new control.
+ */
+function FingeringSection() {
+  const system = useLearningStore((state) => state.fingeringSystem)
+  const setSystem = useLearningStore((state) => state.setFingeringSystem)
+  return (
+    <Section title="Fingering">
+      <Field
+        label="Fingering system"
+        htmlFor="fingering-system"
+        hint={fingeringSystem(system).description}
+      >
+        <Select
+          id="fingering-system"
+          size="sm"
+          value={system}
+          onChange={(event) => {
+            if (isFingeringSystemId(event.target.value)) setSystem(event.target.value)
+          }}
+          options={FINGERING_SYSTEM_IDS.map((id) => {
+            const { name } = FINGERING_SYSTEMS[id]
+            return {
+              value: id,
+              label: id === DEFAULT_FINGERING_SYSTEM ? `${name} (Default)` : name,
+            }
+          })}
+        />
+      </Field>
     </Section>
   )
 }
