@@ -10,6 +10,7 @@ import {
   tempo,
   upcomingSteps,
   type Exercise,
+  type ExerciseFingering,
   type ExerciseStep,
   type Hand,
   type LearningMode,
@@ -38,6 +39,16 @@ import { panelActions } from '@/state/panel-store'
  * these cards render them without being touched: the title, the facts, the
  * current step and the score are all part of the generic model.
  */
+/** A fingering's numbers, in the groups they are played in. */
+function fingerGroups(fingering: ExerciseFingering): number[][] {
+  const size = fingering.perStep ?? 1
+  const groups: number[][] = []
+  for (let at = 0; at < fingering.fingers.length; at += size) {
+    groups.push(fingering.fingers.slice(at, at + size))
+  }
+  return groups
+}
+
 const HAND_NAMES: Record<Hand, string> = { left: 'Left hand', right: 'Right hand' }
 
 /**
@@ -171,12 +182,17 @@ function MaterialCard({ exercise }: { exercise: Exercise }) {
                     </div>
                   )}
                   <div className="flex flex-wrap gap-1" data-tabular>
-                    {fingering.fingers.map((finger, at) => (
+                    {/* Fingers played together share a chip: a third is 1 3,
+                        not a 1 and then a 3. */}
+                    {fingerGroups(fingering).map((group, at) => (
                       <span
                         key={at}
-                        className="grid h-6 w-6 place-items-center rounded-[var(--radius-xs)] bg-[var(--ds-surface-inset)] text-label-sm text-[var(--ds-fg-secondary)]"
+                        className={cn(
+                          'grid h-6 place-items-center rounded-[var(--radius-xs)] bg-[var(--ds-surface-inset)] text-label-sm text-[var(--ds-fg-secondary)]',
+                          group.length > 1 ? 'px-1.5' : 'w-6',
+                        )}
                       >
-                        {finger}
+                        {group.join(' ')}
                       </span>
                     ))}
                   </div>
@@ -215,6 +231,8 @@ function CurrentStepCard({
   const step = exercise.steps[here] ?? null
   const hands = handsOf(exercise, step)
   const together = hands.length > 1
+  // The most any one hand holds at once.
+  const held = Math.max(0, ...hands.map((hand) => hand.fingers.length))
   const running = session.status === 'running'
   // Practice withholds the answer on purpose. Printing the note here would
   // make it the same exercise as Learn with a different label on it — and a
@@ -224,8 +242,9 @@ function CurrentStepCard({
   return (
     <Card variant="elevated" className="flex flex-col gap-3">
       <h3 className="text-label text-[var(--ds-fg-muted)] uppercase tracking-[0.09em]">
-        {/* A step of solid chords is a chord, not a note. */}
-        {step && step.fingers.length > hands.length ? 'Current chord' : 'Current note'}
+        {/* A step of solid chords is a chord, not a note; a third or an
+            octave is two notes. */}
+        {held >= 3 ? 'Current chord' : held === 2 ? 'Current notes' : 'Current note'}
       </h3>
 
       {mode === 'explore' ? (

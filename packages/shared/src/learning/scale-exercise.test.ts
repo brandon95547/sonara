@@ -4,14 +4,17 @@ import {
   buildScaleExercise,
   DEFAULT_PLAYABLE_RANGE,
   DEFAULT_SCALE_SPEC,
+  scaleHasCadence,
   scaleMotionsFor,
+  scaleTexturesFor,
+  type ScaleExerciseOptions,
   type ScaleSpec,
 } from './scale-exercise.js'
 import { isInExercise } from './exercise.js'
 import { SCALE_TYPES } from '../music/scales.js'
 
-const build = (spec: Partial<ScaleSpec> = {}) =>
-  buildScaleExercise({ ...DEFAULT_SCALE_SPEC, ...spec })
+const build = (spec: Partial<ScaleSpec> = {}, options: ScaleExerciseOptions = {}) =>
+  buildScaleExercise({ ...DEFAULT_SCALE_SPEC, ...spec }, options)
 
 describe('buildScaleExercise', () => {
   it('describes the scale the way the dashboard prints it', () => {
@@ -749,5 +752,334 @@ describe('contrary motion, thirds and sixths', () => {
         }
       }
     })
+  })
+})
+
+/**
+ * The last line of a major key's page: each hand playing the scale in thirds.
+ * A hand can hold a third three ways — 1 3, 2 4 or 3 5 — and the fingering is
+ * which of them each note takes. Read off the page for all twelve keys.
+ */
+describe('double thirds', () => {
+  const thirds = (spec: Partial<ScaleSpec>) =>
+    build({ scaleTypeId: 'major', texture: 'double-thirds', octaves: 2, ...spec })
+  /** One hand's fingers, a pair per third, lower note first. */
+  const pairs = (exercise: ReturnType<typeof build>, hand: 'right' | 'left') =>
+    exercise.steps
+      .map((step) =>
+        step.fingers
+          .filter((finger) => finger.hand === hand)
+          .map((finger) => finger.finger)
+          .join(''),
+      )
+      .join(' ')
+
+  it('plays each note of the scale with the third above it, in one hand', () => {
+    const exercise = thirds({ rootPitchClass: 0, hand: 'right', octaves: 1 })
+    expect(exercise.subtitle).toBe('Right Hand · Double Thirds · 1 octave · Up (Ascending)')
+    expect(exercise.steps.map((step) => step.label)).toEqual([
+      'C + E',
+      'D + F',
+      'E + G',
+      'F + A',
+      'G + B',
+      'A + C',
+      'B + D',
+      'C + E',
+    ])
+    expect(exercise.steps[0]!.notes.map(noteName)).toEqual(['C4', 'E4'])
+    expect(exercise.steps[0]!.noteLabels).toEqual(['C', 'E'])
+    expect(exercise.fingerings[0]).toMatchObject({ source: 'standard', perStep: 2 })
+  })
+
+  it('puts the left hand an octave below, as in single notes', () => {
+    const exercise = thirds({ rootPitchClass: 0, hand: 'both' })
+    expect(exercise.steps[0]!.notes.map(noteName)).toEqual(['C3', 'E3', 'C4', 'E4'])
+    // And it starts where the single-note scale does, in every key.
+    for (let rootPitchClass = 0; rootPitchClass < 12; rootPitchClass++) {
+      const single = build({ scaleTypeId: 'major', rootPitchClass, hand: 'both' })
+      const double = thirds({ rootPitchClass, hand: 'both' })
+      expect(double.steps[0]!.notes[2], `pc ${rootPitchClass}`).toBe(single.steps[0]!.notes[1])
+    }
+  })
+
+  // [pitch class, right hand, left hand] — two octaves, ascending.
+  const UP: [number, string, string][] = [
+    [
+      0,
+      '13 24 35 13 24 13 24 13 24 35 13 24 13 24 35',
+      '53 42 31 42 31 42 31 53 42 31 42 31 42 31 53',
+    ],
+    // G, D, A, E and B are C's shape, but turn the left hand at the top on 2 4.
+    [
+      7,
+      '13 24 35 13 24 13 24 13 24 35 13 24 13 24 35',
+      '53 42 31 42 31 42 31 53 42 31 42 31 42 31 42',
+    ],
+    [
+      11,
+      '13 24 35 13 24 13 24 13 24 35 13 24 13 24 35',
+      '53 42 31 42 31 42 31 53 42 31 42 31 42 31 42',
+    ],
+    [
+      6,
+      '24 13 24 13 24 35 13 24 13 24 13 24 35 13 24',
+      '53 42 31 53 42 31 42 31 42 31 53 42 31 42 31',
+    ],
+    [
+      5,
+      '13 24 13 24 13 24 35 13 24 13 24 13 24 35 13',
+      '42 31 42 31 53 42 31 42 31 42 31 53 42 31 42',
+    ],
+    [
+      10,
+      '24 13 24 35 13 24 13 24 13 24 35 13 24 13 24',
+      '31 53 42 31 42 31 42 31 53 42 31 42 31 42 31',
+    ],
+    [
+      3,
+      '35 13 24 13 24 13 24 35 13 24 13 24 13 24 35',
+      '31 42 31 42 31 53 42 31 42 31 42 31 53 42 31',
+    ],
+    [
+      8,
+      '13 24 13 24 35 13 24 13 24 13 24 35 13 24 35',
+      '42 31 53 42 31 42 31 42 31 53 42 31 42 31 42',
+    ],
+    [
+      1,
+      '13 24 13 24 35 13 24 13 24 13 24 35 13 24 13',
+      '42 31 53 42 31 42 31 42 31 53 42 31 42 31 42',
+    ],
+  ]
+
+  it.each(UP)('fingers major pitch class %i as printed', (rootPitchClass, right, left) => {
+    expect(pairs(thirds({ rootPitchClass, hand: 'right' }), 'right')).toBe(right)
+    expect(pairs(thirds({ rootPitchClass, hand: 'left' }), 'left')).toBe(left)
+  })
+
+  it('gives D, A and E the white-key shape too', () => {
+    const [, right, left] = UP[1]!
+    for (const rootPitchClass of [2, 9, 4]) {
+      expect(pairs(thirds({ rootPitchClass, hand: 'right' }), 'right')).toBe(right)
+      expect(pairs(thirds({ rootPitchClass, hand: 'left' }), 'left')).toBe(left)
+    }
+  })
+
+  it('comes home on the fingers the page does', () => {
+    const last = (rootPitchClass: number, hand: 'right' | 'left') =>
+      pairs(thirds({ rootPitchClass, hand, direction: 'up-down' }), hand)
+        .split(' ')
+        .at(-1)
+    // Nearly always the ones it set out on.
+    expect(last(0, 'left')).toBe('53')
+    expect(last(8, 'right')).toBe('13')
+    // E♭ sets out on 3 5 and 1 3 and comes home on 2 4 and 3 5.
+    expect(last(3, 'right')).toBe('24')
+    expect(last(3, 'left')).toBe('53')
+    // And D's left hand, alone among the white keys, comes home on 2 4.
+    expect(last(2, 'left')).toBe('42')
+  })
+
+  it('only ever holds a third one of the three ways, and never the same way twice running', () => {
+    // What would be wrong if a letter of the table had been mistyped. (Not
+    // "the thumb stays off the black keys": the page opens D♭ and A♭ major
+    // with the thumb on the tonic, and that is what is recorded.)
+    for (let rootPitchClass = 0; rootPitchClass < 12; rootPitchClass++) {
+      for (const hand of ['right', 'left'] as const) {
+        const held = pairs(thirds({ rootPitchClass, hand, direction: 'up-down' }), hand).split(' ')
+        const ways = hand === 'right' ? ['13', '24', '35'] : ['31', '42', '53']
+        held.forEach((pair, index) => {
+          const where = `pc ${rootPitchClass} ${hand} at ${index}`
+          expect(ways, where).toContain(pair)
+          // D major's left hand is printed coming home on 2 4, straight after
+          // the 2 4 the pattern gives the note before. It is what the page says.
+          const printedTwice = rootPitchClass === 2 && hand === 'left' && index === held.length - 1
+          if (index > 0 && !printedTwice) expect(pair, where).not.toBe(held[index - 1])
+        })
+      }
+    }
+  })
+
+  it('is offered for the major scales only, and is single notes anywhere else', () => {
+    const textures = (id: string) => scaleTexturesFor(SCALE_TYPES.find((type) => type.id === id)!)
+    expect(textures('major')).toContain('double-thirds')
+    expect(textures('harmonic-minor')).not.toContain('double-thirds')
+    const minor = build({ scaleTypeId: 'harmonic-minor', texture: 'double-thirds' })
+    expect(minor.notes).toEqual(build({ scaleTypeId: 'harmonic-minor' }).notes)
+  })
+
+  it('moves the hands together whatever motion was left selected', () => {
+    const exercise = thirds({ rootPitchClass: 0, hand: 'both', motion: 'contrary' })
+    expect(exercise.subtitle).toContain('Both Hands · Double Thirds')
+    expect(exercise.steps[1]!.label).toBe('D + F')
+  })
+})
+
+/**
+ * Octaves, from the page after the chromatic scale: each hand playing every
+ * note with its octave. Staccato is the thumb and little finger throughout;
+ * legato takes the 4th finger on the black keys so the hand can join them.
+ */
+describe('scales in octaves', () => {
+  const octaves = (spec: Partial<ScaleSpec>) => build({ octaves: 1, ...spec })
+  const outer = (exercise: ReturnType<typeof build>, hand: 'right' | 'left') =>
+    exercise.steps
+      .map((step) => {
+        const fingers = step.fingers.filter((finger) => finger.hand === hand)
+        // The thumb is on the inside; the finger that changes is the other one.
+        expect(fingers.map((finger) => finger.finger)).toContain(1)
+        return fingers.find((finger) => finger.finger !== 1)!.finger
+      })
+      .join('')
+
+  it('doubles every note at the octave', () => {
+    const exercise = octaves({
+      scaleTypeId: 'major',
+      rootPitchClass: 4,
+      texture: 'staccato-octaves',
+    })
+    expect(exercise.subtitle).toBe('Right Hand · Staccato Octaves · 1 octave · Up (Ascending)')
+    for (const step of exercise.steps) expect(step.notes[1]! - step.notes[0]!).toBe(12)
+    // One name for both notes, so the step is called by it.
+    expect(exercise.steps.map((step) => step.label).join(' ')).toBe('E F♯ G♯ A B C♯ D♯ E')
+    expect(exercise.steps[0]!.noteLabels).toBeUndefined()
+  })
+
+  it('gives the left hand an octave of its own beneath the right hand’s', () => {
+    // The book's example: E major, left hand E2-E3 under right hand E4-E5.
+    const exercise = build(
+      {
+        scaleTypeId: 'major',
+        rootPitchClass: 4,
+        texture: 'staccato-octaves',
+        hand: 'both',
+        octaves: 2,
+      },
+      { range: { low: 21, high: 108 } },
+    )
+    expect(exercise.steps[0]!.notes.map(noteName)).toEqual(['E2', 'E3', 'E4', 'E5'])
+    expect(new Set(exercise.steps[0]!.notes).size).toBe(4)
+  })
+
+  it('plays staccato octaves with the thumb and little finger throughout', () => {
+    const spec = { scaleTypeId: 'major', rootPitchClass: 4, texture: 'staccato-octaves' } as const
+    expect(outer(octaves({ ...spec, hand: 'right' }), 'right')).toBe('55555555')
+    expect(outer(octaves({ ...spec, hand: 'left' }), 'left')).toBe('55555555')
+    expect(octaves(spec).staccato).toBe(true)
+  })
+
+  it('plays legato octaves with the 4th finger on the black keys', () => {
+    // The book's two examples. B major: B C♯ D♯ E F♯ G♯ A♯ B.
+    const b = { scaleTypeId: 'major', rootPitchClass: 11, texture: 'legato-octaves' } as const
+    expect(outer(octaves({ ...b, hand: 'right', direction: 'up-down' }), 'right')).toBe(
+      '544544454445445',
+    )
+    expect(outer(octaves({ ...b, hand: 'left' }), 'left')).toBe('54454445')
+    // C minor harmonic: C D E♭ F G A♭ B C.
+    const c = {
+      scaleTypeId: 'harmonic-minor',
+      rootPitchClass: 0,
+      texture: 'legato-octaves',
+    } as const
+    expect(outer(octaves({ ...c, hand: 'right' }), 'right')).toBe('55455455')
+    expect(octaves(c).staccato).toBeUndefined()
+  })
+
+  it('is there for any scale', () => {
+    for (const type of SCALE_TYPES) {
+      expect(scaleTexturesFor(type), type.id).toEqual(
+        expect.arrayContaining(['single', 'staccato-octaves', 'legato-octaves']),
+      )
+    }
+  })
+})
+
+/**
+ * I – IV – V – I, which closes the similar-motion line of every key in the
+ * book: three chords in the right hand over a bass note in the left.
+ */
+describe('the closing cadence', () => {
+  const closing = (spec: Partial<ScaleSpec>) =>
+    build({ cadence: true, direction: 'up-down', octaves: 1, ...spec }).steps.slice(-4)
+  const chord = (step: ReturnType<typeof closing>[number]) => step.notes.map(noteName).join(' ')
+
+  it('follows the scale with the four chords, as C major is printed', () => {
+    const exercise = build({
+      scaleTypeId: 'major',
+      rootPitchClass: 0,
+      hand: 'both',
+      cadence: true,
+      direction: 'up-down',
+      octaves: 1,
+    })
+    expect(exercise.subtitle).toBe('Both Hands · 1 octave · Up then Down · Cadence')
+    // Fifteen notes of scale, then the four chords.
+    expect(exercise.steps).toHaveLength(19)
+    const steps = exercise.steps.slice(-4)
+    expect(steps.map((step) => step.cue)).toEqual(['I', 'IV', 'V', 'I'])
+    expect(steps.map(chord)).toEqual(['C3 E4 G4 C5', 'F3 F4 A4 C5', 'G3 D4 G4 B4', 'C3 E4 G4 C5'])
+    expect(steps.map((step) => step.label)).toEqual(['E G C', 'F A C', 'D G B', 'E G C'])
+    expect(steps.map((step) => step.fingers.map((finger) => finger.finger).join(''))).toEqual([
+      '5125',
+      '2135',
+      '1124',
+      '5125',
+    ])
+  })
+
+  it('takes a minor key’s dominant from its harmonic form, whichever form was played', () => {
+    for (const scaleTypeId of ['natural-minor', 'harmonic-minor', 'melodic-minor']) {
+      const steps = closing({ scaleTypeId, rootPitchClass: 9, hand: 'right' })
+      expect(
+        steps.map((step) => step.label),
+        scaleTypeId,
+      ).toEqual(['C E A', 'D F A', 'B E G♯', 'C E A'])
+    }
+    // The raised seventh is named for the staff, and is still not in the scale.
+    const natural = build({ scaleTypeId: 'natural-minor', cadence: true, direction: 'up-down' })
+    expect(natural.pitchNames[8]).toBe('G♯')
+    expect(natural.pitchClasses).not.toContain(8)
+  })
+
+  it('gives one hand alone its own part of it', () => {
+    const left = closing({ scaleTypeId: 'major', rootPitchClass: 7, hand: 'left' })
+    expect(left.map(chord)).toEqual(['G2', 'C3', 'D3', 'G2'])
+    expect(left.map((step) => step.fingers[0]!.finger)).toEqual([5, 2, 1, 5])
+  })
+
+  it('prints A major’s last chord 1 3 5, where every other key has 1 2 5', () => {
+    const last = (rootPitchClass: number) =>
+      closing({ scaleTypeId: 'major', rootPitchClass, hand: 'right' })
+        .at(-1)!
+        .fingers.map((finger) => finger.finger)
+        .join('')
+    expect(last(9)).toBe('135')
+    for (const other of [0, 7, 2, 4, 11, 6, 5, 10, 3, 8, 1])
+      expect(last(other), `pc ${other}`).toBe('125')
+  })
+
+  it('closes only a scale that has come back down to its tonic', () => {
+    const plain = (spec: Partial<ScaleSpec>) => build({ ...spec, cadence: false }).steps.length
+    const closed = (spec: Partial<ScaleSpec>) => build({ ...spec, cadence: true }).steps.length
+    const major = { scaleTypeId: 'major', rootPitchClass: 0 }
+    expect(closed({ ...major, direction: 'up-down' })).toBe(
+      plain({ ...major, direction: 'up-down' }) + 4,
+    )
+    expect(closed({ ...major, direction: 'down' })).toBe(plain({ ...major, direction: 'down' }) + 4)
+    // Ascending ends at the top, where there is nothing to close.
+    expect(closed({ ...major, direction: 'up' })).toBe(plain({ ...major, direction: 'up' }))
+    // Not in contrary motion, not in double thirds, and not for a mode.
+    const down = { direction: 'up-down' } as const
+    expect(closed({ ...major, ...down, hand: 'both', motion: 'contrary' })).toBe(
+      plain({ ...major, ...down, hand: 'both', motion: 'contrary' }),
+    )
+    expect(closed({ ...major, ...down, texture: 'double-thirds' })).toBe(
+      plain({ ...major, ...down, texture: 'double-thirds' }),
+    )
+    expect(closed({ scaleTypeId: 'dorian', ...down })).toBe(
+      plain({ scaleTypeId: 'dorian', ...down }),
+    )
+    expect(scaleHasCadence(SCALE_TYPES.find((type) => type.id === 'dorian')!)).toBe(false)
   })
 })

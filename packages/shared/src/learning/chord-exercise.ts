@@ -250,6 +250,7 @@ export function buildChordExercise(spec: ChordSpec, options: ChordExerciseOption
       hand,
       fingers: shapes.flatMap((shape) => shape.map((entry) => entry.finger)),
       source,
+      perStep: size,
     })),
   }
 }

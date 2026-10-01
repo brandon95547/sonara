@@ -42,6 +42,10 @@ touchscreen or a USB MIDI keyboard, and watch every note land on the keys.
   shared note, and the hands a third or a sixth apart — each starting where
   The Brown Scale Book starts it when the connected keyboard reaches that far,
   and an octave higher when it does not.
+- **Thirds, octaves and the cadence.** A hand can play the scale in double
+  thirds (major keys), or in octaves, staccato or legato; and a major or minor
+  scale that comes back down can close with I – IV – V – I, the way the book
+  ends each one.
 - **Fingering from the book.** The recommended fingers for major, minor and
   chromatic scales are the ones printed in The Brown Scale Book, under a
   Fingering system setting built to take more than one.
@@ -276,8 +280,9 @@ _A fingering system_ answers for the scales its source prints. There is one,
 transcription of the fingering printed in _Scales, Chords and Arpeggios for
 Piano — The Brown Scale Book_ (Frederick Harris): every major key, every minor
 key in its harmonic and melodic forms, and the chromatic scale; each key's
-chords, which the book fingers alike in every key; and each key's arpeggios,
-which it fingers differently in every one. It is held to one rule — it says
+chords, which the book fingers alike in every key; each key's arpeggios, which
+it fingers differently in every one; double thirds in the major keys; octaves;
+and the closing cadence. It is held to one rule — it says
 what the page says:
 
 - **The ends of a run are kept as printed.** The book opens A♭ major in the

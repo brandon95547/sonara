@@ -3,8 +3,12 @@ import type { Hand } from './fingering.js'
 import type { KeyMode } from './chords.js'
 import type {
   ArpeggioFingeringQuery,
+  CadenceQuery,
   ChordFingeringQuery,
+  DoubleThirdsQuery,
+  FingerPair,
   FingeringSystem,
+  OctavesQuery,
   ScaleFingeringQuery,
 } from './fingering-system.js'
 import { normalisePitchClass, parsePitch } from './pitch.js'
@@ -263,40 +267,65 @@ const PLAYED_FROM: Readonly<Record<'major' | 'minor', Readonly<Record<string, st
 const digits = (run: string) => [...run].map(Number)
 
 /**
- * Lays a printed hand out over however many octaves were asked for, from
- * whichever degree the run starts on.
+ * Lays a printed run out over however many octaves were asked for, from
+ * whichever degree it starts on: the repeating body, then whatever the page
+ * does differently on its highest and lowest notes.
  */
+function layOutRun<T>(
+  cycle: readonly T[],
+  ends: {
+    readonly bottom?: readonly T[]
+    readonly top?: readonly T[]
+    readonly close?: readonly T[]
+  },
+  octaves: number,
+  startDegree: number,
+): { run: T[]; closing?: T[] } {
+  const count = cycle.length * Math.max(1, octaves) + 1
+  const run: T[] = Array.from(
+    { length: count },
+    (_, index) => cycle[(index + startDegree) % cycle.length] as T,
+  )
+
+  // The top first, so that in a run short enough for the two to meet, the
+  // opening — which is where the hand actually starts — is what is kept.
+  const top = ends.top ?? []
+  top.forEach((item, index) => {
+    run[count - top.length + index] = item
+  })
+
+  const withBottom = (bottom: readonly T[] | undefined) => {
+    const laid = [...run]
+    bottom?.forEach((item, index) => {
+      laid[index] = item
+    })
+    return laid
+  }
+
+  return {
+    run: withBottom(ends.bottom),
+    ...(ends.close === undefined ? {} : { closing: withBottom(ends.close) }),
+  }
+}
+
+/** A hand of single notes, laid out. */
 function layOut(
   cycle: readonly number[],
   ends: RunEnds,
   octaves: number,
   startDegree: number,
 ): { fingers: number[]; closing?: number[] } {
-  const count = cycle.length * Math.max(1, octaves) + 1
-  const fingers = Array.from(
-    { length: count },
-    (_, index) => cycle[(index + startDegree) % cycle.length]!,
+  const { run, closing } = layOutRun(
+    cycle,
+    {
+      bottom: digits(ends.bottom ?? ''),
+      top: digits(ends.top ?? ''),
+      ...(ends.close === undefined ? {} : { close: digits(ends.close) }),
+    },
+    octaves,
+    startDegree,
   )
-
-  // The top first, so that in a run short enough for the two to meet, the
-  // opening — which is where the hand actually starts — is what is kept.
-  const top = digits(ends.top ?? '')
-  top.forEach((finger, index) => {
-    fingers[count - top.length + index] = finger
-  })
-
-  const withBottom = (bottom: string | undefined) => {
-    const laid = [...fingers]
-    digits(bottom ?? '').forEach((finger, index) => {
-      laid[index] = finger
-    })
-    return laid
-  }
-
-  return {
-    fingers: withBottom(ends.bottom),
-    ...(ends.close === undefined ? {} : { closing: withBottom(ends.close) }),
-  }
+  return { fingers: run, ...(closing ? { closing } : {}) }
 }
 
 /**
@@ -525,6 +554,143 @@ function arpeggio(query: ArpeggioFingeringQuery) {
   return run ? digits(run) : null
 }
 
+/**
+ * Double thirds, printed under every major key.
+ *
+ * One hand plays two notes a third apart and walks them up the scale. There
+ * are only three ways to hold a third — and the fingering is which of them
+ * each degree takes:
+ *
+ *     a  the thumb and the 3rd finger
+ *     b  the 2nd and the 4th
+ *     c  the 3rd and the 5th
+ *
+ * The hand plays a b, or a b c, and then has to pick itself up and start
+ * again on a; a scale is two groups of two and one of three. Where the group
+ * of three falls is what changes from key to key, so each key is one letter
+ * per degree, tonic first, for each hand — and, as with the single-note
+ * scales, whatever the page does differently at the bottom and the top.
+ *
+ * The page prints only some of the pairs. The rest are fixed by the ones it
+ * does print: between two printed thumbs there is only one way to count.
+ */
+type ThirdShape = 'a' | 'b' | 'c'
+
+const THIRD_SHAPES: Record<Hand, Record<ThirdShape, FingerPair>> = {
+  right: { a: [1, 3], b: [2, 4], c: [3, 5] },
+  // The left hand's are the same three holds, read from the little finger.
+  left: { a: [3, 1], b: [4, 2], c: [5, 3] },
+}
+
+interface ThirdsRun {
+  /** One shape per degree, tonic first. */
+  readonly cycle: string
+  readonly bottom?: string
+  readonly top?: string
+  readonly close?: string
+}
+
+/** The white-key right hand: three on the tonic, and the 5th finger to finish. */
+const THIRDS_RIGHT: ThirdsRun = { cycle: 'abcabab', top: 'c' }
+/** The white-key left hand. Every key but C turns at the top on 2 4. */
+const THIRDS_LEFT: ThirdsRun = { cycle: 'cbababa', top: 'b' }
+const THIRDS_WHITE = { right: THIRDS_RIGHT, left: THIRDS_LEFT }
+
+const DOUBLE_THIRDS: Readonly<Record<string, { right: ThirdsRun; left: ThirdsRun }>> = {
+  // C is printed 3 5 at the top, where the five keys after it print 2 4.
+  C: { right: THIRDS_RIGHT, left: { cycle: 'cbababa' } },
+  G: THIRDS_WHITE,
+  // D alone is printed coming home on 2 4, having set out on 3 5.
+  D: { right: THIRDS_RIGHT, left: { ...THIRDS_LEFT, close: 'b' } },
+  A: THIRDS_WHITE,
+  E: THIRDS_WHITE,
+  B: THIRDS_WHITE,
+  // The left hand opens on 3 5 and takes every later F♯ with the thumb.
+  'F♯': { right: { cycle: 'bababca' }, left: { cycle: 'abacbab', bottom: 'c' } },
+  F: { right: { cycle: 'abababc' }, left: { cycle: 'babacba' } },
+  'B♭': { right: { cycle: 'babcaba' }, left: { cycle: 'acbabab' } },
+  // Sets out on 3 5 in the right hand and 1 3 in the left, and comes home on
+  // 2 4 and 3 5. (The left hand's 1 3 is printed beneath the 3 5 in brackets.)
+  'E♭': {
+    right: { cycle: 'cababab', close: 'b' },
+    left: { cycle: 'ababacb', close: 'c' },
+  },
+  // The same shape as D♭, but the page prints 3 5 at the top of this one.
+  'A♭': { right: { cycle: 'ababcab', top: 'c' }, left: { cycle: 'bacbaba' } },
+  'D♭': { right: { cycle: 'ababcab' }, left: { cycle: 'bacbaba' } },
+}
+
+function doubleThirds(query: DoubleThirdsQuery) {
+  if (query.scaleTypeId !== 'major') return null
+  const tonic = parsePitch(query.tonic)?.name
+  if (tonic === undefined) return null
+  const page = DOUBLE_THIRDS[tonic] ?? DOUBLE_THIRDS[PLAYED_FROM.major[tonic] ?? '']
+  if (!page) return null
+
+  const printed = page[query.hand]
+  const shapes = (letters: string | undefined) =>
+    [...(letters ?? '')].map((letter) => THIRD_SHAPES[query.hand][letter as ThirdShape])
+  const { run, closing } = layOutRun(
+    shapes(printed.cycle),
+    {
+      bottom: shapes(printed.bottom),
+      top: shapes(printed.top),
+      ...(printed.close === undefined ? {} : { close: shapes(printed.close) }),
+    },
+    query.octaves,
+    0,
+  )
+  return { pairs: run, ...(closing ? { closing } : {}) }
+}
+
+/**
+ * Octaves.
+ *
+ * Staccato, the hand has time to move, and every octave is the thumb and the
+ * little finger: the page prints `5 1` once and leaves it at that.
+ *
+ * Legato it does not, and the book declines to fix a fingering — "so much
+ * depends upon the size of hands and stretch between fingers" — but gives a
+ * general rule for smaller hands and fingers its two examples by it: "the
+ * fifth finger and thumb for all white keys, and the thumb and fourth finger
+ * for all black keys." The outer finger alternates so that it can reach the
+ * next key before it lets go of this one.
+ */
+function octaves(query: OctavesQuery): FingerPair[] {
+  return query.notes.map((note) => {
+    const outer = query.articulation === 'legato' && isBlackKey(note) ? 4 : 5
+    return query.hand === 'right' ? [1, outer] : [outer, 1]
+  })
+}
+
+/**
+ * The cadence that closes every scale: I – IV – V – I.
+ *
+ * The right hand plays three-note chords — the tonic with its third at the
+ * bottom, the subdominant in root position, the dominant with its fifth at the
+ * bottom, and the tonic again — and the left hand one bass note under each.
+ * Printed alike in every key.
+ */
+const CADENCE: Record<Hand, readonly (readonly number[])[]> = {
+  right: [
+    [1, 2, 5],
+    [1, 3, 5],
+    [1, 2, 4],
+    [1, 2, 5],
+  ],
+  left: [[5], [2], [1], [5]],
+}
+
+function cadence(query: CadenceQuery) {
+  const chords = CADENCE[query.hand]
+  // A major's last chord is printed 5 3 1 where every other key has 5 2 1. It
+  // may well be a slip of the engraver's; it is what the page says.
+  if (query.hand === 'right' && query.mode === 'major' && parsePitch(query.tonic)?.name === 'A') {
+    return [...chords.slice(0, 3), [1, 3, 5]]
+  }
+  return chords
+}
+
 export const TRADITIONAL: FingeringSystem = {
   id: 'traditional',
   name: 'Traditional / Orthodox',
@@ -536,4 +702,7 @@ export const TRADITIONAL: FingeringSystem = {
   scale,
   chord,
   arpeggio,
+  doubleThirds,
+  octaves,
+  cadence,
 }

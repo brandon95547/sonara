@@ -95,6 +95,40 @@ export interface ArpeggioFingeringQuery {
   readonly octaves: number
 }
 
+/** Two fingers of one hand on two notes at once, lower note first. */
+export type FingerPair = readonly [low: number, high: number]
+
+/** A scale in double thirds: one hand playing each note with the third above it. */
+export interface DoubleThirdsQuery {
+  readonly tonic: string
+  readonly scaleTypeId: string
+  readonly hand: Hand
+  readonly octaves: number
+}
+
+export interface SystemDoubleNotes {
+  /** One pair per third of the ascending run, bottom to top. */
+  readonly pairs: readonly FingerPair[]
+  /** The same run as it is fingered coming back down, where that differs. */
+  readonly closing?: readonly FingerPair[]
+}
+
+/** A scale in octaves: one hand playing each note with the octave above it. */
+export interface OctavesQuery {
+  readonly hand: Hand
+  /** Detached, or bound together — which changes what the outer finger can do. */
+  readonly articulation: 'staccato' | 'legato'
+  /** The lower note of each octave, in the order played. */
+  readonly notes: readonly number[]
+}
+
+/** The I – IV – V – I that closes a scale: three chords above a bass note. */
+export interface CadenceQuery {
+  readonly tonic: string
+  readonly mode: KeyMode
+  readonly hand: Hand
+}
+
 export interface FingeringSystem {
   readonly id: FingeringSystemId
   /** `Traditional / Orthodox` — as the setting lists it. */
@@ -110,6 +144,12 @@ export interface FingeringSystem {
   chord(query: ChordFingeringQuery): readonly number[] | null
   /** The fingers for an arpeggio ascending, lowest note first, or null. */
   arpeggio(query: ArpeggioFingeringQuery): readonly number[] | null
+  /** The fingers for a scale in double thirds, or null. */
+  doubleThirds(query: DoubleThirdsQuery): SystemDoubleNotes | null
+  /** The fingers for a scale in octaves, one pair per octave played, or null. */
+  octaves(query: OctavesQuery): readonly FingerPair[] | null
+  /** The fingers for each of the cadence's four chords, lowest note first, or null. */
+  cadence(query: CadenceQuery): readonly (readonly number[])[] | null
 }
 
 export const FINGERING_SYSTEMS: Readonly<Record<FingeringSystemId, FingeringSystem>> = {

@@ -17,7 +17,15 @@ const notes = () => store().exercise!.notes
 beforeEach(() => {
   useLearningStore.setState({ autoTempo: false })
   store().setTopic('scales')
-  store().updateSpec(DEFAULT_SCALE_SPEC)
+  // Every optional setting cleared as well: a patch only changes what it names,
+  // and one test's double thirds must not become the next one's.
+  store().updateSpec({
+    ...DEFAULT_SCALE_SPEC,
+    tonic: undefined,
+    motion: undefined,
+    texture: undefined,
+    cadence: undefined,
+  })
   store().setMode('learn')
 })
 
@@ -499,5 +507,59 @@ describe('the chords and arpeggios areas', () => {
     expect(store().exercise!.title).toBe('E♭ Minor Arpeggio')
     store().updateArpeggioSpec({ rootPitchClass: 9 })
     expect(store().arpeggioSpec.tonic).toBeUndefined()
+  })
+})
+
+/**
+ * A hand playing two notes at once, and a scale that ends on chords: the same
+ * engine and the same keys, asked for more than one note a step.
+ */
+describe('thirds, octaves and the cadence', () => {
+  const step = (index: number) => store().exercise!.steps[index]!
+
+  it('lights both notes of a third, each with its own name and finger', () => {
+    store().updateSpec({
+      rootPitchClass: 0,
+      scaleTypeId: 'major',
+      hand: 'right',
+      texture: 'double-thirds',
+    })
+    const [c, e] = step(0).notes
+    expect(store().annotations[c!]).toMatchObject({ role: 'target', label: 'C', finger: 1 })
+    expect(store().annotations[e!]).toMatchObject({ role: 'target', label: 'E', finger: 3 })
+
+    // Both have to be played before the hand moves on.
+    store().start()
+    store().noteOn(e!)
+    expect(store().session.stepIndex).toBe(0)
+    store().noteOn(c!)
+    expect(store().session.stepIndex).toBe(1)
+  })
+
+  it('falls back to single notes when the scale changes to one with no double thirds', () => {
+    store().updateSpec({ rootPitchClass: 0, scaleTypeId: 'major', texture: 'double-thirds' })
+    expect(step(0).notes).toHaveLength(2)
+    store().updateSpec({ scaleTypeId: 'blues' })
+    expect(step(0).notes).toHaveLength(1)
+    // And comes back when the scale does: the choice was not thrown away.
+    store().updateSpec({ scaleTypeId: 'major' })
+    expect(step(0).notes).toHaveLength(2)
+  })
+
+  it('runs the cadence as four chords after the last note of the scale', () => {
+    store().updateSpec({
+      rootPitchClass: 0,
+      scaleTypeId: 'major',
+      hand: 'right',
+      octaves: 1,
+      direction: 'up-down',
+      cadence: true,
+    })
+    const steps = store().exercise!.steps
+    expect(steps).toHaveLength(19)
+    store().start()
+    for (const each of steps) for (const note of new Set(each.notes)) store().noteOn(note)
+    expect(store().session.status).toBe('complete')
+    expect(store().session.mistakes).toBe(0)
   })
 })

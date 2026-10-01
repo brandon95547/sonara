@@ -32,6 +32,7 @@ import {
   ScalePicker,
   StartButton,
   TempoButton,
+  TextureMenu,
 } from '@/features/learning/ScaleControls'
 import {
   PartMenu,
@@ -72,6 +73,7 @@ export function TopBar() {
             <span className="top-bar__divider bar-sm" aria-hidden />
             <ScalePicker />
             <HandMenu />
+            <TextureMenu />
             <OctavesMenu />
             <DirectionMenu />
 

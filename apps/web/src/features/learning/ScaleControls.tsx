@@ -15,6 +15,7 @@ import {
   Play,
   Plus,
   RotateCcw,
+  Rows2,
   Target,
   Timer,
   type LucideIcon,
@@ -28,7 +29,11 @@ import {
   SCALE_DIRECTIONS,
   SCALE_MOTION_LABELS,
   SCALE_MOTIONS,
+  SCALE_TEXTURE_LABELS,
+  SCALE_TEXTURES,
+  scaleHasCadence,
   scaleMotionsFor,
+  scaleTexturesFor,
   SCALE_TYPES,
   scaleSpellings,
   spellScale,
@@ -37,10 +42,11 @@ import {
   type ScaleDirection,
   type ScaleMotion,
   type ScaleSpec,
+  type ScaleTexture,
 } from '@sonara/shared'
 import { cn } from '@/lib/cn'
 import { Popover, SelectMenu } from '@/ui/Menu'
-import { SegmentedControl, Select } from '@/ui/Controls'
+import { SegmentedControl, Select, Switch } from '@/ui/Controls'
 import { useMidi } from '@/midi/MidiProvider'
 import { useLearningStore } from '@/state/learning-store'
 import { panelActions } from '@/state/panel-store'
@@ -103,6 +109,30 @@ const MOTION_UNAVAILABLE: Record<ScaleMotion, string> = {
   sixth: 'For seven-note scales.',
 }
 
+/** What each hand plays: the texture menu. */
+const TEXTURE_DESCRIPTIONS: Record<ScaleTexture, string> = {
+  single: 'One note at a time.',
+  'double-thirds': 'Each note with the third above it, in the same hand.',
+  'staccato-octaves': 'Each note with its octave, detached: thumb and little finger.',
+  'legato-octaves': 'Each note with its octave, joined: the 4th finger takes the black keys.',
+}
+
+const TEXTURE_BADGES: Record<ScaleTexture, string> = {
+  single: '1',
+  'double-thirds': '3',
+  'staccato-octaves': 'S8',
+  'legato-octaves': 'L8',
+}
+
+const typeOf = (scaleTypeId: string) =>
+  SCALE_TYPES.find((type) => type.id === scaleTypeId) ?? SCALE_TYPES[0]!
+
+/** The texture in force: the one chosen, where the scale can be played that way. */
+const textureOf = (spec: ScaleSpec): ScaleTexture =>
+  spec.texture && scaleTexturesFor(typeOf(spec.scaleTypeId)).includes(spec.texture)
+    ? spec.texture
+    : 'single'
+
 /** The setting, as the bar's badge says it. Both is both letters, in keyboard order. */
 const PLAYING_BADGES: Record<Playing, string> = {
   right: 'R',
@@ -124,12 +154,18 @@ const playingOf = (spec: ScaleSpec, motions: readonly ScaleMotion[]): Playing =>
 const specFor = (playing: Playing): Pick<ScaleSpec, 'hand' | 'motion'> =>
   playing === 'right' || playing === 'left' ? { hand: playing } : { hand: 'both', motion: playing }
 
-/** The motions the selected scale can be played in. */
+/**
+ * The motions the selected scale can be played in, as it is set now.
+ *
+ * Hands holding thirds or octaves move together, so anything but single notes
+ * leaves similar motion and nothing else.
+ */
 function useScaleMotions(): ScaleMotion[] {
   const scaleTypeId = useLearningStore((state) => state.spec.scaleTypeId)
+  const single = useLearningStore((state) => textureOf(state.spec) === 'single')
   return React.useMemo(
-    () => scaleMotionsFor(SCALE_TYPES.find((type) => type.id === scaleTypeId) ?? SCALE_TYPES[0]!),
-    [scaleTypeId],
+    () => (single ? scaleMotionsFor(typeOf(scaleTypeId)) : ['similar']),
+    [scaleTypeId, single],
   )
 }
 
@@ -240,6 +276,17 @@ export function ScalePicker() {
   const names = scaleSpellings(spec.rootPitchClass, type).map((scale) => scale.root.name)
   const motions = useScaleMotions()
   const playing = playingOf(spec, motions)
+  const texture = textureOf(spec)
+  const textures = scaleTexturesFor(type)
+  // The cadence closes a major or minor scale, played plainly, that has come
+  // back down to its tonic. Anything else and there is nothing to close.
+  const canClose =
+    scaleHasCadence(type) &&
+    texture === 'single' &&
+    playing !== 'contrary' &&
+    playing !== 'third' &&
+    playing !== 'sixth'
+  const closes = canClose && spec.direction !== 'up'
 
   return (
     <>
@@ -291,6 +338,20 @@ export function ScalePicker() {
             options={SCALE_TYPES.map((type) => ({ value: type.id, label: type.name }))}
             onChange={(scaleTypeId) => updateSpec({ scaleTypeId })}
           />
+          {/* On, off, or not possible — and which, said in the description
+              rather than by a control that has silently stopped responding. */}
+          <Switch
+            label="End with the cadence"
+            description={
+              !canClose
+                ? 'For a major or minor scale in single notes, the hands moving together.'
+                : closes
+                  ? 'Close the scale with I – IV – V – I.'
+                  : 'Closes a scale that comes back down. Set the direction to Up then Down.'
+            }
+            checked={Boolean(spec.cadence) && closes}
+            onChange={(cadence) => canClose && updateSpec({ cadence })}
+          />
 
           {/* The rest of the bar, for when the bar is too narrow to hold it. */}
           <div className="popover-compact flex flex-col gap-3 border-t border-[var(--ds-border-subtle)] pt-4">
@@ -321,6 +382,19 @@ export function ScalePicker() {
                 />
               </CompactField>
             )}
+            <CompactField label="Played in">
+              <Select
+                size="sm"
+                aria-label="Played in"
+                value={texture}
+                onChange={(event) => updateSpec({ texture: event.target.value as ScaleTexture })}
+                options={SCALE_TEXTURES.map((option) => ({
+                  value: option,
+                  label: SCALE_TEXTURE_LABELS[option],
+                  disabled: !textures.includes(option),
+                }))}
+              />
+            </CompactField>
             <CompactField label="Octaves">
               <SegmentedControl
                 label="Octaves"
@@ -464,13 +538,42 @@ export function HandMenu() {
           // A motion the scale cannot take says why, rather than just greying out.
           description: offered
             ? PLAYING_DESCRIPTIONS[option]
-            : MOTION_UNAVAILABLE[option as ScaleMotion],
+            : textureOf(spec) === 'single'
+              ? MOTION_UNAVAILABLE[option as ScaleMotion]
+              : 'For single notes.',
           disabled: !offered,
         }
       })}
       onChange={(next) => updateSpec(specFor(next))}
       iconOnly
       icon={<BarGlyph icon={<Hand size={18} />} badge={PLAYING_BADGES[playing]} />}
+      className="bar-wide"
+    />
+  )
+}
+
+/** What each hand plays: single notes, thirds, or octaves. */
+export function TextureMenu() {
+  const spec = useLearningStore((state) => state.spec)
+  const updateSpec = useLearningStore((state) => state.updateSpec)
+  const texture = textureOf(spec)
+  const textures = scaleTexturesFor(typeOf(spec.scaleTypeId))
+  return (
+    <SelectMenu<ScaleTexture>
+      label="Played in"
+      value={texture}
+      options={SCALE_TEXTURES.map((option) => {
+        const offered = textures.includes(option)
+        return {
+          value: option,
+          label: SCALE_TEXTURE_LABELS[option],
+          description: offered ? TEXTURE_DESCRIPTIONS[option] : 'For major scales.',
+          disabled: !offered,
+        }
+      })}
+      onChange={(next) => updateSpec({ texture: next })}
+      iconOnly
+      icon={<BarGlyph icon={<Rows2 size={18} />} badge={TEXTURE_BADGES[texture]} />}
       className="bar-wide"
     />
   )

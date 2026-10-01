@@ -35,6 +35,9 @@ import { learningActions, useLearningStore } from '@/state/learning-store'
  */
 const HOLD_RATIO = 0.82
 
+/** Staccato: each note let go well before the next, so the hand is heard to lift. */
+const STACCATO_HOLD_RATIO = 0.4
+
 /** How long one note of the demonstration lasts at the tempo set right now. */
 function stepMs(): number {
   return 60_000 / Math.max(1, useLearningStore.getState().targetBpm)
@@ -69,6 +72,8 @@ export function useScaleDemo(): ScaleDemo {
   audioRef.current = audio
   const stepsRef = React.useRef(exercise?.steps ?? [])
   stepsRef.current = exercise?.steps ?? []
+  const holdRef = React.useRef(HOLD_RATIO)
+  holdRef.current = exercise?.staccato ? STACCATO_HOLD_RATIO : HOLD_RATIO
 
   const indexRef = React.useRef(0)
   // The authoritative status. React state is for rendering; the timer chain
@@ -130,7 +135,7 @@ export function useScaleDemo(): ScaleDemo {
     // Read from the store here, not from a render: a scheduled tick must not
     // depend on having re-rendered with the latest tempo first.
     const beatMs = stepMs()
-    timersRef.current.push(window.setTimeout(silence, beatMs * HOLD_RATIO))
+    timersRef.current.push(window.setTimeout(silence, beatMs * holdRef.current))
     timersRef.current.push(window.setTimeout(() => playFrom.current(index + 1), beatMs))
   }
 

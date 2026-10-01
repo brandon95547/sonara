@@ -109,7 +109,7 @@ function RunComplete() {
   const steps = useLearningStore((state) => state.exercise?.steps.length ?? 0)
   // A step of solid chords is a chord, not a note.
   const unit = useLearningStore((state) =>
-    state.exercise?.steps.some((step) => step.noteLabels && step.fingers.length > 2)
+    state.exercise?.kind === 'chord' && state.exercise.steps.every((step) => step.noteLabels)
       ? 'chords'
       : 'notes',
   )

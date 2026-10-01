@@ -34,6 +34,12 @@ export interface ExerciseFingering {
   readonly hand: Hand
   readonly fingers: readonly number[]
   readonly source: 'standard' | 'derived'
+  /**
+   * How many of `fingers` are played together, where it is more than one: 2
+   * for a hand in thirds or octaves, 3 or 4 for a hand holding chords. Lets a
+   * row of numbers be read as the groups it is.
+   */
+  readonly perStep?: number
 }
 
 export interface ExerciseStep {
@@ -109,6 +115,8 @@ export interface Exercise {
   /** One per hand that plays, low hand first. Empty where there is none to recommend. */
   readonly fingerings: readonly ExerciseFingering[]
   readonly defaultBpm: number
+  /** Played detached. A demonstration lifts each step well before the next. */
+  readonly staccato?: boolean
 }
 
 /** Whether the note belongs to the material, in any octave. */

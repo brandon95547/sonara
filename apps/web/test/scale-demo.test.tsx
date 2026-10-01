@@ -130,6 +130,27 @@ describe('scale demo', () => {
     expect(result.current.stepIndex).toBe(atPause)
   })
 
+  it('plays staccato octaves short, and both notes of each', () => {
+    useLearningStore.getState().updateSpec({ texture: 'staccato-octaves', octaves: 1 })
+    const { result } = mount()
+    act(() => result.current.toggle())
+    const first = useLearningStore.getState().exercise!.steps[0]!.notes
+    expect(sounded()).toEqual([...first])
+    expect(litKeys().sort()).toEqual([...first].sort())
+
+    // At 60 BPM a note lasts a second. Legato holds most of it; staccato has
+    // let go by the half-way mark.
+    act(() => void vi.advanceTimersByTime(500))
+    expect(litKeys()).toEqual([])
+
+    // The same scale in single notes is still sounding at that point.
+    act(() => result.current.stop())
+    act(() => useLearningStore.getState().updateSpec({ texture: 'single' }))
+    act(() => result.current.toggle())
+    act(() => void vi.advanceTimersByTime(500))
+    expect(litKeys()).toHaveLength(1)
+  })
+
   it('never reports the demonstration as notes the player performed', () => {
     const before = useLearningStore.getState().session
     const { result } = mount()
