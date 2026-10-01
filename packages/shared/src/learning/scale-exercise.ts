@@ -94,7 +94,12 @@ export function scaleMotionsFor(type: ScaleType): ScaleMotion[] {
 /**
  * What each hand plays: one note at a time, or two.
  *
- * - `double-thirds` — each note with the third above it, in the same hand.
+ * - `double-thirds` — each note with the third above it, in the same hand,
+ *   joined: a different pair of fingers on every third.
+ * - `staccato-thirds` — the same thirds detached, on the 2nd and 4th fingers
+ *   throughout.
+ * - `staccato-sixths` — each note with the sixth below it, detached, on the
+ *   thumb and 5th finger throughout.
  * - `staccato-octaves`, `legato-octaves` — each note with its octave. The two
  *   are the same notes; they are apart because they are fingered differently,
  *   and because a demonstration of one should not sound like the other.
@@ -102,6 +107,8 @@ export function scaleMotionsFor(type: ScaleType): ScaleMotion[] {
 export const SCALE_TEXTURES = [
   'single',
   'double-thirds',
+  'staccato-thirds',
+  'staccato-sixths',
   'staccato-octaves',
   'legato-octaves',
 ] as const
@@ -109,22 +116,71 @@ export type ScaleTexture = (typeof SCALE_TEXTURES)[number]
 
 export const SCALE_TEXTURE_LABELS: Record<ScaleTexture, string> = {
   single: 'Single Notes',
-  'double-thirds': 'Double Thirds',
+  'double-thirds': 'Legato Double Thirds',
+  'staccato-thirds': 'Staccato Double Thirds',
+  'staccato-sixths': 'Staccato Double Sixths',
   'staccato-octaves': 'Staccato Octaves',
   'legato-octaves': 'Legato Octaves',
 }
 
+/** The detached double notes: one hand shape, lifted and set down again. */
+const isDetachedDoubles = (texture: ScaleTexture) =>
+  texture === 'staccato-thirds' || texture === 'staccato-sixths'
+
 /**
  * The textures a scale can be played in.
  *
- * Any scale can be played in octaves. Double thirds are offered where there is
- * a fingering to teach them by, and that is the major scales: a hand holding
- * two notes has three ways to do it and has to change between them in exactly
- * the right places, which is not something to guess at.
+ * Any scale can be played in octaves. Legato double thirds are offered where
+ * there is a fingering to teach them by, and that is the major scales: a hand
+ * holding two notes has three ways to do it and has to change between them in
+ * exactly the right places, which is not something to guess at. Detached, the
+ * hand keeps one shape and there is nothing to guess — but a third and a sixth
+ * are intervals of a seven-note scale.
  */
 export function scaleTexturesFor(type: ScaleType): ScaleTexture[] {
-  return SCALE_TEXTURES.filter((texture) => texture !== 'double-thirds' || type.id === 'major')
+  return SCALE_TEXTURES.filter((texture) =>
+    texture === 'double-thirds'
+      ? type.id === 'major'
+      : isDetachedDoubles(texture)
+        ? type.steps.length === 7
+        : true,
+  )
 }
+
+/**
+ * How far apart the hands of a chromatic scale are set.
+ *
+ * A chromatic scale has no third or sixth of its own, so the interval is named
+ * exactly: three half steps or four, eight or nine. In thirds the right hand
+ * is that far above the left; in sixths the left hand is that far below the
+ * right. In contrary motion it is where the hands set off from.
+ */
+export const CHROMATIC_INTERVALS = [
+  'octave',
+  'minor-third',
+  'major-third',
+  'minor-sixth',
+  'major-sixth',
+] as const
+export type ChromaticInterval = (typeof CHROMATIC_INTERVALS)[number]
+
+export const CHROMATIC_INTERVAL_LABELS: Record<ChromaticInterval, string> = {
+  octave: 'An Octave',
+  'minor-third': 'A Minor Third',
+  'major-third': 'A Major Third',
+  'minor-sixth': 'A Minor Sixth',
+  'major-sixth': 'A Major Sixth',
+}
+
+const INTERVAL_SEMITONES: Record<Exclude<ChromaticInterval, 'octave'>, number> = {
+  'minor-third': 3,
+  'major-third': 4,
+  'minor-sixth': 8,
+  'major-sixth': 9,
+}
+
+/** Whether the hands of this scale can be set a chosen interval apart. */
+export const scaleHasIntervals = (type: ScaleType): boolean => type.id === 'chromatic'
 
 /**
  * How many notes go to a beat: crotchets, quavers, triplets, semiquavers.
@@ -213,6 +269,8 @@ export const scaleSpecSchema = z.object({
   motion: z.enum(SCALE_MOTIONS).optional(),
   /** What each hand plays. Single notes when left out. */
   texture: z.enum(SCALE_TEXTURES).optional(),
+  /** How far apart the hands of a chromatic scale are. An octave when left out. */
+  apart: z.enum(CHROMATIC_INTERVALS).optional(),
   /**
    * Close with I – IV – V – I, as a scale book ends each scale. Only where
    * the scale comes back down to finish on its tonic.
@@ -321,11 +379,67 @@ function placeHands(
   motion: ScaleMotion,
   texture: ScaleTexture,
   range: NoteRange,
+  /** A chromatic scale's hands, set this many half steps apart. */
+  apart?: number,
 ): VoicePlan[] {
   const root = normalisePitchClass(pitchClass)
   // The scale's third degree, as semitones above the tonic.
   const third = scaleOffsets(type)[2] ?? 4
   const plain = { startDegree: 0, inverted: false }
+
+  if (apart !== undefined) {
+    /*
+     * A chromatic degree is a half step, so "the right hand a minor third up"
+     * is the same plan as a diatonic third with a different number in it: the
+     * right hand starts three degrees along. A sixth is the left hand starting
+     * so many degrees along an octave lower.
+     */
+    const inThirds = apart < 6
+    const candidates = [12, 24, 36, 48, 60, 72, 84].map((c) => c + root)
+    if (motion === 'contrary') {
+      // The hands set off from the interval, the right upward and the left down.
+      if (inThirds) {
+        const left = nearest(
+          candidates,
+          CONTRARY_START,
+          (note) => note - span >= range.low && note + apart + span <= range.high,
+        )
+        return [
+          { hand: 'left', anchor: left - span, startDegree: 0, inverted: true },
+          { hand: 'right', anchor: left, startDegree: apart, inverted: false },
+        ]
+      }
+      const right = nearest(
+        candidates,
+        CONTRARY_START,
+        (note) => note - apart - span >= range.low && note + span <= range.high,
+      )
+      return [
+        { hand: 'left', anchor: right - 12 - span, startDegree: 12 - apart, inverted: true },
+        { hand: 'right', anchor: right, ...plain },
+      ]
+    }
+    if (inThirds) {
+      const left = nearest(
+        candidates,
+        THIRD_START,
+        (note) => note >= range.low && note + apart + span <= range.high,
+      )
+      return [
+        { hand: 'left', anchor: left, ...plain },
+        { hand: 'right', anchor: left, startDegree: apart, inverted: false },
+      ]
+    }
+    const right = nearest(
+      candidates,
+      SIXTH_START,
+      (note) => note - apart >= range.low && note + span <= range.high,
+    )
+    return [
+      { hand: 'left', anchor: right - 12, startDegree: 12 - apart, inverted: false },
+      { hand: 'right', anchor: right, ...plain },
+    ]
+  }
 
   if (motion === 'third') {
     const candidates = [12, 24, 36, 48, 60, 72].map((c) => c + root)
@@ -373,21 +487,30 @@ function placeHands(
   const preferred = (type.family === 'minor' ? MINOR_START[root] : undefined) ?? PREFERRED_START
   const inOctaves = texture === 'staccato-octaves' || texture === 'legato-octaves'
   // How far above its lowest note a hand reaches: its octave, or its third.
-  const reach = inOctaves ? 12 : texture === 'double-thirds' ? third : 0
+  const reach = inOctaves
+    ? 12
+    : texture === 'double-thirds' || texture === 'staccato-thirds'
+      ? third
+      : 0
+  // And how far under: a sixth below the scale is a third above it, an octave down.
+  const under = texture === 'staccato-sixths' ? 12 - third : 0
   // In octaves the left hand needs an octave of its own beneath the right
   // hand's, so it sits two below: the book's example runs E2-E3 under E4-E5.
   const drop = inOctaves ? 24 : 12
   const right = nearest(
     candidates,
     preferred,
-    (note) => note + span + reach <= range.high && (hands !== 'both' || note - drop >= range.low),
+    (note) =>
+      note + span + reach <= range.high &&
+      note - under >= range.low &&
+      (hands !== 'both' || note - drop - under >= range.low),
   )
   const below = right - drop
   const left =
-    hands === 'both' || below >= range.low
+    hands === 'both' || below - under >= range.low
       ? below
       : // A left hand alone, with no room for that: as low as there is room for.
-        right - 12 >= range.low
+        right - 12 - under >= range.low
         ? right - 12
         : right
 
@@ -447,7 +570,25 @@ export function buildScaleExercise(spec: ScaleSpec, options: ScaleExerciseOption
       : 'similar'
   const range = options.range ?? DEFAULT_PLAYABLE_RANGE
   const system = fingeringSystem(options.fingering)
-  const plans = placeHands(spec.rootPitchClass, type, span, spec.hand, motion, texture, range)
+  // The interval between a chromatic scale's hands: two hands, single notes.
+  const apart: Exclude<ChromaticInterval, 'octave'> | null =
+    scaleHasIntervals(type) &&
+    spec.hand === 'both' &&
+    texture === 'single' &&
+    spec.apart &&
+    spec.apart !== 'octave'
+      ? spec.apart
+      : null
+  const plans = placeHands(
+    spec.rootPitchClass,
+    type,
+    span,
+    spec.hand,
+    motion,
+    texture,
+    range,
+    apart ? INTERVAL_SEMITONES[apart] : undefined,
+  )
 
   // A scale whose way down is not its way up. Only the melodic minor has one,
   // and reversing the ascending notes for it plays the raised sixth and seventh
@@ -541,6 +682,37 @@ export function buildScaleExercise(spec: ScaleSpec, options: ScaleExerciseOption
       // says so in `closing`.
       down = thirds(descendingClimb, upper(descendingOffsets), supplied?.closing ?? pairs)
       summary = { fingers: pairs.flat(), source: supplied ? 'standard' : 'derived' }
+    } else if (isDetachedDoubles(texture)) {
+      /*
+       * Detached double notes, as the Alfred book sets them (p. 83): one hand
+       * shape, the same two fingers on every pair. Thirds are each note with
+       * the third above it, on 2 and 4. Sixths are each note with the sixth
+       * *below* it — the scale is the upper line — on the thumb and the 5th.
+       */
+      const sixths = texture === 'staccato-sixths'
+      const other = (formOffsets: readonly number[]) =>
+        climb({ ...plan, startDegree: plan.startDegree + 2 }, formOffsets).map((entry) =>
+          // The same notes as the third above, an octave down.
+          sixths ? { ...entry, note: entry.note - 12 } : entry,
+        )
+      const fingers: FingerPair = sixths
+        ? hand === 'right'
+          ? [1, 5]
+          : [5, 1]
+        : hand === 'right'
+          ? [2, 4]
+          : [4, 2]
+      const pairUp = (scaleLine: typeof ascending, otherLine: typeof ascending) =>
+        scaleLine.map((entry, index) => {
+          const [low, high] = sixths ? [otherLine[index]!, entry] : [entry, otherLine[index]!]
+          return [
+            { ...low, finger: fingers[0] },
+            { ...high, finger: fingers[1] },
+          ]
+        })
+      up = pairUp(ascending, other(offsets))
+      down = pairUp(descendingClimb, other(descendingOffsets))
+      summary = { fingers: [...fingers], source: 'alfred' }
     } else if (texture !== 'single') {
       const articulation = texture === 'staccato-octaves' ? 'staccato' : 'legato'
       const octave = (run: typeof ascending) => {
@@ -760,7 +932,13 @@ export function buildScaleExercise(spec: ScaleSpec, options: ScaleExerciseOption
   const directionLabel = (
     motion === 'contrary' ? CONTRARY_DIRECTION_LABELS : SCALE_DIRECTION_LABELS
   )[spec.direction]
-  const handsLabel = motion === 'similar' ? HAND_LABELS[spec.hand] : SCALE_MOTION_LABELS[motion]
+  const handsLabel = apart
+    ? motion === 'contrary'
+      ? `Contrary Motion from ${CHROMATIC_INTERVAL_LABELS[apart]}`
+      : `${CHROMATIC_INTERVAL_LABELS[apart]} Apart`
+    : motion === 'similar'
+      ? HAND_LABELS[spec.hand]
+      : SCALE_MOTION_LABELS[motion]
   const subtitle = [
     handsLabel,
     ...(texture === 'single' ? [] : [SCALE_TEXTURE_LABELS[texture]]),
@@ -774,7 +952,7 @@ export function buildScaleExercise(spec: ScaleSpec, options: ScaleExerciseOption
   const placed = voices.map(({ sequence }) => sequence[0]!.parts[0]!.note).join('-')
 
   return {
-    id: `scale:${scale.root.name}:${type.id}:${spec.hand}:${motion}:${texture}:${spec.octaves}:${spec.direction}:${perBeat}:${closes ? 'cadence' : 'plain'}:${placed}`,
+    id: `scale:${scale.root.name}:${type.id}:${spec.hand}:${motion}:${apart ?? 'octave'}:${texture}:${spec.octaves}:${spec.direction}:${perBeat}:${closes ? 'cadence' : 'plain'}:${placed}`,
     kind: 'scale',
     title: `${scale.root.name} ${type.name}`,
     subtitle,
@@ -790,7 +968,7 @@ export function buildScaleExercise(spec: ScaleSpec, options: ScaleExerciseOption
       ...cadenceNames,
       ...sounding.map((note): [number, string] => [note.pitchClass, note.name]),
     ]),
-    ...(texture === 'staccato-octaves' ? { staccato: true } : {}),
+    ...(texture === 'staccato-octaves' || isDetachedDoubles(texture) ? { staccato: true } : {}),
     ...(perBeat > 1 ? { meter: COMMON_TIME } : {}),
     notes: steps.flatMap((step) => step.notes),
     pitchDegrees: Object.fromEntries(

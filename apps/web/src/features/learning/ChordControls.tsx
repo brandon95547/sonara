@@ -21,6 +21,7 @@ import {
   CHORD_KIND_LABELS,
   CHORD_STYLE_LABELS,
   CHORD_STYLES,
+  chordStylesFor,
   chordPositionName,
   findScaleType,
   HAND_LABELS,
@@ -111,7 +112,11 @@ const KIND_BADGES: Record<ChordForm, string> = {
   seventh: '7',
   'key-triads': 'Key',
 }
-const STYLE_BADGES: Record<ChordStyle, string> = { solid: 'S', broken: 'B' }
+const STYLE_BADGES: Record<ChordStyle, string> = {
+  solid: 'S',
+  broken: 'B',
+  'broken-alternate': 'Alt',
+}
 
 const ARPEGGIO_CHORD_LABELS: Record<ArpeggioChord, string> = {
   triad: 'Triad',
@@ -277,6 +282,10 @@ export function ChordSettings() {
   const update = useLearningStore((state) => state.updateChordSpec)
   const kindLabel = (kind: ChordForm) =>
     kind === 'seventh' ? seventhName(spec.mode) : CHORD_KIND_LABELS[kind]
+  // The style in force: a chord that cannot be broken the alternate way is
+  // broken the plain way, and the control says so rather than lying.
+  const styles = chordStylesFor(spec.chord)
+  const style: ChordStyle = styles.includes(spec.style) ? spec.style : 'broken'
   const playedHelp =
     spec.chord === 'key-triads'
       ? 'A note at a time. With both hands, the left plays each chord and the right answers.'
@@ -295,13 +304,15 @@ export function ChordSettings() {
           />
         </CompactField>
         <CompactField label="Played">
-          <SegmentedControl<ChordStyle>
-            label="Played"
-            value={spec.style}
-            onChange={(style) => update({ style })}
-            options={CHORD_STYLES.map((style) => ({
-              value: style,
-              label: CHORD_STYLE_LABELS[style],
+          <Select
+            size="sm"
+            aria-label="Played"
+            value={style}
+            onChange={(event) => update({ style: event.target.value as ChordStyle })}
+            options={CHORD_STYLES.map((option) => ({
+              value: option,
+              label: CHORD_STYLE_LABELS[option],
+              disabled: !styles.includes(option),
             }))}
           />
         </CompactField>
@@ -328,7 +339,7 @@ export function ChordSettings() {
       />
       <SelectMenu<ChordStyle>
         label="Played"
-        value={spec.style}
+        value={style}
         options={[
           { value: 'solid', label: 'Solid', description: 'Every note of the chord together.' },
           {
@@ -336,10 +347,18 @@ export function ChordSettings() {
             label: 'Broken',
             description: playedHelp,
           },
+          {
+            value: 'broken-alternate',
+            label: CHORD_STYLE_LABELS['broken-alternate'],
+            description: styles.includes('broken-alternate')
+              ? 'Bottom, third note, second, top: the hand rocks instead of running.'
+              : 'For four-note chords.',
+            disabled: !styles.includes('broken-alternate'),
+          },
         ]}
-        onChange={(style) => update({ style })}
+        onChange={(next) => update({ style: next })}
         iconOnly
-        icon={<BarGlyph icon={<Rows3 size={18} />} badge={STYLE_BADGES[spec.style]} />}
+        icon={<BarGlyph icon={<Rows3 size={18} />} badge={STYLE_BADGES[style]} />}
         className="bar-wide"
       />
       <HandsMenu area="chords" />

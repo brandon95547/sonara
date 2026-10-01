@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { noteName } from '../midi/notes.js'
 import {
   buildScaleExercise,
+  CHROMATIC_INTERVALS,
   DEFAULT_PLAYABLE_RANGE,
   DEFAULT_SCALE_SPEC,
   inEvenNotes,
@@ -777,7 +778,7 @@ describe('double thirds', () => {
 
   it('plays each note of the scale with the third above it, in one hand', () => {
     const exercise = thirds({ rootPitchClass: 0, hand: 'right', octaves: 1 })
-    expect(exercise.subtitle).toBe('Right Hand · Double Thirds · 1 octave · Up (Ascending)')
+    expect(exercise.subtitle).toBe('Right Hand · Legato Double Thirds · 1 octave · Up (Ascending)')
     expect(exercise.steps.map((step) => step.label)).toEqual([
       'C + E',
       'D + F',
@@ -912,7 +913,7 @@ describe('double thirds', () => {
 
   it('moves the hands together whatever motion was left selected', () => {
     const exercise = thirds({ rootPitchClass: 0, hand: 'both', motion: 'contrary' })
-    expect(exercise.subtitle).toContain('Both Hands · Double Thirds')
+    expect(exercise.subtitle).toContain('Both Hands · Legato Double Thirds')
     expect(exercise.steps[1]!.label).toBe('D + F')
   })
 })
@@ -1159,5 +1160,179 @@ describe('a scale that divides the beat', () => {
     // Four quavers and a fifth note on beat three of a bar of three: one beat left.
     expect(inEvenNotes(steps, 2, { beats: 3, beatType: 4 }).at(-1)!.beats).toBe(1)
     expect(inEvenNotes(steps, 1).every((step) => step.beats === undefined)).toBe(true)
+  })
+})
+
+/** One hand's fingers through an exercise, a digit per note. */
+const handFingers = (exercise: ReturnType<typeof build>, hand: 'left' | 'right') =>
+  exercise.steps
+    .map((step) =>
+      step.fingers
+        .filter((finger) => finger.hand === hand)
+        .map((finger) => finger.finger)
+        .join(''),
+    )
+    .join(' ')
+
+describe('a chromatic scale with the hands an interval apart', () => {
+  // Alfred pp. 78–79: one octave, from C, the hands a third or a sixth apart.
+  const chromatic = (spec: Partial<ScaleSpec>) =>
+    build({
+      rootPitchClass: 0,
+      scaleTypeId: 'chromatic',
+      hand: 'both',
+      octaves: 1,
+      direction: 'up-down',
+      ...spec,
+    })
+  /** Right hand minus left, at every step. */
+  const gaps = (exercise: ReturnType<typeof build>) =>
+    exercise.steps.map((step) => step.notes[1]! - step.notes[0]!)
+
+  it('keeps the interval all the way, in parallel motion', () => {
+    const semitones = { 'minor-third': 3, 'major-third': 4, 'minor-sixth': 8, 'major-sixth': 9 }
+    for (const [apart, size] of Object.entries(semitones)) {
+      const exercise = chromatic({ apart: apart as ScaleSpec['apart'] })
+      expect(new Set(gaps(exercise)), apart).toEqual(new Set([size]))
+      expect(exercise.steps).toHaveLength(25)
+    }
+  })
+
+  it('puts the right hand above for a third, and the left hand below for a sixth', () => {
+    const third = chromatic({ apart: 'minor-third' })
+    expect(third.steps[0]!.notes.map((note) => noteName(note))).toEqual(['C3', 'D#3'])
+    expect(third.subtitle).toBe('A Minor Third Apart · 1 octave · Up then Down')
+    const sixth = chromatic({ apart: 'minor-sixth' })
+    expect(sixth.steps[0]!.notes.map((note) => noteName(note))).toEqual(['E3', 'C4'])
+    // Each key is labelled with its own note.
+    expect(sixth.steps[0]!.noteLabels).toEqual(['E', 'C'])
+  })
+
+  it('sets off from the interval in contrary motion, and comes back to it', () => {
+    const exercise = chromatic({ apart: 'major-third', motion: 'contrary' })
+    expect(exercise.subtitle).toBe('Contrary Motion from A Major Third · 1 octave · Apart and Back')
+    const apart = gaps(exercise)
+    expect(apart[0]).toBe(4)
+    // A half step each way, every note: two further apart each time.
+    expect(apart.slice(0, 4)).toEqual([4, 6, 8, 10])
+    expect(apart[12]).toBe(28)
+    expect(apart.at(-1)).toBe(4)
+  })
+
+  it('fingers each hand by the chromatic rule, as the page does', () => {
+    // 3 on the black keys, the thumb on the white, 2 where two white keys meet.
+    const third = chromatic({ apart: 'minor-third' })
+    expect(handFingers(third, 'right').replaceAll(' ', '')).toBe('3123131312313132131313213')
+    const sixth = chromatic({ apart: 'minor-sixth' })
+    expect(handFingers(sixth, 'right').replaceAll(' ', '')).toBe('1313123131312131313213131')
+    expect(handFingers(sixth, 'left').replaceAll(' ', '').slice(0, 12)).toBe('213131321313')
+  })
+
+  it('stays on a 61-key keyboard from every note, as printed: one octave', () => {
+    const off: string[] = []
+    for (const apart of CHROMATIC_INTERVALS) {
+      for (const motion of ['similar', 'contrary'] as const) {
+        for (let rootPitchClass = 0; rootPitchClass < 12; rootPitchClass++) {
+          const notes = chromatic({ apart, motion, rootPitchClass }).notes
+          if (Math.min(...notes) < 36 || Math.max(...notes) > 96)
+            off.push(`${apart} ${motion} pc ${rootPitchClass}`)
+        }
+      }
+    }
+    expect(off).toEqual([])
+  })
+
+  it('fits two octaves in parallel motion; in contrary motion that needs a longer keyboard', () => {
+    for (const apart of CHROMATIC_INTERVALS) {
+      for (let rootPitchClass = 0; rootPitchClass < 12; rootPitchClass++) {
+        const notes = chromatic({ apart, rootPitchClass, octaves: 2 }).notes
+        expect(Math.min(...notes), `${apart} pc ${rootPitchClass}`).toBeGreaterThanOrEqual(36)
+        expect(Math.max(...notes), `${apart} pc ${rootPitchClass}`).toBeLessThanOrEqual(96)
+      }
+    }
+    // Two octaves each way from a sixth apart is 57 keys end to end, and only
+    // sits on 61 from a few notes. Given 88 it sits from all of them.
+    for (let rootPitchClass = 0; rootPitchClass < 12; rootPitchClass++) {
+      const notes = build(
+        {
+          rootPitchClass,
+          scaleTypeId: 'chromatic',
+          hand: 'both',
+          octaves: 2,
+          direction: 'up-down',
+          apart: 'major-sixth',
+          motion: 'contrary',
+        },
+        { range: { low: 21, high: 108 } },
+      ).notes
+      expect(Math.min(...notes), `pc ${rootPitchClass}`).toBeGreaterThanOrEqual(21)
+      expect(Math.max(...notes), `pc ${rootPitchClass}`).toBeLessThanOrEqual(108)
+    }
+  })
+
+  it('is for a chromatic scale with both hands in single notes, and ignored otherwise', () => {
+    const one = chromatic({ apart: 'minor-third', hand: 'right' })
+    expect(one.subtitle).toBe('Right Hand · 1 octave · Up then Down')
+    const major = build({ scaleTypeId: 'major', hand: 'both', apart: 'minor-third' })
+    expect(major.subtitle.startsWith('Both Hands')).toBe(true)
+    const octave = chromatic({ apart: 'octave' })
+    expect(new Set(gaps(octave))).toEqual(new Set([12]))
+  })
+})
+
+describe('detached double notes', () => {
+  // Alfred p. 83.
+  const doubled = (spec: Partial<ScaleSpec>) =>
+    build({ rootPitchClass: 0, scaleTypeId: 'major', octaves: 2, direction: 'up-down', ...spec })
+
+  it('plays staccato thirds on the 2nd and 4th fingers throughout', () => {
+    const exercise = doubled({ texture: 'staccato-thirds', hand: 'both' })
+    expect(exercise.steps[0]!.notes.map((note) => noteName(note))).toEqual(['C3', 'E3', 'C4', 'E4'])
+    expect(new Set(handFingers(exercise, 'right').split(' '))).toEqual(new Set(['24']))
+    expect(new Set(handFingers(exercise, 'left').split(' '))).toEqual(new Set(['42']))
+    expect(exercise.staccato).toBe(true)
+    expect(exercise.fingerings.map((fingering) => fingering.source)).toEqual(['alfred', 'alfred'])
+  })
+
+  it('plays staccato sixths with the scale on top, on the thumb and 5th finger', () => {
+    const exercise = doubled({ texture: 'staccato-sixths', hand: 'both' })
+    // As printed: E under C in both hands, the tonic the upper note.
+    expect(exercise.steps[0]!.notes.map((note) => noteName(note))).toEqual(['E2', 'C3', 'E3', 'C4'])
+    expect(new Set(handFingers(exercise, 'right').split(' '))).toEqual(new Set(['15']))
+    expect(new Set(handFingers(exercise, 'left').split(' '))).toEqual(new Set(['51']))
+    expect(exercise.steps[0]!.label).toBe('E + C')
+    expect(exercise.staccato).toBe(true)
+  })
+
+  it('takes the sixths from the scale: a major sixth here, a minor sixth there', () => {
+    const exercise = doubled({ texture: 'staccato-sixths', octaves: 1, direction: 'up' })
+    expect(exercise.steps.map((step) => step.notes[1]! - step.notes[0]!)).toEqual([
+      8, 9, 9, 8, 8, 9, 9, 8,
+    ])
+  })
+
+  it('is offered for seven-note scales, and legato double thirds only for major', () => {
+    const textures = (id: string) => scaleTexturesFor(SCALE_TYPES.find((type) => type.id === id)!)
+    expect(textures('harmonic-minor')).toContain('staccato-thirds')
+    expect(textures('harmonic-minor')).toContain('staccato-sixths')
+    expect(textures('harmonic-minor')).not.toContain('double-thirds')
+    expect(textures('blues')).not.toContain('staccato-thirds')
+    expect(textures('major')).toContain('double-thirds')
+  })
+
+  it('stays on a 61-key keyboard in every major and minor key', () => {
+    const off: string[] = []
+    for (const scaleTypeId of ['major', 'harmonic-minor', 'melodic-minor']) {
+      for (const texture of ['staccato-thirds', 'staccato-sixths'] as const) {
+        for (const hand of ['right', 'left', 'both'] as const) {
+          for (let rootPitchClass = 0; rootPitchClass < 12; rootPitchClass++) {
+            const notes = doubled({ scaleTypeId, texture, hand, rootPitchClass }).notes
+            if (Math.min(...notes) < 36 || Math.max(...notes) > 96)
+              off.push(`${scaleTypeId} ${texture} ${hand} pc ${rootPitchClass}`)
+          }
+        }
+      }
+    }
+    expect(off).toEqual([])
   })
 })

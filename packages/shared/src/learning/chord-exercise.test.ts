@@ -4,6 +4,7 @@ import { KEY_MODES, keyChord, keyTriads } from '../music/chords.js'
 import {
   buildArpeggioExercise,
   buildChordExercise,
+  chordStylesFor,
   DEFAULT_ARPEGGIO_SPEC,
   DEFAULT_CHORD_SPEC,
   type ArpeggioSpec,
@@ -479,5 +480,63 @@ describe('the chords of the key, as an exercise', () => {
         expect(Math.max(...notes), `${mode} pc ${rootPitchClass}`).toBeLessThanOrEqual(96)
       }
     }
+  })
+})
+
+describe('the four-note chord broken the alternate way', () => {
+  // Alfred p. 87: "Four-note form, block and broken (alternate version)".
+  const alternate = (spec: Partial<ChordSpec> = {}) =>
+    chords({ chord: 'four-note', style: 'broken-alternate', ...spec })
+
+  it('goes bottom, third note, second, top — the fingers staying on their notes', () => {
+    const exercise = alternate()
+    expect(exercise.steps.slice(0, 8).map((step) => noteName(step.notes[0]!))).toEqual([
+      'C4',
+      'G4',
+      'E4',
+      'C5',
+      'E4',
+      'C5',
+      'G4',
+      'E5',
+    ])
+    expect(fingersOf(exercise, 'right').slice(0, 8).join('')).toBe('13251425')
+    expect(exercise.subtitle).toBe('Right Hand · Broken, Alternate')
+  })
+
+  it('rocks the same way coming back down', () => {
+    const exercise = alternate()
+    expect(exercise.steps.slice(16, 24).map((step) => noteName(step.notes[0]!))).toEqual([
+      'C6',
+      'E5',
+      'G5',
+      'C5',
+      'G5',
+      'C5',
+      'E5',
+      'G4',
+    ])
+    expect(fingersOf(exercise, 'right').slice(16, 24).join('')).toBe('52315241')
+  })
+
+  it('gives the left hand the page’s 5 2 4 1', () => {
+    expect(
+      fingersOf(alternate({ hand: 'left' }), 'left')
+        .slice(0, 8)
+        .join(''),
+    ).toBe('52415241')
+  })
+
+  it('plays the same notes as the plain broken chord, in another order', () => {
+    const plain = chords({ chord: 'four-note', style: 'broken' })
+    expect([...alternate().notes].sort()).toEqual([...plain.notes].sort())
+  })
+
+  it('is the four-note chord’s: any other chord is broken the plain way', () => {
+    expect(chordStylesFor('four-note')).toContain('broken-alternate')
+    expect(chordStylesFor('triad')).not.toContain('broken-alternate')
+    const triad = chords({ chord: 'triad', style: 'broken-alternate' })
+    expect(triad.subtitle).toBe('Right Hand · Broken')
+    expect(triad.notes).toEqual(chords({ chord: 'triad', style: 'broken' }).notes)
   })
 })

@@ -21,6 +21,8 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import {
+  CHROMATIC_INTERVAL_LABELS,
+  CHROMATIC_INTERVALS,
   HAND_LABELS,
   LEARNING_MODE_DESCRIPTIONS,
   LEARNING_MODE_LABELS,
@@ -34,11 +36,13 @@ import {
   SCALE_TEXTURE_LABELS,
   SCALE_TEXTURES,
   scaleHasCadence,
+  scaleHasIntervals,
   scaleMotionsFor,
   scaleTexturesFor,
   SCALE_TYPES,
   scaleSpellings,
   spellScale,
+  type ChromaticInterval,
   type ExerciseKind,
   type LearningMode,
   type NotesPerBeat,
@@ -115,14 +119,25 @@ const MOTION_UNAVAILABLE: Record<ScaleMotion, string> = {
 /** What each hand plays: the texture menu. */
 const TEXTURE_DESCRIPTIONS: Record<ScaleTexture, string> = {
   single: 'One note at a time.',
-  'double-thirds': 'Each note with the third above it, in the same hand.',
+  'double-thirds': 'Each note with the third above it, joined: the fingers change on every third.',
+  'staccato-thirds': 'Each note with the third above it, detached: 2nd and 4th fingers throughout.',
+  'staccato-sixths': 'Each note with the sixth below it, detached: thumb and little finger.',
   'staccato-octaves': 'Each note with its octave, detached: thumb and little finger.',
   'legato-octaves': 'Each note with its octave, joined: the 4th finger takes the black keys.',
 }
 
+/** Why a texture is not on offer for the scale that is selected. */
+const TEXTURE_UNAVAILABLE: Partial<Record<ScaleTexture, string>> = {
+  'double-thirds': 'For major scales.',
+  'staccato-thirds': 'For seven-note scales.',
+  'staccato-sixths': 'For seven-note scales.',
+}
+
 const TEXTURE_BADGES: Record<ScaleTexture, string> = {
   single: '1',
-  'double-thirds': '3',
+  'double-thirds': 'L3',
+  'staccato-thirds': 'S3',
+  'staccato-sixths': 'S6',
   'staccato-octaves': 'S8',
   'legato-octaves': 'L8',
 }
@@ -145,6 +160,14 @@ const PLAYING_BADGES: Record<Playing, string> = {
   contrary: '<>',
   third: '3rd',
   sixth: '6th',
+}
+
+/** The interval between a chromatic scale's hands, at badge size. */
+const INTERVAL_BADGES: Record<Exclude<ChromaticInterval, 'octave'>, string> = {
+  'minor-third': 'm3',
+  'major-third': 'M3',
+  'minor-sixth': 'm6',
+  'major-sixth': 'M6',
 }
 
 const playingOf = (spec: ScaleSpec, motions: readonly ScaleMotion[]): Playing =>
@@ -293,6 +316,9 @@ export function ScalePicker() {
     playing !== 'third' &&
     playing !== 'sixth'
   const closes = canClose && spec.direction !== 'up'
+  // An interval is between two hands playing one note each.
+  const canSetInterval = spec.hand === 'both' && texture === 'single'
+  const intervalInForce: ChromaticInterval = canSetInterval ? (spec.apart ?? 'octave') : 'octave'
 
   return (
     <>
@@ -344,6 +370,28 @@ export function ScalePicker() {
             options={SCALE_TYPES.map((type) => ({ value: type.id, label: type.name }))}
             onChange={(scaleTypeId) => updateSpec({ scaleTypeId })}
           />
+          {/* A chromatic scale's hands can be set a third or a sixth apart —
+              a setting no other scale has, so it lives with the scale. */}
+          {scaleHasIntervals(type) && (
+            <CompactField label="Hands apart by">
+              <Select
+                size="sm"
+                aria-label="Hands apart by"
+                value={intervalInForce}
+                disabled={!canSetInterval}
+                onChange={(event) => updateSpec({ apart: event.target.value as ChromaticInterval })}
+                options={CHROMATIC_INTERVALS.map((interval) => ({
+                  value: interval,
+                  label: CHROMATIC_INTERVAL_LABELS[interval],
+                }))}
+              />
+              {!canSetInterval && (
+                <span className="text-caption text-[var(--ds-fg-muted)]">
+                  For both hands, in single notes.
+                </span>
+              )}
+            </CompactField>
+          )}
           {/* On, off, or not possible — and which, said in the description
               rather than by a control that has silently stopped responding. */}
           <Switch
@@ -532,6 +580,19 @@ export function HandMenu() {
   const updateSpec = useLearningStore((state) => state.updateSpec)
   const motions = useScaleMotions()
   const playing = playingOf(spec, motions)
+  // A chromatic scale's hands set a third or a sixth apart say so on the badge:
+  // "LR" would be true, and would hide the one thing that is unusual.
+  const apart =
+    scaleHasIntervals(typeOf(spec.scaleTypeId)) &&
+    spec.hand === 'both' &&
+    textureOf(spec) === 'single' &&
+    spec.apart &&
+    spec.apart !== 'octave'
+      ? spec.apart
+      : null
+  const badge = apart
+    ? `${playing === 'contrary' ? '<' : ''}${INTERVAL_BADGES[apart]}${playing === 'contrary' ? '>' : ''}`
+    : PLAYING_BADGES[playing]
   return (
     <SelectMenu<Playing>
       label="Hands"
@@ -552,7 +613,7 @@ export function HandMenu() {
       })}
       onChange={(next) => updateSpec(specFor(next))}
       iconOnly
-      icon={<BarGlyph icon={<Hand size={18} />} badge={PLAYING_BADGES[playing]} />}
+      icon={<BarGlyph icon={<Hand size={18} />} badge={badge} />}
       className="bar-wide"
     />
   )
@@ -573,7 +634,7 @@ export function TextureMenu() {
         return {
           value: option,
           label: SCALE_TEXTURE_LABELS[option],
-          description: offered ? TEXTURE_DESCRIPTIONS[option] : 'For major scales.',
+          description: offered ? TEXTURE_DESCRIPTIONS[option] : TEXTURE_UNAVAILABLE[option],
           disabled: !offered,
         }
       })}

@@ -34,8 +34,21 @@ import {
  * up the keyboard — and everything downstream sees the same `Exercise`.
  */
 
-export const CHORD_STYLES = ['solid', 'broken'] as const
+/**
+ * How a chord is played: every note at once, or one at a time.
+ *
+ * `broken-alternate` is the four-note chord broken out of order — bottom,
+ * third note, second, top — so the hand rocks rather than runs. The Alfred
+ * book prints it beside the plain form (p. 87); the fingers stay on the notes
+ * they hold in the chord.
+ */
+export const CHORD_STYLES = ['solid', 'broken', 'broken-alternate'] as const
 export type ChordStyle = (typeof CHORD_STYLES)[number]
+
+/** The styles a chord can be played in: the alternate breaking is the four-note chord's. */
+export function chordStylesFor(chord: ChordForm): ChordStyle[] {
+  return CHORD_STYLES.filter((style) => style !== 'broken-alternate' || chord === 'four-note')
+}
 
 /**
  * What the Chords area plays.
@@ -55,7 +68,11 @@ export const CHORD_KIND_LABELS: Record<ChordForm, string> = {
   'key-triads': 'Chords of the Key',
 }
 
-export const CHORD_STYLE_LABELS: Record<ChordStyle, string> = { solid: 'Solid', broken: 'Broken' }
+export const CHORD_STYLE_LABELS: Record<ChordStyle, string> = {
+  solid: 'Solid',
+  broken: 'Broken',
+  'broken-alternate': 'Broken, Alternate',
+}
 
 const keyFields = {
   rootPitchClass: z.number().int().min(0).max(11),
@@ -162,7 +179,11 @@ function spread(size: number, hand: Hand): number[] {
  * steps, each a whole chord. Broken walks each position up a note at a time
  * and then walks them all back down.
  */
-export function buildChordExercise(spec: ChordSpec, options: ChordExerciseOptions = {}): Exercise {
+export function buildChordExercise(asked: ChordSpec, options: ChordExerciseOptions = {}): Exercise {
+  // A style the chord cannot take is played as the plain one it is a variant of.
+  const spec: ChordSpec = chordStylesFor(asked.chord).includes(asked.style)
+    ? asked
+    : { ...asked, style: 'broken' }
   if (spec.chord === 'key-triads') return buildKeyTriadsExercise(spec, options)
   const kind: ChordKind = spec.chord
   const chord = keyChord(spec.rootPitchClass, spec.mode, kind, spec.tonic)
@@ -220,7 +241,13 @@ export function buildChordExercise(spec: ChordSpec, options: ChordExerciseOption
       ...[...positions].reverse().map((position) => ({ position, down: true })),
     ]
     for (const { position, down } of order) {
-      const indices = Array.from({ length: size }, (_, index) => (down ? size - 1 - index : index))
+      const indices =
+        spec.style === 'broken-alternate'
+          ? // Bottom, third note, second, top — and the same rocking back down.
+            down
+            ? [3, 1, 2, 0]
+            : [0, 2, 1, 3]
+          : Array.from({ length: size }, (_, index) => (down ? size - 1 - index : index))
       indices.forEach((index, at) => {
         const playing = voices.map(({ hand, shapes }) => ({ ...shapes[position]![index]!, hand }))
         steps.push({
