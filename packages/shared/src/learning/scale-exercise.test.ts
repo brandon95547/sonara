@@ -87,6 +87,59 @@ describe('buildScaleExercise', () => {
     }
   })
 
+  it('starts every major and minor key on the note the Brown Scale Book prints', () => {
+    // Read off the "similar motion in octaves" line of each key's page. The
+    // regression: E and E♭ major, and E, F, F♯ and D♯ minor, began an octave
+    // under the page.
+    const majors = {
+      0: 60,
+      7: 55,
+      2: 62,
+      9: 57,
+      4: 64,
+      11: 59,
+      6: 54,
+      5: 53,
+      10: 58,
+      3: 63,
+      8: 56,
+      1: 61,
+    }
+    const minors = {
+      9: 57,
+      4: 64,
+      11: 59,
+      6: 66,
+      1: 61,
+      8: 56,
+      3: 63,
+      2: 62,
+      7: 55,
+      0: 60,
+      5: 65,
+      10: 58,
+    }
+    const forms = [
+      ['major', majors],
+      ['natural-minor', minors],
+      ['harmonic-minor', minors],
+      ['melodic-minor', minors],
+    ] as const
+    for (const [scaleTypeId, starts] of forms) {
+      for (const [pitchClass, right] of Object.entries(starts)) {
+        const spec = {
+          scaleTypeId,
+          rootPitchClass: Number(pitchClass),
+          direction: 'up-down',
+        } as const
+        const where = `${scaleTypeId} pc ${pitchClass}`
+        expect(build({ ...spec, hand: 'right' }).notes[0], where).toBe(right)
+        expect(build({ ...spec, hand: 'left' }).notes[0], where).toBe(right - 12)
+        expect(build({ ...spec, hand: 'both' }).steps[0]!.notes, where).toEqual([right - 12, right])
+      }
+    }
+  })
+
   it('shares the one place a four-octave scale fits rather than leave the keyboard', () => {
     // Db over four octaves runs Db2-Db6. An octave lower starts below C2, off
     // the bottom of a 61-key keyboard, so the left hand stays where it fits.

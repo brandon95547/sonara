@@ -8,6 +8,7 @@ import {
   SCALE_TYPES,
   spellScale,
   spellScaleFrom,
+  type ScaleType,
   type SpelledScale,
 } from '../music/scales.js'
 import { scaleFingering, type Hand } from '../music/fingering.js'
@@ -69,10 +70,16 @@ export const DEFAULT_SCALE_SPEC: ScaleSpec = {
 /**
  * Where to place the root.
  *
- * A3 is the right hand's target: low enough that a two-octave scale stays
- * inside a 61-key view. The whole scale is checked against the top of that
- * view, so a wide exercise drops an octave rather than running off the end of a
- * keyboard the player can see.
+ * The right hand starts somewhere from F3 to E4, which is the register the
+ * scale books print: C major from middle C, G major from the G below it, E
+ * major from the E above. Low enough that a two-octave scale stays inside a
+ * 61-key view. The whole scale is checked against the top of that view, so a
+ * wide exercise drops an octave rather than running off the end of a keyboard
+ * the player can see.
+ *
+ * It used to aim at A3 and take the lower of two equally near octaves, which
+ * put E and E♭ an octave under the page — close enough to play, and wrong for
+ * anyone playing along with the book.
  *
  * The left hand plays the same scale an octave below the right. That is where
  * the scale books put it — "similar motion in octaves", right hand from A3 and
@@ -85,17 +92,32 @@ export const DEFAULT_SCALE_SPEC: ScaleSpec = {
  * it. Both hands together cannot share keys, so they stay an octave apart and
  * that one runs off the bottom of a 61 — it needs the bigger keyboard anyway.
  */
-const PREFERRED_START = 57 // A3
+const PREFERRED_START = 58.5 // midway through F3-E4, so no two octaves tie
 const COMFORTABLE_BOTTOM = 36 // C2, the bottom of the default 61-key view
 const COMFORTABLE_TOP = 96 // C7, the top of it
 
-function placeHands(pitchClass: number, span: number, hands: ScaleHands): Record<Hand, number> {
+/**
+ * The two minor keys the Brown Scale Book starts an octave above the rule.
+ *
+ * F and F♯ major begin low, on F3 and F♯3; F and F♯ minor begin on F4 and F♯4.
+ * No range covers both, so the page is simply followed.
+ */
+const MINOR_START: Readonly<Record<number, number>> = { 5: 65, 6: 66 }
+
+function placeHands(
+  pitchClass: number,
+  type: ScaleType,
+  span: number,
+  hands: ScaleHands,
+): Record<Hand, number> {
+  const root = normalisePitchClass(pitchClass)
   // One candidate per octave from C1 to C5.
-  const candidates = [24, 36, 48, 60, 72].map((c) => c + normalisePitchClass(pitchClass))
+  const candidates = [24, 36, 48, 60, 72].map((c) => c + root)
   const fits = candidates.filter((note) => note + span <= COMFORTABLE_TOP)
   const pool = fits.length > 0 ? fits : candidates
+  const preferred = (type.family === 'minor' ? MINOR_START[root] : undefined) ?? PREFERRED_START
   const right = pool.reduce((best, note) =>
-    Math.abs(note - PREFERRED_START) < Math.abs(best - PREFERRED_START) ? note : best,
+    Math.abs(note - preferred) < Math.abs(best - preferred) ? note : best,
   )
 
   const below = right - 12
@@ -120,7 +142,7 @@ export function buildScaleExercise(spec: ScaleSpec): Exercise {
   const scale: SpelledScale = spellScale(spec.rootPitchClass, type)
   const offsets = scaleOffsets(type)
   const span = 12 * spec.octaves
-  const starts = placeHands(spec.rootPitchClass, span, spec.hand)
+  const starts = placeHands(spec.rootPitchClass, type, span, spec.hand)
   // Low hand first, so a step's notes read up the keyboard.
   const hands: readonly Hand[] = spec.hand === 'both' ? ['left', 'right'] : [spec.hand]
 
