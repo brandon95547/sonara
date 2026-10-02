@@ -148,6 +148,34 @@ end-of-life and several dependencies exclude it, which shows up as `EBADENGINE`
 warnings on install. API docs are served at
 <http://localhost:5175/docs> from the OpenAPI document the routes generate.
 
+### Is it already running, and how to stop it
+
+```bash
+lsof -nP -iTCP:5174 -iTCP:5175 -sTCP:LISTEN
+```
+
+A line for 5175 means the API is up, a line for 5174 means the web app is up,
+and no output means nothing is serving.
+
+That only shows what is listening. To see the processes behind the stack as
+well — including a watcher that is still alive after its server was killed:
+
+```bash
+pgrep -fl "sonara/node_modules/.bin/(concurrently|tsx|vite)"
+```
+
+To stop it, press Ctrl-C in the terminal where `npm run dev` is running. If
+that terminal cannot be found:
+
+```bash
+pkill -f "sonara/node_modules/.bin/(concurrently|tsx|vite)"
+```
+
+**Do not `kill` the pid that `lsof` reports on 5175.** That is only the server
+process. Its parent is `tsx watch`, which starts a new server the next time a
+watched file changes, so the API comes back by itself. The `pkill` above takes
+out the watcher too.
+
 ### If the app says "Loading pianos…" and stays there
 
 The API is not answering. Almost always that is **two `npm run dev` stacks at
