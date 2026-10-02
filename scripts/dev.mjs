@@ -19,9 +19,18 @@
  * as Sonara is reused, and said so out loud; a port held by something else is
  * refused with the reason. `npm run dev` becomes idempotent: run it as often
  * as you like and you end up with exactly one stack.
+ *
+ * ## Why the shared build happens in here, after the ports are checked
+ *
+ * It used to run first, as `npm run build:shared && node scripts/dev.mjs`. But
+ * the build rewrites `packages/shared/dist`, which an API that is already
+ * running watches — so it restarts, and for the few seconds that takes its
+ * port is free. The check below then landed in exactly that gap, saw 5175
+ * free, and started the second API this script exists to prevent. The ports
+ * have to be read while the stack is at rest, so the build comes after.
  */
 import { createServer } from 'node:net'
-import { spawn } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 
 const API_PORT = Number(process.env.PORT ?? 5175)
 const WEB_PORT = Number(process.env.WEB_PORT ?? 5174)
@@ -94,6 +103,11 @@ if (toStart.length === 0) {
   process.stdout.write(`\n  Sonara is already running - http://localhost:${WEB_PORT}\n\n`)
   process.exit(0)
 }
+
+// A reused API restarts itself when this lands, which is fine: what to start
+// has already been decided.
+const build = spawnSync('npm', ['run', 'build:shared'], { stdio: 'inherit' })
+if (build.status !== 0) process.exit(build.status ?? 1)
 
 const child = spawn(
   'npx',
