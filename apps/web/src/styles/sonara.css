@@ -157,6 +157,13 @@
   --c-bar-control: rgb(255 255 255 / 0.1); /* a filled round button */
   --c-bar-control-hover: rgb(255 255 255 / 0.18);
   --c-bar-outline: rgb(255 255 255 / 0.4); /* Stop's ring */
+  /* Record. Its own red, in both themes: the danger colour is an orange in the
+     dark one, and an orange dot says "warning", not "record". The dot is 3.4:1
+     on the button's own surface (4.6:1 on the bare bar); armed, the fill is a
+     step deeper so the white square on it is 5:1. */
+  --c-record: #ff5a64;
+  --c-record-armed: #d42c3c;
+  --c-record-fg: #ffffff;
   --shadow-bar: 0 1px 0 rgb(0 0 0 / 0.25), 0 6px 18px -8px rgb(0 0 0 / 0.5);
   /* Anything floating on the stage in the bar's colour: the run meter. */
   --shadow-stage-float: 0 6px 16px -8px rgb(0 0 0 / 0.55);
@@ -176,6 +183,7 @@
      Layers are for things that sit over other components — a component's own
      stacking inside itself stays a plain number next to its rule. */
   --radius-pill: 999px;
+  --z-panel: 20; /* the area's options: over the workspace, under the bar's shadow */
   --z-bar: 30;
   --z-popover: 45; /* above the page, under a dialog (Tailwind z-50) */
   --z-overlay: 60; /* the recording count-in and banner, over everything */
@@ -1151,7 +1159,7 @@
   height: 8px;
   width: 8px;
   border-radius: var(--radius-pill);
-  background: var(--ds-danger);
+  background: var(--c-record);
 }
 @media (prefers-reduced-motion: no-preference) {
   .record-banner__dot {
@@ -1163,13 +1171,6 @@
     opacity: 0.35;
   }
 }
-/* Recording is the one state where the button should read as armed rather
-   than merely selected. */
-.is-recording {
-  background: var(--ds-danger) !important;
-  color: var(--ds-danger-fg) !important;
-}
-
 /* ---- Song progress -------------------------------------------------------
    Above the staff and inside the instrument panel, so where you are in the
    piece sits with the piece rather than with the controls that change it. */
@@ -1225,11 +1226,12 @@
   align-items: center;
   gap: 2px;
   height: 64px;
-  padding-inline: 12px;
+  padding-inline: 8px;
   min-width: 0;
 }
 @media (min-width: 40rem) {
   .top-bar__row {
+    gap: 4px;
     padding-inline: 16px 18px;
   }
 }
@@ -1238,7 +1240,7 @@
   flex: none;
   align-items: center;
   gap: 10px;
-  margin-right: 2px;
+  margin-right: 8px;
 }
 /* The mark: three keys in a ring, white on the bar. As tall as the bar's
    controls, since the gaps between the keys close up much smaller. */
@@ -1257,64 +1259,25 @@
   flex: none;
   width: 1px;
   height: 28px;
-  margin-inline: 3px;
+  margin-inline: 4px;
   background-color: var(--c-bar-line);
 }
 .top-bar__spacer {
   flex: 1 1 auto;
-  min-width: 4px;
+  min-width: 0;
 }
 .top-bar__cluster {
   display: inline-flex;
   align-items: center;
-  gap: 2px;
+  gap: inherit;
 }
 
-/* A setting, named by its value: "Right Hand ▾". */
-.bar-button {
-  display: inline-flex;
-  flex: none;
-  align-items: center;
-  gap: 8px;
-  height: 40px;
-  min-width: 0;
-  padding-inline: 7px;
-  border-radius: var(--radius-md);
-  color: var(--c-bar-fg);
-  font-size: var(--text-ui);
-  font-weight: 550;
-  white-space: nowrap;
-  transition: background-color var(--duration-fast) var(--ease-standard);
-}
-.bar-button:hover {
-  background-color: var(--c-bar-hover);
-}
-.bar-button[aria-expanded='true'] {
-  background-color: var(--c-bar-pressed);
-}
-.bar-button:focus-visible,
 .bar-icon-button:focus-visible,
-.bar-start:focus-visible,
-.tempo-stepper__button:focus-visible {
+.bar-options:focus-visible,
+.bar-tabs__tab:focus-visible,
+.bar-start:focus-visible {
   outline: 2px solid var(--c-bar-fg);
   outline-offset: 2px;
-}
-.bar-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-.bar-button__label {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.bar-button__icon {
-  display: inline-flex;
-  color: var(--c-bar-fg-muted);
-}
-.bar-button__chevron {
-  flex: none;
-  color: var(--c-bar-fg-muted);
 }
 .bar-icon-button {
   display: inline-grid;
@@ -1340,36 +1303,6 @@
   opacity: 0.4;
   cursor: not-allowed;
 }
-/* A setting's value, printed on the corner of its icon: the key, "R", "2",
-   the tempo. White on the bar it sits in, with a ring of the bar round it so
-   it reads as a tag on the icon rather than a second glyph beside it. */
-.bar-glyph {
-  position: relative;
-  display: inline-grid;
-  place-items: center;
-}
-.bar-glyph__badge {
-  position: absolute;
-  right: -11px;
-  bottom: -8px;
-  min-width: 15px;
-  height: 15px;
-  padding-inline: 3px;
-  border-radius: var(--radius-pill);
-  background-color: var(--c-bar-fg);
-  box-shadow: 0 0 0 2px var(--c-bar);
-  color: var(--c-bar);
-  font-size: 0.625rem;
-  font-weight: 750;
-  line-height: 15px;
-  text-align: center;
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
-}
-.bar-icon-button:hover:not(:disabled) .bar-glyph__badge,
-.bar-icon-button[aria-expanded='true'] .bar-glyph__badge {
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--c-bar-fg) 12%, var(--c-bar));
-}
 
 /* The same controls inside a panel, where the bar's white-on-charcoal would be
    white on a dark sheet with no edge. */
@@ -1378,40 +1311,217 @@
   color: var(--ds-fg);
 }
 
-/* − 72 BPM + */
-.tempo-stepper {
-  display: inline-flex;
+/* The bar's controls that are more than an icon — the options button, the mode
+   tabs, the tempo, Record — are surfaces standing on the bar: one step lighter
+   than it, and square-shouldered like Start, where a bare icon's hover is
+   round. The Bible's rule for a field, on the bar's own colours. */
+.bar-options {
+  display: inline-grid;
   flex: none;
-  align-items: center;
-  gap: 6px;
-  margin-inline: 2px;
-}
-.tempo-stepper__button {
-  display: grid;
   place-items: center;
-  width: 30px;
-  height: 30px;
-  border-radius: var(--radius-pill);
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-lg);
   background-color: var(--c-bar-control);
   color: var(--c-bar-fg);
   transition: background-color var(--duration-fast) var(--ease-standard);
 }
-.tempo-stepper__button:hover {
+.bar-options:hover {
   background-color: var(--c-bar-control-hover);
 }
-.tempo-stepper__value {
-  min-width: 4.2em;
-  text-align: center;
+/* Open, it is filled: the button that opened the panel is the one that shuts it. */
+.bar-options[aria-expanded='true'] {
+  background-color: var(--ds-accent);
+  color: var(--ds-accent-fg);
+}
+.bar-options[aria-expanded='true']:hover {
+  background-color: var(--ds-accent-hover);
+}
+
+/* Explore · Learn · Practice. Icons until there is room for the words — the
+   words are still there for a screen reader, clipped rather than removed. */
+.bar-tabs {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+  height: 40px;
+  padding: 3px;
+  border-radius: var(--radius-lg);
+  background-color: var(--c-bar-control);
+}
+.bar-tabs__tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 100%;
+  border-radius: calc(var(--radius-lg) - 3px);
+  color: var(--c-bar-fg-muted);
+  font-size: 0.875rem;
+  font-weight: 550;
+  white-space: nowrap;
+  transition:
+    background-color var(--duration-fast) var(--ease-standard),
+    color var(--duration-fast) var(--ease-standard);
+}
+.bar-tabs__tab:hover {
+  background-color: var(--c-bar-hover);
+  color: var(--c-bar-fg);
+}
+.bar-tabs__tab[aria-checked='true'],
+.bar-tabs__tab[aria-checked='true']:hover {
+  background-color: var(--ds-accent);
+  color: var(--ds-accent-fg);
+}
+.bar-tabs__icon {
+  display: inline-flex;
+}
+.bar-tabs__label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+/* Under a finger a tab is as tall as the Bible's 44px. In width it stays at
+   its own 40: neighbours with no gap between them have no room for an overlay
+   to grow into. */
+@media (pointer: coarse) {
+  .bar-tabs__tab::after {
+    content: '';
+    position: absolute;
+    inset: -5px 0;
+  }
+}
+@media (min-width: 60rem) {
+  .bar-tabs__tab {
+    width: auto;
+    padding-inline: 13px;
+  }
+  .bar-tabs__icon {
+    display: none;
+  }
+  .bar-tabs__label {
+    position: static;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    clip-path: none;
+  }
+}
+
+/* ♪ 72 ⇅ — the tempo, typed over or stepped. */
+.tempo-field {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  height: 40px;
+  padding-left: 9px;
+  border-radius: var(--radius-lg);
+  background-color: var(--c-bar-control);
+  color: var(--c-bar-fg);
+  /* The arrows are square to the field's own corners. */
+  overflow: hidden;
+}
+.tempo-field:focus-within {
+  box-shadow: inset 0 0 0 2px var(--c-bar-fg);
+}
+.tempo-field__icon {
+  display: inline-flex;
+  color: var(--c-bar-fg-muted);
+}
+.tempo-field__value {
+  width: 3.4ch;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
   font-size: var(--text-ui);
   font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  outline: none;
 }
-.tempo-stepper--panel .tempo-stepper__button {
-  background-color: var(--ds-layer-hover);
+/* Sixteen pixels under a finger, or a phone zooms the page to the field. */
+@media (pointer: coarse) {
+  .tempo-field__value {
+    font-size: 1rem;
+  }
+}
+.tempo-field__steps {
+  display: grid;
+  align-self: stretch;
+  grid-template-rows: 1fr 1fr;
+  width: 24px;
+}
+.tempo-field__step {
+  display: grid;
+  place-items: center;
+  color: var(--c-bar-fg-muted);
+  transition: background-color var(--duration-fast) var(--ease-standard);
+}
+.tempo-field__step:first-child {
+  padding-top: 3px;
+}
+.tempo-field__step:last-child {
+  padding-bottom: 3px;
+}
+.tempo-field__step:hover:not(:disabled) {
+  background-color: var(--c-bar-control-hover);
+  color: var(--c-bar-fg);
+}
+.tempo-field__step:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+/* On a panel: the app's field, not the bar's — at the height of the metronome
+   button it sits beside there. */
+.tempo-field--panel {
   border: 1px solid var(--ds-border-interactive);
+  border-radius: var(--radius-md);
+  background-color: var(--ds-field);
   color: var(--ds-fg);
 }
-.tempo-stepper--panel .tempo-stepper__value {
+.tempo-field--panel:focus-within {
+  border-color: var(--ds-accent);
+  box-shadow: 0 0 0 3px var(--ds-accent-subtle);
+}
+.tempo-field--panel .tempo-field__icon,
+.tempo-field--panel .tempo-field__step {
+  color: var(--ds-fg-muted);
+}
+.tempo-field--panel .tempo-field__step:hover:not(:disabled) {
+  background-color: var(--ds-layer-hover);
   color: var(--ds-fg);
+}
+
+/* Record: a red dot at rest, and red all over while it is armed — the one
+   state where the button should read as live rather than merely selected. */
+.bar-record {
+  border-radius: var(--radius-lg);
+  background-color: var(--c-bar-control);
+}
+.bar-record:hover:not(:disabled) {
+  background-color: var(--c-bar-control-hover);
+}
+.bar-record__dot {
+  color: var(--c-record);
+}
+.bar-record.is-recording,
+.bar-record.is-recording:hover {
+  border-color: transparent;
+  background-color: var(--c-record-armed);
+  color: var(--c-record-fg);
+}
+/* On a panel its edge is the panel's, and nothing needs filling behind it. */
+.bar-record.bar-icon-button--panel:not(.is-recording) {
+  background-color: transparent;
+}
+.bar-record.bar-icon-button--panel:not(.is-recording):hover {
+  background-color: var(--ds-layer-hover);
 }
 
 /* The one filled button on the screen. */
@@ -1421,7 +1531,6 @@
   align-items: center;
   gap: 8px;
   height: 44px;
-  margin-left: 4px;
   padding-inline: 18px 22px;
   border-radius: var(--radius-lg);
   background-color: var(--ds-accent);
@@ -1443,6 +1552,15 @@
 .bar-start--stop:hover {
   background-color: var(--c-bar-hover);
 }
+/* Nothing to start — Explore. It keeps its place and gives up its colour. */
+.bar-start:disabled,
+.bar-start:disabled:hover {
+  background-color: var(--c-bar-control);
+  box-shadow: none;
+  color: var(--c-bar-fg-muted);
+  opacity: 0.55;
+  cursor: not-allowed;
+}
 /* Learn's Start and Stop: the icon alone, square, so the two states are the
    same size and pressing one does not move the rest of the bar. */
 .bar-start--icon {
@@ -1450,19 +1568,22 @@
   width: 44px;
   padding-inline: 0;
 }
-.bar-status {
-  display: inline-flex;
+/* Two things that take turns in one place, in the room the wider one needs:
+   a song's transport, and the Start that stands in for it in Learn. The mode
+   tabs are to the left of it, and must not move when the mode does. */
+.bar-swap {
+  display: inline-grid;
   flex: none;
+}
+.bar-swap__layer {
+  display: flex;
+  grid-area: 1 / 1;
   align-items: center;
-  height: 36px;
-  margin-left: 6px;
-  padding-inline: 14px;
-  border-radius: var(--radius-pill);
-  background-color: var(--c-bar-pressed);
-  color: var(--c-bar-fg);
-  font-size: var(--text-ui);
-  font-weight: 550;
-  white-space: nowrap;
+  justify-content: center;
+  gap: inherit;
+}
+.bar-swap__layer--held {
+  visibility: hidden;
 }
 
 .midi-status {
@@ -1488,18 +1609,23 @@
   background-color: var(--ds-success);
 }
 
-/* The bar folds rather than wrapping or scrolling. Measured: the full Scales
-   row is about 830px, 870 with a take waiting. Below 56rem the settings after
-   the scale live in its popover; below 48rem the metronome and recording live
-   in Settings and the menu; on a phone the two panel buttons join the menu. `menu-only-*` is each tier's other half: the menu
-   item that stands in for a control exactly where the bar has folded it. */
-@media (max-width: 55.999rem) {
-  .bar-wide {
+/* The bar folds rather than wrapping or scrolling. Measured, the full Scales
+   row is about 935px, 980 with a take waiting, so:
+     under 64rem  the name and the MIDI readout go — the mark and Settings say both;
+     under 60rem  the mode tabs are icons (above);
+     under 56rem  a song's skip buttons go;
+     under 48rem  the mark, the metronome and Record go — to Settings and the menu;
+     under 40rem  Progress and Settings join the menu, and the dividers go;
+     under 26rem  the tempo and the metronome go to the top of the options panel.
+   `menu-only-*` and `options-only-xs` are each tier's other half: what stands
+   in for a control exactly where the bar has folded it. */
+@media (max-width: 63.999rem) {
+  .bar-full {
     display: none !important;
   }
 }
-@media (min-width: 56rem) {
-  .popover-compact {
+@media (max-width: 55.999rem) {
+  .bar-wide {
     display: none !important;
   }
 }
@@ -1522,32 +1648,24 @@
   .bar-sm {
     display: none !important;
   }
-  .top-bar__row {
-    gap: 0;
-    padding-inline: 8px;
-  }
-  .top-bar__divider {
-    margin-inline: 2px;
-  }
-  .top-bar__spacer {
-    min-width: 0;
-  }
-  .bar-button {
-    gap: 4px;
-    padding-inline: 6px;
-  }
   .bar-start {
     gap: 6px;
     height: 40px;
-    margin-left: 2px;
     padding-inline: 10px 12px;
   }
   .bar-start--icon {
     width: 40px;
     padding-inline: 0;
   }
-  .bar-status {
-    padding-inline: 10px;
+}
+@media (max-width: 25.999rem) {
+  .bar-xs {
+    display: none !important;
+  }
+}
+@media (min-width: 26rem) {
+  .options-only-xs {
+    display: none !important;
   }
 }
 /* The narrowest phones: the bar's one filled button keeps its name for a
@@ -1566,6 +1684,64 @@
     clip-path: inset(50%);
     white-space: nowrap;
   }
+}
+
+/* ---- The workspace, and the options over it --------------------------------
+   The stage and the keys, as one box, so that the area's options can lie over
+   its left edge without either of them giving up any width. */
+.workspace {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+/* The Bible's small drawer — 20rem, 16px of padding — and never the whole
+   width: the strip of staff left showing is what says the panel is over the
+   workspace and not instead of it. */
+.options-drawer {
+  position: absolute;
+  inset-block: 0;
+  left: 0;
+  z-index: var(--z-panel);
+  display: flex;
+  flex-direction: column;
+  width: 20rem;
+  max-width: calc(100% - 2.5rem);
+  border-right: 1px solid var(--ds-border);
+  background-color: var(--ds-surface-overlay);
+  color: var(--ds-fg);
+  box-shadow: var(--ds-shadow-4);
+  outline: none;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .options-drawer {
+    animation: drawer-in-left 220ms var(--ease-emphasized) both;
+  }
+}
+.options-drawer__header {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 12px 12px 16px;
+  border-bottom: 1px solid var(--ds-border-subtle);
+}
+.options-drawer__body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 0;
+  padding: 16px;
+  overflow-y: auto;
+}
+/* What a narrow bar has folded away, at the head of the panel. */
+.options-only-xs {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
 /* ---- Popovers and menus -------------------------------------------------- */
@@ -1590,12 +1766,6 @@
 .popover--menu {
   padding: 6px;
   min-width: 14rem;
-}
-.popover--scale {
-  width: 26rem;
-}
-.popover--tempo {
-  width: 18rem;
 }
 /* A hairline between groups, full width inside the panel's padding. */
 .menu-separator {
@@ -1665,7 +1835,8 @@
   color: var(--ds-fg-muted);
 }
 
-/* A choice in a grid — a key, a scale type. */
+/* A choice, one of a set of which one is on — a key on the circle of fifths, a
+   motion, a way of playing the scale. */
 .choice {
   min-height: 34px;
   padding-inline: 6px;
@@ -1678,7 +1849,20 @@
     background-color var(--duration-fast) var(--ease-standard),
     color var(--duration-fast) var(--ease-standard);
 }
-.choice:hover {
+/* In a grid, in a panel: at the size of the panel's other controls, and every
+   row as tall as the tallest, so a name that takes two lines does not leave
+   its neighbours a different size. */
+.choice-grid {
+  display: grid;
+  grid-auto-rows: 1fr;
+  gap: 4px;
+}
+.choice-grid .choice {
+  padding-block: 4px;
+  font-size: var(--text-label);
+  line-height: 1.25;
+}
+.choice:hover:not(:disabled) {
   background-color: var(--ds-layer-hover);
   color: var(--ds-fg);
 }
@@ -1686,12 +1870,16 @@
   outline: 2px solid var(--ds-focus-ring);
   outline-offset: 1px;
 }
+.choice:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
 .choice--on {
   border-color: transparent;
   background-color: var(--ds-accent);
   color: var(--ds-accent-fg);
 }
-.choice--on:hover {
+.choice--on:hover:not(:disabled) {
   background-color: var(--ds-accent-hover);
   color: var(--ds-accent-fg);
 }
@@ -1753,22 +1941,6 @@
   justify-content: center;
   gap: 2px;
   text-align: center;
-}
-
-/* Bar-style menus inside a panel get an edge to read against. */
-.settings-menus {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-}
-.settings-menus .bar-button {
-  border: 1px solid var(--ds-border-interactive);
-  color: var(--ds-fg);
-}
-.settings-menus .bar-button__icon,
-.settings-menus .bar-button__chevron {
-  color: var(--ds-fg-muted);
 }
 
 /* ---- The dashboard ------------------------------------------------------

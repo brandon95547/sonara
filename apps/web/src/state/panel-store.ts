@@ -8,10 +8,16 @@ import { create } from 'zustand'
  * focus traps fighting over the Tab key. Opening one from inside another — the
  * theory from the Progress panel, MIDI setup from Settings — simply replaces it.
  *
+ * The area's options are the one panel that is not a modal — they sit over the
+ * workspace with the staff still live beside them — and they are in the same
+ * value all the same, so that opening Settings from the bar puts them away
+ * rather than opening over them.
+ *
  * A store rather than state in the shell, because the buttons that open these
  * are scattered: the bar, its overflow menu, a card inside another panel.
  */
-export type Panel = 'settings' | 'session' | 'library' | 'devices' | 'theory' | 'fundamentals'
+export type Panel =
+  'options' | 'settings' | 'session' | 'library' | 'devices' | 'theory' | 'fundamentals'
 
 interface PanelState {
   panel: Panel | null

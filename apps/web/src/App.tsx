@@ -8,6 +8,7 @@ import { MidiProvider } from '@/midi/MidiProvider'
 import { TopBar } from '@/components/TopBar'
 import { Stage } from '@/components/Stage'
 import { SettingsDrawer } from '@/components/SettingsDrawer'
+import { OptionsDrawer } from '@/components/OptionsDrawer'
 import { SessionDrawer } from '@/components/SessionDrawer'
 import { KeyboardDock } from '@/features/keyboard/KeyboardDock'
 import { DeviceSettingsDrawer } from '@/features/devices/DeviceSettingsDrawer'
@@ -116,11 +117,12 @@ function Shell() {
   /*
    * Three bands, top to bottom, filling the screen and never scrolling it: the
    * bar with every setting, the stage with the music, the keys along the
-   * bottom. Everything else is a panel over them — opened from the bar, owning
-   * focus while it is up, and gone when it is not.
+   * bottom. Everything else is a panel over them — opened from the bar, and
+   * gone when it is not. The stage and the keys are the workspace, and the
+   * area's options slide in over its left edge rather than taking width from it.
    *
-   * The dashboard takes the stage and the keys' place: it is where you choose
-   * what to play, not where you play it.
+   * The dashboard takes the workspace's place: it is where you choose what to
+   * play, not where you play it.
    */
   return (
     <div className="app-shell">
@@ -128,15 +130,20 @@ function Shell() {
 
       {page === 'dashboard' ? (
         <Dashboard />
-      ) : catalogue.isError ? (
-        <main className="stage stage--message">
-          <CatalogueError error={catalogue.error} onRetry={() => void catalogue.refetch()} />
-        </main>
       ) : (
-        <>
-          <Stage />
-          <KeyboardDock />
-        </>
+        <div className="workspace">
+          <OptionsDrawer />
+          {catalogue.isError ? (
+            <main className="stage stage--message">
+              <CatalogueError error={catalogue.error} onRetry={() => void catalogue.refetch()} />
+            </main>
+          ) : (
+            <>
+              <Stage />
+              <KeyboardDock />
+            </>
+          )}
+        </div>
       )}
 
       {/* The engines run for their topic whatever the bar is showing: a song

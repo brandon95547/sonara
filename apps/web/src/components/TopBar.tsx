@@ -8,7 +8,7 @@ import {
   Lock,
   MoreVertical,
   Piano,
-  SlidersHorizontal,
+  Settings,
   Square,
   Upload,
 } from 'lucide-react'
@@ -21,48 +21,39 @@ import { panelActions } from '@/state/panel-store'
 import { pageActions, usePageStore } from '@/state/page-store'
 import { useRecordingStore } from '@/state/recording-store'
 import { AREAS, COMING_NEXT } from '@/features/areas/areas'
+import { OptionsButton } from '@/components/OptionsDrawer'
 import { LastTakeButton, RecordButton } from '@/features/recording/RecordControls'
 import {
-  ArpeggioSettings,
-  ChordSettings,
-  ExerciseSettings,
-  ProgressionSettings,
-} from '@/features/learning/ChordControls'
-import {
   DemoButton,
-  DirectionMenu,
-  GuidanceMenu,
-  HandMenu,
   MetronomeToggle,
-  OctavesMenu,
-  ScalePicker,
+  ModeTabs,
   StartButton,
-  TempoButton,
-  TextureMenu,
+  TempoControl,
 } from '@/features/learning/ScaleControls'
 import {
-  PartMenu,
-  SongGuidanceMenu,
   SongMetronomeToggle,
-  SongPicker,
-  SongTempoMenu,
+  SongModeTabs,
+  SongTempoControl,
   SongTransport,
 } from '@/features/songs/SongControls'
 
 /**
- * Everything you can set, in one row across the top.
+ * How you are practising, in one row across the top.
  *
- * Left, what you are working on: the area's own settings, each an icon that
- * shows its value. Right, how: the mode and the tempo, the buttons that act on
- * them, then Start. Past a divider, the utilities that do not change what is
- * being practised — the MIDI readout, the Progress and Settings panels, and the
- * menu, which is also how you move between the dashboard and the areas.
+ * On the left, the name and one button: the options of the area that is open,
+ * which slide in over the workspace. What is being practised used to be spread
+ * along the bar as an icon a setting; it is all behind that button now, in
+ * words.
  *
- * The row does not wrap and does not scroll. It folds: below `lg` the hand,
- * octaves and direction move into the scale's popover, below `md` the
- * metronome and recording move out to Settings and the menu, and on a phone
- * the two panel buttons join the menu and the brand steps aside. Every control
- * is still reachable at 320px; none of them is ever cut in half.
+ * On the right, how: the mode as three tabs, the tempo as a number with its
+ * arrows, the metronome, then the buttons that act — Hear, Record, Start. Past
+ * a divider, the utilities that do not change what is being practised — the
+ * MIDI readout, the Progress and Settings panels, and the menu, which is also
+ * how you move between the dashboard and the areas.
+ *
+ * The row does not wrap and does not scroll. It folds, and the widths it folds
+ * at are written next to the classes that do it, in the stylesheet. Every
+ * control is still reachable at 320px; none of them is ever cut in half.
  */
 export function TopBar() {
   const topic = useLearningStore((state) => state.topic)
@@ -73,53 +64,17 @@ export function TopBar() {
     <header className="top-bar">
       <div className="top-bar__row">
         <Brand keep={area === null} />
+        {area && <OptionsButton />}
 
-        {area === 'scales' && (
+        <span className="top-bar__spacer" />
+
+        {area && area !== 'songs' && (
           <>
+            <ModeTabs />
             <span className="top-bar__divider bar-sm" aria-hidden />
-            <ScalePicker />
-            <HandMenu />
-            <TextureMenu />
-            <OctavesMenu />
-            <DirectionMenu />
-
-            <span className="top-bar__spacer" />
-
-            <GuidanceMenu />
-            <TempoButton />
+            <TempoControl className="bar-xs" />
             <MetronomeToggle className="bar-mid" />
-            <span className="top-bar__divider" aria-hidden />
-            <DemoButton />
-            <span className="bar-mid top-bar__cluster">
-              <RecordButton />
-              <LastTakeButton />
-            </span>
-            <StartButton />
-          </>
-        )}
-
-        {(area === 'chords' ||
-          area === 'arpeggios' ||
-          area === 'progressions' ||
-          area === 'exercises') && (
-          <>
             <span className="top-bar__divider bar-sm" aria-hidden />
-            {area === 'chords' ? (
-              <ChordSettings />
-            ) : area === 'arpeggios' ? (
-              <ArpeggioSettings />
-            ) : area === 'progressions' ? (
-              <ProgressionSettings />
-            ) : (
-              <ExerciseSettings />
-            )}
-
-            <span className="top-bar__spacer" />
-
-            <GuidanceMenu />
-            <TempoButton />
-            <MetronomeToggle className="bar-mid" />
-            <span className="top-bar__divider" aria-hidden />
             <DemoButton />
             <span className="bar-mid top-bar__cluster">
               <RecordButton />
@@ -131,21 +86,14 @@ export function TopBar() {
 
         {area === 'songs' && (
           <>
+            <SongModeTabs />
             <span className="top-bar__divider bar-sm" aria-hidden />
-            <SongPicker />
-            <PartMenu iconOnly />
-
-            <span className="top-bar__spacer" />
-
-            <SongGuidanceMenu iconOnly />
-            <SongTempoMenu iconOnly />
+            <SongTempoControl className="bar-xs" />
             <SongMetronomeToggle className="bar-mid" />
-            <span className="top-bar__divider" aria-hidden />
+            <span className="top-bar__divider bar-sm" aria-hidden />
             <SongTransport />
           </>
         )}
-
-        {area === null && <span className="top-bar__spacer" />}
 
         <span className="top-bar__divider bar-mid" aria-hidden />
         <Utilities area={area} />
@@ -155,15 +103,15 @@ export function TopBar() {
 }
 
 /**
- * The name, which a phone gives up first in an area: the tab already says it,
- * and the controls cannot. The dashboard has no controls to make room for, so
- * there it stays.
+ * The name, which gives way as the bar narrows: the word first, then the mark.
+ * The tab already says where you are, and the controls cannot. The dashboard
+ * has no controls to make room for, so there it stays whole.
  */
 function Brand({ keep }: { keep: boolean }) {
   return (
-    <div className={cn('top-bar__brand', !keep && 'bar-sm')}>
+    <div className={cn('top-bar__brand', !keep && 'bar-mid')}>
       <img className="top-bar__logo" src={logoUrl} alt="" title="Sonara" />
-      <span className="top-bar__name">Sonara</span>
+      <span className={cn('top-bar__name', !keep && 'bar-full')}>Sonara</span>
     </div>
   )
 }
@@ -207,7 +155,7 @@ function Utilities({ area }: { area: string | null }) {
     {
       id: 'settings',
       label: 'Settings',
-      icon: <SlidersHorizontal size={16} />,
+      icon: <Settings size={16} />,
       onSelect: () => panelActions.open('settings'),
       className: 'menu-only-sm',
     },
@@ -256,7 +204,7 @@ function Utilities({ area }: { area: string | null }) {
 
   return (
     <>
-      <MidiStatus className="bar-wide" />
+      <MidiStatus className="bar-full" />
       {area && (
         <button
           type="button"
@@ -275,7 +223,7 @@ function Utilities({ area }: { area: string | null }) {
         title="Settings"
         onClick={() => panelActions.open('settings')}
       >
-        <SlidersHorizontal size={18} aria-hidden />
+        <Settings size={18} aria-hidden />
       </button>
       <ActionMenu label="Menu" icon={<MoreVertical size={18} aria-hidden />} actions={actions} />
     </>

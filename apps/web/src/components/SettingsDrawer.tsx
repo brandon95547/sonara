@@ -23,13 +23,8 @@ import { useCurrentSong, useSongStore, type FingeringDensity } from '@/state/son
 import { panelActions, usePanelStore } from '@/state/panel-store'
 import { RecordButton } from '@/features/recording/RecordControls'
 import { useMidi } from '@/midi/MidiProvider'
-import { MetronomeToggle, TempoStepper } from '@/features/learning/ScaleControls'
-import {
-  PartMenu,
-  SongGuidanceMenu,
-  SongMetronomeToggle,
-  SongTempoMenu,
-} from '@/features/songs/SongControls'
+import { MetronomeToggle, TempoControl } from '@/features/learning/ScaleControls'
+import { SongMetronomeToggle, SongTempoControl } from '@/features/songs/SongControls'
 
 /**
  * How the instrument sounds and how it is shown — everything that changes the
@@ -41,8 +36,9 @@ import {
  * screen goes to the staff and the keys.
  *
  * The practice and song sections repeat controls that are in the bar on a wide
- * screen. On a narrow one the bar folds them away, and this is where they land
- * — so they are here at every width rather than appearing and disappearing.
+ * screen — the tempo, the metronome, Record. On a narrow one the bar folds them
+ * away, and this is where they land — so they are here at every width rather
+ * than appearing and disappearing.
  */
 export function SettingsDrawer({
   instruments,
@@ -333,7 +329,7 @@ function PracticeSection() {
     <Section title="Practice">
       <Field label="Target tempo">
         <div className="flex items-center gap-2 coarse:gap-3">
-          <TempoStepper className="tempo-stepper--panel" />
+          <TempoControl panel />
           <MetronomeToggle className="bar-icon-button--panel" />
         </div>
       </Field>
@@ -345,7 +341,7 @@ function PracticeSection() {
       />
       <Field label="Recording">
         <div className="flex items-center gap-2">
-          <RecordButton />
+          <RecordButton className="bar-icon-button--panel" />
           <span className="text-body-sm text-[var(--ds-fg-secondary)]">
             Record what you play, then export it.
           </span>
@@ -360,12 +356,12 @@ function SongSection() {
   if (!song) return null
   return (
     <Section title="Song">
-      <div className="settings-menus">
-        <PartMenu />
-        <SongGuidanceMenu />
-        <SongTempoMenu />
-        <SongMetronomeToggle className="bar-icon-button--panel" />
-      </div>
+      <Field label="Tempo">
+        <div className="flex items-center gap-2 coarse:gap-3">
+          <SongTempoControl panel />
+          <SongMetronomeToggle className="bar-icon-button--panel" />
+        </div>
+      </Field>
     </Section>
   )
 }

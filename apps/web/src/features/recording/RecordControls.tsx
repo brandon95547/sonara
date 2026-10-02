@@ -1,6 +1,7 @@
 import { Circle, Download, History, Square, Trash2 } from 'lucide-react'
 import { keyFromTonic, performanceLength, writeMidiFile, writeMusicXml } from '@sonara/shared'
-import { Button, IconButton } from '@/ui/Button'
+import { cn } from '@/lib/cn'
+import { Button } from '@/ui/Button'
 import { Drawer } from '@/ui/Drawer'
 import { Divider } from '@/ui/Display'
 import { useLearningStore } from '@/state/learning-store'
@@ -12,29 +13,39 @@ import { useRecordingStore } from '@/state/recording-store'
  * The count-in exists because the alternative is worse than it sounds: a
  * recording that begins on the click means the first note is either missed or
  * rushed, and a player watching for the moment to start is not playing.
+ *
+ * A red dot, because that is what record is on every machine that has ever had
+ * the button — and red rather than the app's danger colour, which in the dark
+ * theme is an orange and reads as a warning, not as record. Armed, the whole
+ * button is red and the dot is a stop square.
  */
-export function RecordButton() {
+export function RecordButton({ className }: { className?: string }) {
   const status = useRecordingStore((state) => state.status)
   const arm = useRecordingStore((state) => state.arm)
   const stop = useRecordingStore((state) => state.stop)
 
   const live = status === 'recording' || status === 'counting'
+  const label =
+    status === 'recording'
+      ? 'Stop recording'
+      : status === 'counting'
+        ? 'Cancel the count-in'
+        : 'Record what you play'
 
   return (
-    <IconButton
-      size="md"
-      variant={live ? 'filled' : 'outlined'}
-      className={live ? 'is-recording' : undefined}
-      label={
-        status === 'recording'
-          ? 'Stop recording'
-          : status === 'counting'
-            ? 'Cancel the count-in'
-            : 'Record what you play'
-      }
-      icon={live ? <Square /> : <Circle />}
+    <button
+      type="button"
+      className={cn('bar-icon-button bar-record', live && 'is-recording', className)}
+      aria-label={label}
+      title={label}
       onClick={() => (live ? stop() : arm())}
-    />
+    >
+      {live ? (
+        <Square size={14} fill="currentColor" aria-hidden />
+      ) : (
+        <Circle className="bar-record__dot" size={16} fill="currentColor" aria-hidden />
+      )}
+    </button>
   )
 }
 
@@ -54,13 +65,15 @@ export function LastTakeButton() {
   if (!waiting) return null
 
   return (
-    <IconButton
-      size="md"
-      variant="outlined"
-      label="Reopen the last recording"
-      icon={<History />}
+    <button
+      type="button"
+      className="bar-icon-button"
+      aria-label="Reopen the last recording"
+      title="Reopen the last recording"
       onClick={review}
-    />
+    >
+      <History size={18} aria-hidden />
+    </button>
   )
 }
 

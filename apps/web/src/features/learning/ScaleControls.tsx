@@ -1,35 +1,23 @@
 import * as React from 'react'
 import {
-  ArrowDown,
-  ArrowUp,
-  ArrowUpDown,
   BookOpen,
   Compass,
   GraduationCap,
-  Hand,
   Headphones,
-  Minus,
-  MoveHorizontal,
-  Music,
   Pause,
   Play,
-  Plus,
   RotateCcw,
-  Rows2,
   Target,
-  Timer,
   type LucideIcon,
 } from 'lucide-react'
 import {
   CHROMATIC_INTERVAL_LABELS,
   CHROMATIC_INTERVALS,
-  HAND_LABELS,
   LEARNING_MODE_DESCRIPTIONS,
   LEARNING_MODE_LABELS,
   LEARNING_MODES,
   NOTES_PER_BEAT,
   NOTES_PER_BEAT_LABELS,
-  SCALE_DIRECTION_LABELS,
   SCALE_DIRECTIONS,
   SCALE_MOTION_LABELS,
   SCALE_MOTIONS,
@@ -52,8 +40,10 @@ import {
   type ScaleTexture,
 } from '@sonara/shared'
 import { cn } from '@/lib/cn'
-import { Popover, SelectMenu } from '@/ui/Menu'
-import { SegmentedControl, Select, Switch } from '@/ui/Controls'
+import { Field, SegmentedControl, Select, Switch } from '@/ui/Controls'
+import { Divider } from '@/ui/Display'
+import { BarTabs } from '@/ui/BarTabs'
+import { TempoField } from '@/ui/TempoField'
 import { useMidi } from '@/midi/MidiProvider'
 import { useLearningStore } from '@/state/learning-store'
 import { panelActions } from '@/state/panel-store'
@@ -61,45 +51,28 @@ import { useMetronome } from '@/audio/use-metronome'
 import { playSoundEffect, stopSoundEffect } from '@/audio/sound-effects'
 import { useScaleDemo } from './use-scale-demo'
 import { MetronomeIcon } from '@/ui/MetronomeIcon'
-import { BarGlyph } from '@/ui/BarGlyph'
 
 /**
- * The Scales controls, as they sit in the app bar.
+ * The Scales controls: what the bar carries, and what the options panel holds.
  *
- * Each setting is an icon that shows its value where it can — the key on the
- * scale, "R" on the hand, the arrow pointing the way the scale runs — with the
- * setting and its value spelled out in the tooltip. They used to be buttons
- * naming their values, "Right Hand ▾", and six of those filled the bar.
+ * The bar used to carry all of it — the scale, the hand, how it is played, how
+ * far and which way, each an icon with its value on a badge — and five icons
+ * that each opened a menu were five things to learn before playing a note. They
+ * are one button now, and the panel it opens says every setting in words.
  *
- * On the left, what is being practised: which scale, which hand, how far,
- * which way. On the right, how: the guidance and the tempo, next to the
- * buttons that act on it.
- *
- * On a screen too narrow for all of them, the three after the scale fold into
- * the scale's own popover (`.bar-wide` / `.popover-compact` in the stylesheet),
- * so every one of them stays one tap away and none is squeezed.
+ * So the bar is how the scale is practised: the mode, the tempo, and the
+ * buttons that act on them. What is practised is in the panel.
  */
 
 /**
  * Who plays, as one list: a hand on its own, or the two together in one of the
  * ways a scale book sets them against each other.
  *
- * One setting on the bar and two in the spec — a hand and a motion — because a
- * motion only means anything with both hands, and a second menu that is dead
- * two times out of three is a menu to be puzzled over.
+ * Two settings in the spec — a hand and a motion — because a motion only means
+ * anything with both hands. The panel asks for the hand first, and for the
+ * motion only once the answer is both.
  */
 type Playing = 'right' | 'left' | ScaleMotion
-
-const PLAYING: readonly Playing[] = ['right', 'left', ...SCALE_MOTIONS]
-
-const PLAYING_LABELS: Record<Playing, string> = {
-  right: HAND_LABELS.right,
-  left: HAND_LABELS.left,
-  similar: HAND_LABELS.both,
-  contrary: SCALE_MOTION_LABELS.contrary,
-  third: SCALE_MOTION_LABELS.third,
-  sixth: SCALE_MOTION_LABELS.sixth,
-}
 
 const PLAYING_DESCRIPTIONS: Partial<Record<Playing, string>> = {
   similar: 'Similar motion, the left hand an octave below.',
@@ -133,15 +106,6 @@ const TEXTURE_UNAVAILABLE: Partial<Record<ScaleTexture, string>> = {
   'staccato-sixths': 'For seven-note scales.',
 }
 
-const TEXTURE_BADGES: Record<ScaleTexture, string> = {
-  single: '1',
-  'double-thirds': 'L3',
-  'staccato-thirds': 'S3',
-  'staccato-sixths': 'S6',
-  'staccato-octaves': 'S8',
-  'legato-octaves': 'L8',
-}
-
 const typeOf = (scaleTypeId: string) =>
   SCALE_TYPES.find((type) => type.id === scaleTypeId) ?? SCALE_TYPES[0]!
 
@@ -150,25 +114,6 @@ const textureOf = (spec: ScaleSpec): ScaleTexture =>
   spec.texture && scaleTexturesFor(typeOf(spec.scaleTypeId)).includes(spec.texture)
     ? spec.texture
     : 'single'
-
-/** The setting, as the bar's badge says it. Both is both letters, in keyboard order. */
-const PLAYING_BADGES: Record<Playing, string> = {
-  right: 'R',
-  left: 'L',
-  similar: 'LR',
-  // Plain characters: an arrow glyph at this size is two dots.
-  contrary: '<>',
-  third: '3rd',
-  sixth: '6th',
-}
-
-/** The interval between a chromatic scale's hands, at badge size. */
-const INTERVAL_BADGES: Record<Exclude<ChromaticInterval, 'octave'>, string> = {
-  'minor-third': 'm3',
-  'major-third': 'M3',
-  'minor-sixth': 'm6',
-  'major-sixth': 'M6',
-}
 
 const playingOf = (spec: ScaleSpec, motions: readonly ScaleMotion[]): Playing =>
   spec.hand !== 'both'
@@ -195,23 +140,11 @@ function useScaleMotions(): ScaleMotion[] {
   )
 }
 
-const OCTAVE_OPTIONS = [1, 2, 3].map((count) => ({
-  value: count,
-  label: `${count} Octave${count === 1 ? '' : 's'}`,
-}))
-
 /** "Up (Ascending)" is a form label. On a button the word is enough. */
-const DIRECTION_SHORT: Record<ScaleDirection, string> = {
+export const DIRECTION_SHORT: Record<ScaleDirection, string> = {
   up: 'Ascending',
   down: 'Descending',
-  'up-down': 'Up then Down',
-}
-
-/** The arrow is the value: it points the way the scale runs. */
-const DIRECTION_ICONS: Record<ScaleDirection, LucideIcon> = {
-  up: ArrowUp,
-  down: ArrowDown,
-  'up-down': ArrowUpDown,
+  'up-down': 'Up & Down',
 }
 
 /** What an exercise is called in a sentence: "Hear the scale", "the arpeggio". */
@@ -288,20 +221,28 @@ export function ScaleEngine() {
   return null
 }
 
-export function ScalePicker() {
-  const title = useLearningStore((state) => state.exercise?.title ?? 'Choose a scale')
+/**
+ * Everything about the scale that is practised, for the options panel: which
+ * scale, which hands and how they are set against each other, what each hand
+ * plays, and how far and which way it runs.
+ *
+ * In words throughout. On the bar these were icons with a letter on the
+ * corner, because the bar had no room for more; the panel has, and a setting
+ * that cannot be chosen says why in the same place it would have been chosen.
+ */
+export function ScaleOptions() {
   const spec = useLearningStore((state) => state.spec)
   const updateSpec = useLearningStore((state) => state.updateSpec)
-  const [open, setOpen] = React.useState(false)
-  const triggerRef = React.useRef<HTMLButtonElement>(null)
-  const close = React.useCallback(() => setOpen(false), [])
+  const bpm = useLearningStore((state) => state.targetBpm)
+  const typeId = React.useId()
+  const apartId = React.useId()
   const roots = rootOptions(spec.scaleTypeId, {
     pitchClass: spec.rootPitchClass,
     tonic: spec.tonic,
   })
   const key = roots[spec.rootPitchClass]?.label
   // The key's names, where it has more than one: D♯ minor is also E♭ minor.
-  const type = SCALE_TYPES.find((entry) => entry.id === spec.scaleTypeId) ?? SCALE_TYPES[0]!
+  const type = typeOf(spec.scaleTypeId)
   const names = scaleSpellings(spec.rootPitchClass, type).map((scale) => scale.root.name)
   const motions = useScaleMotions()
   const playing = playingOf(spec, motions)
@@ -319,189 +260,228 @@ export function ScalePicker() {
   // An interval is between two hands playing one note each.
   const canSetInterval = spec.hand === 'both' && texture === 'single'
   const intervalInForce: ChromaticInterval = canSetInterval ? (spec.apart ?? 'octave') : 'octave'
+  const perBeat: NotesPerBeat = spec.notesPerBeat ?? 1
 
   return (
     <>
-      <button
-        ref={triggerRef}
-        type="button"
-        className="bar-icon-button"
-        aria-haspopup="dialog"
-        aria-expanded={open}
-        aria-label={`Scale: ${title}`}
-        title={`Scale: ${title}`}
-        onClick={() => setOpen((current) => !current)}
-      >
-        <BarGlyph icon={<Music size={18} />} badge={key} />
-      </button>
-      <Popover
-        open={open}
-        onClose={close}
-        anchorRef={triggerRef}
-        label="Scale"
-        className="popover--scale"
-      >
-        <div className="flex flex-col gap-4 p-4">
-          <RadioGrid
-            label="Key"
-            columns={6}
-            value={spec.rootPitchClass}
-            options={roots}
-            // A new key starts under its usual name.
-            onChange={(rootPitchClass) => updateSpec({ rootPitchClass, tonic: undefined })}
-          />
-          {/* Two keys on the same piano keys are still two keys — other
-              signature, other note names — so which one is a choice. Shown
-              only for a key that has a twin somebody actually writes in. */}
-          {names.length > 1 && key && (
-            <CompactField label="Written as">
-              <SegmentedControl
-                label="Written as"
-                value={key}
-                onChange={(tonic) => updateSpec({ tonic })}
-                options={names.map((name) => ({ value: name, label: name }))}
-              />
-            </CompactField>
-          )}
-          <RadioGrid
-            label="Scale type"
-            columns={2}
-            value={spec.scaleTypeId}
-            options={SCALE_TYPES.map((type) => ({ value: type.id, label: type.name }))}
-            onChange={(scaleTypeId) => updateSpec({ scaleTypeId })}
-          />
-          {/* A chromatic scale's hands can be set a third or a sixth apart —
-              a setting no other scale has, so it lives with the scale. */}
-          {scaleHasIntervals(type) && (
-            <CompactField label="Hands apart by">
+      <OptionGroup>
+        <Field label="Scale" htmlFor={typeId}>
+          <div className="flex gap-2">
+            <div className="w-[4.75rem] shrink-0">
               <Select
                 size="sm"
-                aria-label="Hands apart by"
-                value={intervalInForce}
-                disabled={!canSetInterval}
-                onChange={(event) => updateSpec({ apart: event.target.value as ChromaticInterval })}
-                options={CHROMATIC_INTERVALS.map((interval) => ({
-                  value: interval,
-                  label: CHROMATIC_INTERVAL_LABELS[interval],
-                }))}
+                aria-label="Key"
+                value={String(spec.rootPitchClass)}
+                // A new key starts under its usual name.
+                onChange={(event) =>
+                  updateSpec({ rootPitchClass: Number(event.target.value), tonic: undefined })
+                }
+                options={roots.map((root) => ({ value: String(root.value), label: root.label }))}
               />
-              {!canSetInterval && (
-                <span className="text-caption text-[var(--ds-fg-muted)]">
-                  For both hands, in single notes.
-                </span>
-              )}
-            </CompactField>
-          )}
-          {/* On, off, or not possible — and which, said in the description
-              rather than by a control that has silently stopped responding. */}
-          <Switch
-            label="End with the cadence"
-            description={
-              !canClose
-                ? 'For a major or minor scale in single notes, the hands moving together.'
-                : closes
-                  ? 'Close the scale with I – IV – V – I.'
-                  : 'Closes a scale that comes back down. Set the direction to Up then Down.'
-            }
-            checked={Boolean(spec.cadence) && closes}
-            onChange={(cadence) => canClose && updateSpec({ cadence })}
-          />
-
-          {/* The rest of the bar, for when the bar is too narrow to hold it. */}
-          <div className="popover-compact flex flex-col gap-3 border-t border-[var(--ds-border-subtle)] pt-4">
-            <CompactField label="Hand">
-              <SegmentedControl
-                label="Hand"
-                value={spec.hand}
-                onChange={(hand) => updateSpec({ hand })}
-                options={[
-                  { value: 'right', label: 'Right' },
-                  { value: 'left', label: 'Left' },
-                  { value: 'both', label: 'Both' },
-                ]}
-              />
-            </CompactField>
-            {spec.hand === 'both' && (
-              <CompactField label="Motion">
-                <Select
-                  size="sm"
-                  aria-label="Motion"
-                  value={playing}
-                  onChange={(event) => updateSpec(specFor(event.target.value as Playing))}
-                  options={SCALE_MOTIONS.map((motion) => ({
-                    value: motion,
-                    label: SCALE_MOTION_LABELS[motion],
-                    disabled: !motions.includes(motion),
-                  }))}
-                />
-              </CompactField>
-            )}
-            <CompactField label="Played in">
+            </div>
+            <div className="min-w-0 flex-1">
               <Select
+                id={typeId}
                 size="sm"
-                aria-label="Played in"
-                value={texture}
-                onChange={(event) => updateSpec({ texture: event.target.value as ScaleTexture })}
-                options={SCALE_TEXTURES.map((option) => ({
-                  value: option,
-                  label: SCALE_TEXTURE_LABELS[option],
-                  disabled: !textures.includes(option),
-                }))}
+                value={spec.scaleTypeId}
+                onChange={(event) => updateSpec({ scaleTypeId: event.target.value })}
+                options={SCALE_TYPES.map((entry) => ({ value: entry.id, label: entry.name }))}
               />
-            </CompactField>
-            <CompactField label="Octaves">
-              <SegmentedControl
-                label="Octaves"
-                value={String(spec.octaves)}
-                onChange={(octaves) => updateSpec({ octaves: Number(octaves) })}
-                options={['1', '2', '3'].map((count) => ({ value: count, label: count }))}
-              />
-            </CompactField>
-            <CompactField label="Direction">
-              <SegmentedControl
-                label="Direction"
-                value={spec.direction}
-                onChange={(direction) => updateSpec({ direction })}
-                options={SCALE_DIRECTIONS.map((direction) => ({
-                  value: direction,
-                  label: direction === 'up-down' ? 'Up & down' : DIRECTION_SHORT[direction],
-                }))}
-              />
-            </CompactField>
+            </div>
           </div>
+        </Field>
+        {/* Two keys on the same piano keys are still two keys — other
+            signature, other note names — so which one is a choice. Shown
+            only for a key that has a twin somebody actually writes in. */}
+        {names.length > 1 && key && (
+          <Field label="Written as">
+            <SegmentedControl
+              label="Written as"
+              value={key}
+              onChange={(tonic) => updateSpec({ tonic })}
+              options={names.map((name) => ({ value: name, label: name }))}
+            />
+          </Field>
+        )}
+      </OptionGroup>
 
-          <button
-            type="button"
-            className="inline-flex items-center gap-2 self-start text-label-sm text-[var(--ds-accent-text)] underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ds-focus-ring)]"
-            onClick={() => {
-              setOpen(false)
-              panelActions.open('theory')
-            }}
+      <Divider />
+      <OptionGroup>
+        <Field label="Hands">
+          <SegmentedControl
+            label="Hands"
+            value={spec.hand}
+            onChange={(hand) => updateSpec({ hand })}
+            options={[
+              { value: 'right', label: 'Right' },
+              { value: 'left', label: 'Left' },
+              { value: 'both', label: 'Both' },
+            ]}
+          />
+        </Field>
+        {/* How two hands are set against each other, so asked only of two. */}
+        {spec.hand === 'both' && (
+          <Field label="Motion" hint={PLAYING_DESCRIPTIONS[playing]}>
+            <RadioGrid<ScaleMotion>
+              label="Motion"
+              columns={2}
+              value={playing as ScaleMotion}
+              options={SCALE_MOTIONS.map((motion) => {
+                const offered = motions.includes(motion)
+                return {
+                  value: motion,
+                  label: SCALE_MOTION_LABELS[motion],
+                  disabled: !offered,
+                  // A motion the scale cannot take says why, rather than just greying out.
+                  title: offered
+                    ? undefined
+                    : texture === 'single'
+                      ? MOTION_UNAVAILABLE[motion]
+                      : 'For single notes.',
+                }
+              })}
+              onChange={(motion) => updateSpec(specFor(motion))}
+            />
+          </Field>
+        )}
+        {/* A chromatic scale's hands can be set a third or a sixth apart —
+            a setting no other scale has, so it shows for that scale only. */}
+        {scaleHasIntervals(type) && (
+          <Field
+            label="Hands apart by"
+            htmlFor={apartId}
+            hint={canSetInterval ? undefined : 'For both hands, in single notes.'}
           >
-            <BookOpen size={15} aria-hidden />
-            Understand this scale
-          </button>
-        </div>
-      </Popover>
+            <Select
+              id={apartId}
+              size="sm"
+              value={intervalInForce}
+              disabled={!canSetInterval}
+              onChange={(event) => updateSpec({ apart: event.target.value as ChromaticInterval })}
+              options={CHROMATIC_INTERVALS.map((interval) => ({
+                value: interval,
+                label: CHROMATIC_INTERVAL_LABELS[interval],
+              }))}
+            />
+          </Field>
+        )}
+      </OptionGroup>
+
+      <Divider />
+      <OptionGroup>
+        <Field label="Played in" hint={TEXTURE_DESCRIPTIONS[texture]}>
+          <RadioGrid<ScaleTexture>
+            label="Played in"
+            columns={2}
+            value={texture}
+            options={SCALE_TEXTURES.map((option) => {
+              const offered = textures.includes(option)
+              return {
+                value: option,
+                label: SCALE_TEXTURE_LABELS[option],
+                disabled: !offered,
+                title: offered ? undefined : TEXTURE_UNAVAILABLE[option],
+              }
+            })}
+            onChange={(next) => updateSpec({ texture: next })}
+          />
+        </Field>
+        {/* How the beat is divided belongs to the scale, not to the tempo: the
+            click stays where it is and the scale goes faster under it. */}
+        <Field
+          label="Notes to a beat"
+          hint={
+            <>
+              {NOTES_PER_BEAT_LABELS[perBeat]}
+              {perBeat > 1
+                ? ` — the click stays at ${bpm}, and the scale goes ${NOTES_PER_BEAT_WORDS[perBeat]} as fast.`
+                : ' — one note to each click.'}
+            </>
+          }
+        >
+          <SegmentedControl
+            label="Notes to a beat"
+            value={String(perBeat)}
+            onChange={(next) => updateSpec({ notesPerBeat: Number(next) as NotesPerBeat })}
+            options={NOTES_PER_BEAT.map((count) => ({
+              value: String(count),
+              label: String(count),
+            }))}
+          />
+        </Field>
+      </OptionGroup>
+
+      <Divider />
+      <OptionGroup>
+        <Field label="Direction">
+          <SegmentedControl
+            label="Direction"
+            value={spec.direction}
+            onChange={(direction) => updateSpec({ direction })}
+            options={SCALE_DIRECTIONS.map((direction) => ({
+              value: direction,
+              label: DIRECTION_SHORT[direction],
+            }))}
+          />
+        </Field>
+        <Field label="Octaves">
+          <SegmentedControl
+            label="Octaves"
+            value={String(spec.octaves)}
+            onChange={(octaves) => updateSpec({ octaves: Number(octaves) })}
+            options={['1', '2', '3'].map((count) => ({ value: count, label: count }))}
+          />
+        </Field>
+        {/* On, off, or not possible — and which, said in the description
+            rather than by a control that has silently stopped responding. */}
+        <Switch
+          label="End with the cadence"
+          description={
+            !canClose
+              ? 'For a major or minor scale in single notes, the hands moving together.'
+              : closes
+                ? 'Close the scale with I – IV – V – I.'
+                : 'Closes a scale that comes back down. Set the direction to Up & Down.'
+          }
+          checked={Boolean(spec.cadence) && closes}
+          onChange={(cadence) => canClose && updateSpec({ cadence })}
+        />
+      </OptionGroup>
+
+      <Divider />
+      <TheoryLink>Understand this scale</TheoryLink>
     </>
   )
 }
 
-export function CompactField({ label, children }: { label: string; children: React.ReactNode }) {
+/** Settings that go together, in the options panel: a field's gap apart. */
+export function OptionGroup({ children }: { children: React.ReactNode }) {
+  return <div className="flex flex-col gap-3">{children}</div>
+}
+
+/** The way from an area's options to the theory of what is on the keys. */
+export function TheoryLink({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex flex-col gap-1.5">
-      <span className="text-label-sm text-[var(--ds-fg-muted)]">{label}</span>
+    <button
+      type="button"
+      className="inline-flex items-center gap-2 self-start text-label text-[var(--ds-accent-text)] underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ds-focus-ring)]"
+      // The theory is a panel of its own, and takes this one's place.
+      onClick={() => panelActions.open('theory')}
+    >
+      <BookOpen size={15} aria-hidden />
       {children}
-    </div>
+    </button>
   )
 }
 
 /**
- * A grid of choices, one of which is on — the keys, the scale types.
+ * A grid of choices, one of which is on — the motions, the ways a scale is
+ * played.
  *
  * One Tab stop for the group and arrow keys inside it, the way a radio group
- * works everywhere else; twelve keys that were each a Tab stop would put the
- * scale types twelve presses away.
+ * works everywhere else; six choices that were each a Tab stop would put the
+ * next setting six presses away. The arrows step over a choice that is not on
+ * offer, and hovering it says why it is not.
  */
 export function RadioGrid<T extends string | number>({
   label,
@@ -510,29 +490,26 @@ export function RadioGrid<T extends string | number>({
   onChange,
   columns,
 }: {
+  /** The group's accessible name. A visible label is the `Field` round it. */
   label: string
   value: T
-  options: readonly { value: T; label: string }[]
+  options: readonly { value: T; label: string; disabled?: boolean; title?: string }[]
   onChange: (value: T) => void
   columns: number
 }) {
-  const labelId = React.useId()
   const onKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     const group = event.currentTarget
-    const index = options.findIndex((option) => option.value === value)
     const step =
-      event.key === 'ArrowRight'
+      event.key === 'ArrowRight' || event.key === 'ArrowDown'
         ? 1
-        : event.key === 'ArrowLeft'
+        : event.key === 'ArrowLeft' || event.key === 'ArrowUp'
           ? -1
-          : event.key === 'ArrowDown'
-            ? columns
-            : event.key === 'ArrowUp'
-              ? -columns
-              : 0
+          : 0
     if (step === 0) return
     event.preventDefault()
-    const next = options[(index + step + options.length) % options.length]
+    const offered = options.filter((option) => !option.disabled)
+    const index = offered.findIndex((option) => option.value === value)
+    const next = offered[(index + step + offered.length) % offered.length]
     if (!next) return
     onChange(next.value)
     // The chosen button is re-rendered as the Tab stop; move focus onto it.
@@ -542,199 +519,64 @@ export function RadioGrid<T extends string | number>({
   }
 
   return (
-    <div className="flex flex-col gap-1.5">
-      <span id={labelId} className="text-label-sm text-[var(--ds-fg-muted)]">
-        {label}
-      </span>
-      <div
-        role="radiogroup"
-        aria-labelledby={labelId}
-        className="grid gap-1"
-        style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
-        onKeyDown={onKeyDown}
-      >
-        {options.map((option) => {
-          const checked = option.value === value
-          return (
-            <button
-              key={String(option.value)}
-              type="button"
-              role="radio"
-              aria-checked={checked}
-              data-value={String(option.value)}
-              tabIndex={checked ? 0 : -1}
-              className={cn('choice', checked && 'choice--on')}
-              onClick={() => onChange(option.value)}
-            >
-              {option.label}
-            </button>
-          )
-        })}
-      </div>
+    <div
+      role="radiogroup"
+      aria-label={label}
+      className="choice-grid"
+      style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
+      onKeyDown={onKeyDown}
+    >
+      {options.map((option) => {
+        const checked = option.value === value
+        return (
+          <button
+            key={String(option.value)}
+            type="button"
+            role="radio"
+            aria-checked={checked}
+            data-value={String(option.value)}
+            tabIndex={checked ? 0 : -1}
+            disabled={option.disabled}
+            title={option.title}
+            className={cn('choice', checked && 'choice--on')}
+            onClick={() => onChange(option.value)}
+          >
+            {option.label}
+          </button>
+        )
+      })}
     </div>
   )
 }
 
-export function HandMenu() {
-  const spec = useLearningStore((state) => state.spec)
-  const updateSpec = useLearningStore((state) => state.updateSpec)
-  const motions = useScaleMotions()
-  const playing = playingOf(spec, motions)
-  // A chromatic scale's hands set a third or a sixth apart say so on the badge:
-  // "LR" would be true, and would hide the one thing that is unusual.
-  const apart =
-    scaleHasIntervals(typeOf(spec.scaleTypeId)) &&
-    spec.hand === 'both' &&
-    textureOf(spec) === 'single' &&
-    spec.apart &&
-    spec.apart !== 'octave'
-      ? spec.apart
-      : null
-  const badge = apart
-    ? `${playing === 'contrary' ? '<' : ''}${INTERVAL_BADGES[apart]}${playing === 'contrary' ? '>' : ''}`
-    : PLAYING_BADGES[playing]
-  return (
-    <SelectMenu<Playing>
-      label="Hands"
-      value={playing}
-      options={PLAYING.map((option) => {
-        const offered = option === 'right' || option === 'left' || motions.includes(option)
-        return {
-          value: option,
-          label: PLAYING_LABELS[option],
-          // A motion the scale cannot take says why, rather than just greying out.
-          description: offered
-            ? PLAYING_DESCRIPTIONS[option]
-            : textureOf(spec) === 'single'
-              ? MOTION_UNAVAILABLE[option as ScaleMotion]
-              : 'For single notes.',
-          disabled: !offered,
-        }
-      })}
-      onChange={(next) => updateSpec(specFor(next))}
-      iconOnly
-      icon={<BarGlyph icon={<Hand size={18} />} badge={badge} />}
-      className="bar-wide"
-    />
-  )
-}
-
-/** What each hand plays: single notes, thirds, or octaves. */
-export function TextureMenu() {
-  const spec = useLearningStore((state) => state.spec)
-  const updateSpec = useLearningStore((state) => state.updateSpec)
-  const texture = textureOf(spec)
-  const textures = scaleTexturesFor(typeOf(spec.scaleTypeId))
-  return (
-    <SelectMenu<ScaleTexture>
-      label="Played in"
-      value={texture}
-      options={SCALE_TEXTURES.map((option) => {
-        const offered = textures.includes(option)
-        return {
-          value: option,
-          label: SCALE_TEXTURE_LABELS[option],
-          description: offered ? TEXTURE_DESCRIPTIONS[option] : TEXTURE_UNAVAILABLE[option],
-          disabled: !offered,
-        }
-      })}
-      onChange={(next) => updateSpec({ texture: next })}
-      iconOnly
-      icon={<BarGlyph icon={<Rows2 size={18} />} badge={TEXTURE_BADGES[texture]} />}
-      className="bar-wide"
-    />
-  )
-}
-
-export function OctavesMenu() {
-  const octaves = useLearningStore((state) => state.spec.octaves)
-  const updateSpec = useLearningStore((state) => state.updateSpec)
-  return (
-    <SelectMenu
-      label="Octaves"
-      value={octaves}
-      options={OCTAVE_OPTIONS}
-      onChange={(next) => updateSpec({ octaves: next })}
-      iconOnly
-      icon={<BarGlyph icon={<MoveHorizontal size={18} />} badge={String(octaves)} />}
-      className="bar-wide"
-    />
-  )
-}
-
-export function DirectionMenu() {
-  const direction = useLearningStore((state) => state.spec.direction)
-  const updateSpec = useLearningStore((state) => state.updateSpec)
-  const Arrow = DIRECTION_ICONS[direction]
-  return (
-    <SelectMenu
-      label="Direction"
-      value={direction}
-      options={SCALE_DIRECTIONS.map((option) => ({
-        value: option,
-        label: DIRECTION_SHORT[option],
-        description: SCALE_DIRECTION_LABELS[option],
-      }))}
-      onChange={(next) => updateSpec({ direction: next })}
-      iconOnly
-      icon={<Arrow size={18} aria-hidden />}
-      className="bar-wide"
-    />
-  )
-}
-
-export function GuidanceMenu() {
+/**
+ * Explore, Learn or Practice, side by side on the bar.
+ *
+ * It was an icon that opened a menu, and the icon was the only sign of which
+ * mode the screen was in. The three are few enough to show.
+ */
+export function ModeTabs() {
   const mode = useLearningStore((state) => state.mode)
   const setMode = useLearningStore((state) => state.setMode)
-  const Icon = MODE_ICONS[mode]
   return (
-    <SelectMenu<LearningMode>
+    <BarTabs<LearningMode>
       label="Mode"
       value={mode}
-      options={LEARNING_MODES.map((option) => ({
-        value: option,
-        label: LEARNING_MODE_LABELS[option],
-        description: LEARNING_MODE_DESCRIPTIONS[option],
-      }))}
       onChange={setMode}
-      iconOnly
-      icon={<Icon size={18} aria-hidden />}
-      align="end"
+      options={LEARNING_MODES.map((option) => {
+        const Icon = MODE_ICONS[option]
+        return {
+          value: option,
+          label: LEARNING_MODE_LABELS[option],
+          icon: <Icon size={18} />,
+          description: LEARNING_MODE_DESCRIPTIONS[option],
+        }
+      })}
     />
   )
 }
 
-/** The target tempo, a step of four either way — the store keeps it in range. */
-export function TempoStepper({ className }: { className?: string }) {
-  const bpm = useLearningStore((state) => state.targetBpm)
-  const setTargetBpm = useLearningStore((state) => state.setTargetBpm)
-  return (
-    <div className={cn('tempo-stepper', className)} role="group" aria-label="Target tempo">
-      <button
-        type="button"
-        className="tempo-stepper__button"
-        aria-label="Slower"
-        title="Slower"
-        onClick={() => setTargetBpm(bpm - 4)}
-      >
-        <Minus size={16} aria-hidden />
-      </button>
-      <span className="tempo-stepper__value" aria-live="polite" data-tabular>
-        {bpm} BPM
-      </span>
-      <button
-        type="button"
-        className="tempo-stepper__button"
-        aria-label="Faster"
-        title="Faster"
-        onClick={() => setTargetBpm(bpm + 4)}
-      >
-        <Plus size={16} aria-hidden />
-      </button>
-    </div>
-  )
-}
-
+/** The range the store keeps the target tempo in. */
 const MIN_BPM = 30
 const MAX_BPM = 208
 
@@ -745,94 +587,26 @@ const NOTES_PER_BEAT_WORDS: Record<NotesPerBeat, string> = {
   4: 'four times',
 }
 
-/**
- * The target tempo, behind one icon.
- *
- * It was a − 72 BPM + stepper in the bar, the widest thing in it for a setting
- * touched once a run. Now the number rides on the icon, and the panel it opens
- * has room for a slider as well — a jump from 60 to 120 was fifteen clicks.
- */
-export function TempoButton({ className }: { className?: string }) {
+/** The target tempo: on the bar, and in Settings for a bar too narrow to hold it. */
+export function TempoControl({ className, panel }: { className?: string; panel?: boolean }) {
   const bpm = useLearningStore((state) => state.targetBpm)
   const setTargetBpm = useLearningStore((state) => state.setTargetBpm)
-  // How the beat is divided belongs to the scale, and is set where the beat is.
-  const scales = useLearningStore((state) => state.topic === 'scales')
-  const perBeat: NotesPerBeat = useLearningStore((state) => state.spec.notesPerBeat ?? 1)
-  const updateSpec = useLearningStore((state) => state.updateSpec)
-  const [open, setOpen] = React.useState(false)
-  const triggerRef = React.useRef<HTMLButtonElement>(null)
-  const close = React.useCallback(() => setOpen(false), [])
-  const divided = scales && perBeat > 1
-  const label = `Tempo: ${bpm} BPM${divided ? `, ${NOTES_PER_BEAT_LABELS[perBeat].toLowerCase()}` : ''}`
-  const percent = ((bpm - MIN_BPM) / (MAX_BPM - MIN_BPM)) * 100
-
+  // A divided beat is part of how fast the scale goes, so the tooltip says it.
+  const divided = useLearningStore((state) =>
+    state.topic === 'scales' && (state.spec.notesPerBeat ?? 1) > 1
+      ? NOTES_PER_BEAT_LABELS[state.spec.notesPerBeat ?? 1].toLowerCase()
+      : undefined,
+  )
   return (
-    <>
-      <button
-        ref={triggerRef}
-        type="button"
-        className={cn('bar-icon-button', className)}
-        aria-haspopup="dialog"
-        aria-expanded={open}
-        aria-label={label}
-        title={label}
-        onClick={() => setOpen((current) => !current)}
-      >
-        <BarGlyph icon={<Timer size={18} />} badge={String(bpm)} />
-      </button>
-      <Popover
-        open={open}
-        onClose={close}
-        anchorRef={triggerRef}
-        align="end"
-        label="Tempo"
-        className="popover--tempo"
-      >
-        <div className="flex flex-col gap-4 p-4">
-          <div className="flex items-center justify-between gap-3">
-            <span className="text-label text-[var(--ds-fg-secondary)]">Target tempo</span>
-            <TempoStepper className="tempo-stepper--panel" />
-          </div>
-          <input
-            type="range"
-            min={MIN_BPM}
-            max={MAX_BPM}
-            value={bpm}
-            aria-label="Target tempo"
-            aria-valuetext={`${bpm} BPM`}
-            data-autofocus
-            onChange={(event) => setTargetBpm(Number(event.target.value))}
-            className="sonara-slider"
-            style={{ '--slider-from': '0%', '--slider-to': `${percent}%` } as React.CSSProperties}
-          />
-          <div className="flex justify-between text-caption text-[var(--ds-fg-muted)]" data-tabular>
-            <span>{MIN_BPM}</span>
-            <span>{MAX_BPM}</span>
-          </div>
-          {scales && (
-            <div className="flex flex-col gap-1.5 border-t border-[var(--ds-border-subtle)] pt-4">
-              <CompactField label="Notes to a beat">
-                <SegmentedControl
-                  label="Notes to a beat"
-                  value={String(perBeat)}
-                  onChange={(next) => updateSpec({ notesPerBeat: Number(next) as NotesPerBeat })}
-                  options={NOTES_PER_BEAT.map((count) => ({
-                    value: String(count),
-                    label: String(count),
-                  }))}
-                />
-              </CompactField>
-              <p className="text-caption text-[var(--ds-fg-muted)]">
-                {NOTES_PER_BEAT_LABELS[perBeat]}
-                {perBeat > 1
-                  ? ` — the click stays at ${bpm}, and the scale goes ${NOTES_PER_BEAT_WORDS[perBeat]} as fast.`
-                  : ' — one note to each click.'}
-              </p>
-            </div>
-          )}
-        </div>
-      </Popover>
-    </>
+    <TempoField
+      value={bpm}
+      min={MIN_BPM}
+      max={MAX_BPM}
+      onChange={setTargetBpm}
+      detail={divided}
+      panel={panel}
+      className={className}
+    />
   )
 }
 
@@ -898,8 +672,9 @@ export function DemoButton() {
  * Start, or Stop while a run is going.
  *
  * Explore has nothing to start — the scale is already lit and the keyboard is
- * already yours — so it says so in the button's place rather than offering a
- * button that does nothing.
+ * already yours — so there the button is off, and says why. It keeps its place
+ * rather than giving it up: the mode tabs sit to its left, and a button that
+ * came and went would slide them out from under the press that changed them.
  */
 export function StartButton() {
   const mode = useLearningStore((state) => state.mode)
@@ -907,15 +682,16 @@ export function StartButton() {
   const start = useLearningStore((state) => state.start)
   const reset = useLearningStore((state) => state.reset)
 
-  if (mode === 'explore') {
-    return (
-      <span className="bar-status" title={LEARNING_MODE_DESCRIPTIONS.explore}>
-        Always on
-      </span>
-    )
-  }
-
-  return <StartStopButton running={running} onStart={start} onStop={reset} />
+  return (
+    <StartStopButton
+      running={running}
+      onStart={start}
+      onStop={reset}
+      unavailable={
+        mode === 'explore' ? 'Explore is always on: there is nothing to start' : undefined
+      }
+    />
+  )
 }
 
 /**
@@ -929,10 +705,13 @@ export function StartStopButton({
   running,
   onStart,
   onStop,
+  unavailable,
 }: {
   running: boolean
   onStart: () => void
   onStop: () => void
+  /** Why there is nothing to start, where there is not. The button's name while it is off. */
+  unavailable?: string
 }) {
   return running ? (
     <button
@@ -948,8 +727,9 @@ export function StartStopButton({
     <button
       type="button"
       className="bar-start bar-start--icon"
-      aria-label="Start"
-      title="Start"
+      aria-label={unavailable ?? 'Start'}
+      title={unavailable ?? 'Start'}
+      disabled={unavailable !== undefined}
       onClick={onStart}
     >
       <Play size={18} aria-hidden />

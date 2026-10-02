@@ -1,15 +1,14 @@
 import * as React from 'react'
-import { Check, ChevronDown } from 'lucide-react'
+import { Check } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { useDismissable } from '@/lib/hooks'
 
 /**
- * Floating panels: a popover, and the single-choice dropdown built on it.
+ * Floating panels: a popover, and the menu of commands built on it.
  *
- * The app bar is one row, and every setting that used to be a labelled field
- * is now a button naming its current value — "Right Hand ▾" — that opens the
- * choices. That only works if opening them is as dependable as a native
- * select: from the keyboard, back to the trigger on close, and never clipped.
+ * The bar's overflow is a button that opens a list, and that only works if
+ * opening it is as dependable as a native control: from the keyboard, back to
+ * the trigger on close, and never clipped.
  *
  * Positioned `fixed`, from the trigger's own rectangle, rather than absolutely
  * inside it. A panel inside the bar is at the mercy of whatever the bar sits in
@@ -127,159 +126,6 @@ export function Popover({
   )
 }
 
-export interface MenuOption<T extends string | number> {
-  readonly value: T
-  readonly label: string
-  readonly description?: string
-  readonly disabled?: boolean
-  /** Shown instead of the check when the option cannot be chosen. */
-  readonly badge?: React.ReactNode
-}
-
-/**
- * One choice from a short list, as a button that names the current value.
- *
- * `menuitemradio` rather than a listbox: it is a menu of commands that set one
- * value, and screen readers announce the checked item as "checked", which is
- * what the player needs to hear. Arrow keys move, Home and End jump, Enter and
- * Space choose, Escape leaves without changing anything.
- */
-export function SelectMenu<T extends string | number>({
-  label,
-  value,
-  options,
-  onChange,
-  display,
-  icon,
-  iconOnly = false,
-  className,
-  align = 'start',
-  disabled = false,
-}: {
-  /** What the setting is — "Hand". Part of the trigger's accessible name. */
-  label: string
-  value: T
-  options: readonly MenuOption<T>[]
-  onChange: (value: T) => void
-  /** What the trigger says. Defaults to the chosen option's label. */
-  display?: React.ReactNode
-  icon?: React.ReactNode
-  /**
-   * The icon alone, with the setting and its value in the tooltip — for the
-   * bar, where a row of spelled-out values ran out of room. The icon is
-   * expected to show the value itself where it can (a badge, a changed glyph):
-   * a tooltip does not exist on touch, so it cannot be the only place it is.
-   */
-  iconOnly?: boolean
-  className?: string
-  align?: 'start' | 'end'
-  disabled?: boolean
-}) {
-  const [open, setOpen] = React.useState(false)
-  const triggerRef = React.useRef<HTMLButtonElement>(null)
-  const menuId = React.useId()
-  const chosen = options.find((option) => option.value === value)
-  const close = React.useCallback(() => setOpen(false), [])
-  const name = `${label}: ${chosen?.label ?? ''}`
-
-  const choose = (next: T) => {
-    setOpen(false)
-    triggerRef.current?.focus()
-    if (next !== value) onChange(next)
-  }
-
-  const onMenuKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    const items = [
-      ...event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="menuitemradio"]'),
-    ].filter((item) => !item.disabled)
-    if (items.length === 0) return
-    const index = items.indexOf(document.activeElement as HTMLButtonElement)
-    const move = (to: number) => {
-      event.preventDefault()
-      items[(to + items.length) % items.length]?.focus()
-    }
-    if (event.key === 'ArrowDown') move(index + 1)
-    else if (event.key === 'ArrowUp') move(index - 1)
-    else if (event.key === 'Home') move(0)
-    else if (event.key === 'End') move(items.length - 1)
-  }
-
-  return (
-    <>
-      <button
-        ref={triggerRef}
-        type="button"
-        className={cn(iconOnly ? 'bar-icon-button' : 'bar-button', className)}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        aria-controls={open ? menuId : undefined}
-        aria-label={name}
-        title={iconOnly ? name : undefined}
-        disabled={disabled}
-        onClick={() => setOpen((current) => !current)}
-        onKeyDown={(event) => {
-          if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-            event.preventDefault()
-            setOpen(true)
-          }
-        }}
-      >
-        {iconOnly ? (
-          icon
-        ) : (
-          <>
-            {icon && (
-              <span className="bar-button__icon" aria-hidden>
-                {icon}
-              </span>
-            )}
-            <span className="bar-button__label">{display ?? chosen?.label}</span>
-            <ChevronDown className="bar-button__chevron" size={16} aria-hidden />
-          </>
-        )}
-      </button>
-      <Popover
-        open={open}
-        onClose={close}
-        anchorRef={triggerRef}
-        align={align}
-        label={label}
-        role="menu"
-        className="popover--menu"
-      >
-        <div id={menuId} onKeyDown={onMenuKeyDown}>
-          {options.map((option) => {
-            const checked = option.value === value
-            return (
-              <button
-                key={String(option.value)}
-                type="button"
-                role="menuitemradio"
-                aria-checked={checked}
-                disabled={option.disabled}
-                tabIndex={-1}
-                className="menu-item"
-                title={option.disabled ? option.description : undefined}
-                onClick={() => choose(option.value)}
-              >
-                <span className="menu-item__mark" aria-hidden>
-                  {option.badge ?? (checked ? <Check size={15} /> : null)}
-                </span>
-                <span className="menu-item__text">
-                  <span className="menu-item__label">{option.label}</span>
-                  {option.description && !option.disabled && (
-                    <span className="menu-item__description">{option.description}</span>
-                  )}
-                </span>
-              </button>
-            )
-          })}
-        </div>
-      </Popover>
-    </>
-  )
-}
-
 export interface MenuAction {
   readonly id: string
   readonly label: string
@@ -300,9 +146,9 @@ export interface MenuAction {
 /**
  * A button that opens a list of commands — the bar's overflow.
  *
- * The same keyboard contract as SelectMenu, with `menuitem` in place of
- * `menuitemradio` because nothing here is a value being chosen. The command
- * runs after the menu has closed and focus has gone back to the trigger, so a
+ * Arrow keys move, Home and End jump, Enter and Space choose, Escape leaves
+ * with nothing done. An item is a `menuitem`, or a `menuitemradio` where it
+ * says where you are. The command runs after the menu has closed and focus has gone back to the trigger, so a
  * command that opens a panel takes focus from there rather than from a menu
  * that is being torn down under it.
  */
