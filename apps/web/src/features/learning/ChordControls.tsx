@@ -478,6 +478,15 @@ export function ArpeggioSettings() {
   )
 }
 
+/*
+ * How the cadence is laid out between the hands — the bar calls it Voicing.
+ *
+ * It was labelled Cadence, which said nothing the area's name had not, and
+ * its first option is Three Positions, right beside a setting called Position.
+ * Two controls that both sounded like "position" read as one choice made
+ * twice. Position is the inversion the tonic chord starts in; this is who
+ * plays the chords and who plays the roots.
+ */
 const FORM_BADGES: Record<CadenceForm, string> = {
   positions: '3',
   'root-in-bass': 'B',
@@ -574,10 +583,10 @@ function CadenceSettings() {
     <>
       <KeyPicker area="progressions" hands={positions}>
         <ProgressionTypeField />
-        <CompactField label="Cadence">
+        <CompactField label="Voicing">
           <Select
             size="sm"
-            aria-label="Cadence"
+            aria-label="Voicing"
             value={spec.form}
             onChange={(event) => update({ form: event.target.value as CadenceForm })}
             options={CADENCE_FORMS.map((form) => ({
@@ -622,7 +631,7 @@ function CadenceSettings() {
         )}
       </KeyPicker>
       <SelectMenu<CadenceForm>
-        label="Cadence"
+        label="Voicing"
         value={spec.form}
         options={CADENCE_FORMS.map((form) => ({
           value: form,

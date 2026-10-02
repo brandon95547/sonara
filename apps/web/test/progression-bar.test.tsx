@@ -53,16 +53,24 @@ describe('the Progressions bar', () => {
     expect(settings()).toEqual([
       'Progression: Cadences',
       'Key: C Major — C Major Cadence',
-      'Cadence: Three Positions',
+      'Voicing: Three Positions',
       'Position: All Three',
       'Dominant: Dominant seventh',
       'Hands: Both Hands',
     ])
   })
 
+  it('calls how the cadence is laid out Voicing, so only one setting is called Position', () => {
+    render(<ProgressionSettings />)
+    const named = settings().map((label) => label.split(':')[0])
+    expect(named.filter((name) => name === 'Position')).toHaveLength(1)
+    expect(named).toContain('Voicing')
+    expect(named).not.toContain('Cadence')
+  })
+
   it('changes the cadence through its settings, as it did before', () => {
     render(<ProgressionSettings />)
-    fireEvent.click(screen.getByRole('button', { name: 'Cadence: Three Positions' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Voicing: Three Positions' }))
     fireEvent.click(screen.getByRole('menuitemradio', { name: /Root in the Bass/ }))
     expect(store().cadenceSpec.form).toBe('root-in-bass')
     expect(store().exercise?.subtitle).toContain('Root in the Bass')
