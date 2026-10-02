@@ -78,7 +78,7 @@ describe('understanding the chords of a key', () => {
 describe('understanding a cadence', () => {
   beforeEach(() => {
     store().setTopic('progressions')
-    store().updateProgressionSpec({ rootPitchClass: 7, mode: 'major', tonic: undefined })
+    store().updateCadenceSpec({ rootPitchClass: 7, mode: 'major', tonic: undefined })
   })
 
   it('names the primary chords and the notes that stay put between them', () => {
@@ -190,7 +190,8 @@ describe('the fundamentals', () => {
     render(<FundamentalsDrawer open onClose={noop} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Play the cadence of A minor' }))
-    expect(store().progressionSpec).toMatchObject({
+    expect(store().progressionType).toBe('cadences')
+    expect(store().cadenceSpec).toMatchObject({
       rootPitchClass: 9,
       mode: 'minor',
       form: 'positions',
@@ -198,7 +199,7 @@ describe('the fundamentals', () => {
       dominant: 'V',
     })
     expect(store().mode).toBe('learn')
-    expect(globalThis.location.hash).toBe('#/progressions')
+    expect(globalThis.location.hash).toBe('#/progressions/cadences')
     expect(usePanelStore.getState().panel).toBeNull()
   })
 

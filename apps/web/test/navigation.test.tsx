@@ -56,6 +56,33 @@ describe('moving between the dashboard and the areas', () => {
     await waitFor(() => expect(usePageStore.getState().page).toBe('dashboard'))
   })
 
+  it('opens Progressions on one of its types, and says which in the address', async () => {
+    renderHook(() => usePageSync())
+
+    pageActions.openArea('progressions')
+    await waitFor(() => expect(useLearningStore.getState().topic).toBe('progressions'))
+    // Cadences is the first type, and the only one so far.
+    expect(globalThis.location.hash).toBe('#/progressions/cadences')
+    expect(useLearningStore.getState().progressionType).toBe('cadences')
+    expect(useLearningStore.getState().exercise?.title).toBe('C Major Cadence')
+  })
+
+  it('still opens Progressions by the address it had before it had types', async () => {
+    renderHook(() => usePageSync())
+    globalThis.location.hash = '#/progressions'
+    await waitFor(() => expect(usePageStore.getState().page).toBe('area'))
+    expect(useLearningStore.getState().topic).toBe('progressions')
+    expect(useLearningStore.getState().progressionType).toBe('cadences')
+  })
+
+  it('opens Progressions on the type it was left on when the address names none it knows', async () => {
+    renderHook(() => usePageSync())
+    globalThis.location.hash = '#/progressions/turnarounds'
+    await waitFor(() => expect(usePageStore.getState().page).toBe('area'))
+    expect(useLearningStore.getState().topic).toBe('progressions')
+    expect(useLearningStore.getState().progressionType).toBe('cadences')
+  })
+
   it('opens Exercises, the last area to get its builder', async () => {
     renderHook(() => usePageSync())
     globalThis.location.hash = '#/exercises'

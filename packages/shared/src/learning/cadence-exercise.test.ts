@@ -2,14 +2,10 @@ import { describe, expect, it } from 'vitest'
 import { noteName } from '../midi/notes.js'
 import { cadenceFingers } from '../music/cadences.js'
 import { KEY_MODES } from '../music/chords.js'
-import {
-  buildProgressionExercise,
-  DEFAULT_PROGRESSION_SPEC,
-  type ProgressionSpec,
-} from './progression-exercise.js'
+import { buildCadenceExercise, DEFAULT_CADENCE_SPEC, type CadenceSpec } from './cadence-exercise.js'
 
-const cadence = (spec: Partial<ProgressionSpec> = {}) =>
-  buildProgressionExercise({ ...DEFAULT_PROGRESSION_SPEC, ...spec })
+const cadence = (spec: Partial<CadenceSpec> = {}) =>
+  buildCadenceExercise({ ...DEFAULT_CADENCE_SPEC, ...spec })
 
 /** A step's notes for one hand, as note names. */
 const played = (exercise: ReturnType<typeof cadence>, step: number, hand: 'left' | 'right') =>

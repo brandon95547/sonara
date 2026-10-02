@@ -15,10 +15,11 @@ import type { Exercise, ExerciseStep, StepFinger } from './exercise.js'
 import { DEFAULT_PLAYABLE_RANGE, HAND_LABELS, SCALE_HANDS } from './scale-exercise.js'
 
 /**
- * Progressions: chords in sequence.
+ * Cadences: the first kind of progression.
  *
- * What is here is the cadence — I – IV – I – V – I — which is the progression a
- * key is recognised by, and the one a scale book prints under every key.
+ * I – IV – I – V – I, which is the progression a key is recognised by, and the
+ * one a scale book prints under every key. What else Progressions holds, and
+ * where a new kind goes, is in `progressions.ts`.
  */
 
 /**
@@ -41,7 +42,7 @@ export const CADENCE_FORM_LABELS: Record<CadenceForm, string> = {
 export const CADENCE_DOMINANTS = ['V', 'V7'] as const
 export type CadenceDominant = (typeof CADENCE_DOMINANTS)[number]
 
-export const progressionSpecSchema = z.object({
+export const cadenceSpecSchema = z.object({
   kind: z.literal('progression'),
   rootPitchClass: z.number().int().min(0).max(11),
   /** Which of the key's names it is written under. See `ScaleSpec.tonic`. */
@@ -54,9 +55,9 @@ export const progressionSpecSchema = z.object({
   position: z.union([z.literal('all'), z.number().int().min(0).max(2)]),
   dominant: z.enum(CADENCE_DOMINANTS),
 })
-export type ProgressionSpec = z.infer<typeof progressionSpecSchema>
+export type CadenceSpec = z.infer<typeof cadenceSpecSchema>
 
-export const DEFAULT_PROGRESSION_SPEC: ProgressionSpec = {
+export const DEFAULT_CADENCE_SPEC: CadenceSpec = {
   kind: 'progression',
   rootPitchClass: 0,
   mode: 'major',
@@ -66,7 +67,7 @@ export const DEFAULT_PROGRESSION_SPEC: ProgressionSpec = {
   dominant: 'V7',
 }
 
-export interface ProgressionExerciseOptions {
+export interface CadenceExerciseOptions {
   /** The keys the player has. A 61-key instrument when left out. */
   readonly range?: NoteRange
 }
@@ -92,9 +93,9 @@ function placeTonic(pitchClass: number, range: NoteRange): Record<Hand, number> 
 const numeralOf = (chord: CadenceChord, mode: 'major' | 'minor') =>
   mode === 'minor' && (chord === 'I' || chord === 'IV') ? chord.toLowerCase() : chord
 
-export function buildProgressionExercise(
-  spec: ProgressionSpec,
-  options: ProgressionExerciseOptions = {},
+export function buildCadenceExercise(
+  spec: CadenceSpec,
+  options: CadenceExerciseOptions = {},
 ): Exercise {
   const { key, mode, triads } = keyTriads(spec.rootPitchClass, spec.mode, spec.tonic)
   const tonic = key.notes[0]!

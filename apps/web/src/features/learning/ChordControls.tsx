@@ -9,6 +9,7 @@ import {
   Layers,
   ListOrdered,
   Music,
+  Route,
   Rows3,
   type LucideIcon,
 } from 'lucide-react'
@@ -28,6 +29,9 @@ import {
   HAND_LABELS,
   KEY_MODE_LABELS,
   KEY_MODES,
+  PROGRESSION_TYPE_DESCRIPTIONS,
+  PROGRESSION_TYPE_LABELS,
+  PROGRESSION_TYPES,
   ROUTINE_DESCRIPTIONS,
   ROUTINE_LABELS,
   routineHands,
@@ -42,10 +46,11 @@ import {
   type ArpeggioChord,
   type CadenceDominant,
   type CadenceForm,
+  type CadenceSpec,
   type ChordForm,
   type ChordStyle,
   type KeyMode,
-  type ProgressionSpec,
+  type ProgressionType,
   type Routine,
   type ScaleDirection,
   type ScaleHands,
@@ -54,6 +59,7 @@ import { Popover, SelectMenu } from '@/ui/Menu'
 import { SegmentedControl, Select } from '@/ui/Controls'
 import { BarGlyph } from '@/ui/BarGlyph'
 import { useLearningStore } from '@/state/learning-store'
+import { pageActions } from '@/state/page-store'
 import { panelActions } from '@/state/panel-store'
 import { THEORY_TITLES } from '@/features/theory/KeyTheoryDrawer'
 import { CompactField, RadioGrid } from './ScaleControls'
@@ -74,16 +80,18 @@ type Area = 'chords' | 'arpeggios' | 'progressions' | 'exercises'
 function useKey(area: Area) {
   const chord = useLearningStore((state) => state.chordSpec)
   const arpeggio = useLearningStore((state) => state.arpeggioSpec)
-  const progression = useLearningStore((state) => state.progressionSpec)
+  // Progressions keeps a spec for each of its types. Cadences is the only one
+  // so far; the next adds its own here, chosen by the type the area is on.
+  const cadence = useLearningStore((state) => state.cadenceSpec)
   const routine = useLearningStore((state) => state.routineSpec)
   const updateChord = useLearningStore((state) => state.updateChordSpec)
   const updateArpeggio = useLearningStore((state) => state.updateArpeggioSpec)
-  const updateProgression = useLearningStore((state) => state.updateProgressionSpec)
+  const updateCadence = useLearningStore((state) => state.updateCadenceSpec)
   const updateRoutine = useLearningStore((state) => state.updateRoutineSpec)
   const spec = {
     chords: chord,
     arpeggios: arpeggio,
-    progressions: progression,
+    progressions: cadence,
     exercises: routine,
   }[area]
   // The fields the areas share. Each action takes its own area's patch; a key,
@@ -91,7 +99,7 @@ function useKey(area: Area) {
   const update = {
     chords: updateChord,
     arpeggios: updateArpeggio,
-    progressions: updateProgression,
+    progressions: updateCadence,
     exercises: updateRoutine,
   }[area] as (patch: {
     rootPitchClass?: number
@@ -481,7 +489,7 @@ const FORM_DESCRIPTIONS: Record<CadenceForm, string> = {
   'root-in-treble': 'Left hand on the chords, right hand on the root of each.',
 }
 
-type CadencePosition = ProgressionSpec['position']
+type CadencePosition = CadenceSpec['position']
 const POSITION_OPTIONS: readonly { value: CadencePosition; label: string; badge: string }[] = [
   { value: 'all', label: 'All Three', badge: 'All' },
   ...CADENCE_POSITION_NAMES.map((label, index) => ({
@@ -496,10 +504,66 @@ const DOMINANT_LABELS: Record<CadenceDominant, string> = {
   V7: 'Dominant seventh',
 }
 
-/** The left of the bar in the Progressions area. */
+/** What the bar's badge calls each type of progression, at badge size. */
+const PROGRESSION_TYPE_BADGES: Record<ProgressionType, string> = {
+  cadences: 'Cad',
+}
+
+/**
+ * The left of the bar in the Progressions area.
+ *
+ * Progressions is a category: what is practised in it is one of its types, and
+ * each type brings its own settings. So the bar opens with the type, and the
+ * rest of it is whatever that type needs — a type added later adds its own
+ * settings here and leaves the others alone.
+ */
 export function ProgressionSettings() {
-  const spec = useLearningStore((state) => state.progressionSpec)
-  const update = useLearningStore((state) => state.updateProgressionSpec)
+  const type = useLearningStore((state) => state.progressionType)
+
+  return (
+    <>
+      <SelectMenu<ProgressionType>
+        label="Progression"
+        value={type}
+        options={PROGRESSION_TYPES.map((option) => ({
+          value: option,
+          label: PROGRESSION_TYPE_LABELS[option],
+          description: PROGRESSION_TYPE_DESCRIPTIONS[option],
+        }))}
+        // Through the address, so the type survives a reload and Back undoes it.
+        onChange={pageActions.openProgression}
+        iconOnly
+        icon={<BarGlyph icon={<Route size={18} />} badge={PROGRESSION_TYPE_BADGES[type]} />}
+        className="bar-wide"
+      />
+      {type === 'cadences' && <CadenceSettings />}
+    </>
+  )
+}
+
+/** The type, for the key's popover: where the bar's own menu goes when it folds. */
+function ProgressionTypeField() {
+  const type = useLearningStore((state) => state.progressionType)
+  return (
+    <CompactField label="Progression">
+      <Select
+        size="sm"
+        aria-label="Progression"
+        value={type}
+        onChange={(event) => pageActions.openProgression(event.target.value as ProgressionType)}
+        options={PROGRESSION_TYPES.map((option) => ({
+          value: option,
+          label: PROGRESSION_TYPE_LABELS[option],
+        }))}
+      />
+    </CompactField>
+  )
+}
+
+/** Cadences: the settings of the first type of progression. */
+function CadenceSettings() {
+  const spec = useLearningStore((state) => state.cadenceSpec)
+  const update = useLearningStore((state) => state.updateCadenceSpec)
   // The rooted forms are two-handed by nature and play one position, with both
   // dominants in turn: those three settings belong to the three positions only.
   const positions = spec.form === 'positions'
@@ -509,6 +573,7 @@ export function ProgressionSettings() {
   return (
     <>
       <KeyPicker area="progressions" hands={positions}>
+        <ProgressionTypeField />
         <CompactField label="Cadence">
           <Select
             size="sm"

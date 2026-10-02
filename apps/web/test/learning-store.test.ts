@@ -4,6 +4,7 @@ import {
   DEFAULT_CHORD_SPEC,
   DEFAULT_SCALE_SPEC,
   tempo,
+  PROGRESSION_TYPES,
 } from '@sonara/shared'
 import { useLearningStore } from '@/state/learning-store'
 
@@ -574,6 +575,11 @@ describe('thirds, octaves and the cadence', () => {
 describe('the Progressions area', () => {
   beforeEach(() => store().setTopic('progressions'))
 
+  it('opens on Cadences, the first of its types', () => {
+    expect(PROGRESSION_TYPES[0]).toBe('cadences')
+    expect(store().progressionType).toBe('cadences')
+  })
+
   it('opens on the cadence of C major in its three positions', () => {
     expect(store().exercise?.kind).toBe('progression')
     expect(store().exercise?.title).toBe('C Major Cadence')
@@ -581,7 +587,7 @@ describe('the Progressions area', () => {
   })
 
   it('keeps its own settings, apart from the other areas', () => {
-    store().updateProgressionSpec({ rootPitchClass: 9, mode: 'minor', position: 0 })
+    store().updateCadenceSpec({ rootPitchClass: 9, mode: 'minor', position: 0 })
     expect(store().exercise?.title).toBe('A Minor Cadence')
     expect(store().exercise?.steps).toHaveLength(5)
 

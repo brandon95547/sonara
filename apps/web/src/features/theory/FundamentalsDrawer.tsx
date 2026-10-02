@@ -1,5 +1,5 @@
 import { ArrowRight } from 'lucide-react'
-import { DEFAULT_SCALE_SPEC } from '@sonara/shared'
+import { DEFAULT_SCALE_SPEC, type CadenceSpec } from '@sonara/shared'
 import { Drawer } from '@/ui/Drawer'
 import { Button } from '@/ui/Button'
 import { useLearningStore, type LearningTopic } from '@/state/learning-store'
@@ -33,6 +33,17 @@ interface Lesson {
 }
 
 const store = () => useLearningStore.getState()
+
+/**
+ * A cadence: the Progressions area on Cadences, set as the lesson needs.
+ *
+ * The type first. Progressions holds more than one kind of thing, and a lesson
+ * about the cadence has to open on it whatever the area was last left on.
+ */
+const setCadence = (patch: Partial<CadenceSpec>) => {
+  store().setProgressionType('cadences')
+  store().updateCadenceSpec(patch)
+}
 
 /** A plain scale: nothing left over from whatever the Scales area was last doing. */
 const plainScale = (rootPitchClass: number, scaleTypeId: string) =>
@@ -108,7 +119,7 @@ const LESSONS: readonly Lesson[] = [
     action: 'Play the cadence of C major',
     topic: 'progressions',
     setUp: () =>
-      store().updateProgressionSpec({
+      setCadence({
         rootPitchClass: 0,
         mode: 'major',
         tonic: undefined,
@@ -128,7 +139,7 @@ const LESSONS: readonly Lesson[] = [
     action: 'Play the cadence again, with V7',
     topic: 'progressions',
     setUp: () =>
-      store().updateProgressionSpec({
+      setCadence({
         rootPitchClass: 0,
         mode: 'major',
         tonic: undefined,
@@ -216,7 +227,7 @@ const LESSONS: readonly Lesson[] = [
     action: 'Play the cadence of A minor',
     topic: 'progressions',
     setUp: () =>
-      store().updateProgressionSpec({
+      setCadence({
         rootPitchClass: 9,
         mode: 'minor',
         tonic: undefined,

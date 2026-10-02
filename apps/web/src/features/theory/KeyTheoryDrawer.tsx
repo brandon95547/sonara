@@ -50,7 +50,8 @@ function useAreaKey(topic: KeyTopic) {
       ({
         chords: state.chordSpec,
         arpeggios: state.arpeggioSpec,
-        progressions: state.progressionSpec,
+        // Whichever type of progression is open; Cadences is the only one.
+        progressions: state.cadenceSpec,
         exercises: state.routineSpec,
       })[topic],
   )
@@ -59,7 +60,7 @@ function useAreaKey(topic: KeyTopic) {
       ({
         chords: state.updateChordSpec,
         arpeggios: state.updateArpeggioSpec,
-        progressions: state.updateProgressionSpec,
+        progressions: state.updateCadenceSpec,
         exercises: state.updateRoutineSpec,
       })[topic],
   ) as (patch: { rootPitchClass: number; mode: KeyMode; tonic: undefined }) => void

@@ -2,12 +2,13 @@ import { create } from 'zustand'
 import {
   buildArpeggioExercise,
   buildChordExercise,
-  buildProgressionExercise,
+  buildCadenceExercise,
   buildRoutineExercise,
   buildScaleExercise,
   DEFAULT_ARPEGGIO_SPEC,
   DEFAULT_CHORD_SPEC,
-  DEFAULT_PROGRESSION_SPEC,
+  DEFAULT_CADENCE_SPEC,
+  DEFAULT_PROGRESSION_TYPE,
   DEFAULT_ROUTINE_SPEC,
   DEFAULT_FINGERING_SYSTEM,
   DEFAULT_PLAYABLE_RANGE,
@@ -28,7 +29,8 @@ import {
   type FingeringSystemId,
   type LearningMode,
   type NoteRange,
-  type ProgressionSpec,
+  type CadenceSpec,
+  type ProgressionType,
   type RoutineSpec,
   type ScaleSpec,
   type SessionState,
@@ -79,10 +81,16 @@ interface Specs {
   spec: ScaleSpec
   chordSpec: ChordSpec
   arpeggioSpec: ArpeggioSpec
-  progressionSpec: ProgressionSpec
+  /** Progressions has a spec for each of its types; Cadences is the first. */
+  cadenceSpec: CadenceSpec
   routineSpec: RoutineSpec
 }
 type SpecKey = keyof Specs
+
+/** The settings, and which of them an area with more than one set is using. */
+interface Chosen extends Specs {
+  progressionType: ProgressionType
+}
 
 export type KeyRole = 'scale' | 'root' | 'upcoming' | 'target' | 'wrong'
 
@@ -115,7 +123,9 @@ interface LearningState {
   spec: ScaleSpec
   chordSpec: ChordSpec
   arpeggioSpec: ArpeggioSpec
-  progressionSpec: ProgressionSpec
+  /** Which kind of progression the Progressions area is on. */
+  progressionType: ProgressionType
+  cadenceSpec: CadenceSpec
   routineSpec: RoutineSpec
   exercise: Exercise | null
   session: SessionState
@@ -179,7 +189,8 @@ interface LearningState {
   updateSpec: (patch: Partial<ScaleSpec>) => void
   updateChordSpec: (patch: Partial<ChordSpec>) => void
   updateArpeggioSpec: (patch: Partial<ArpeggioSpec>) => void
-  updateProgressionSpec: (patch: Partial<ProgressionSpec>) => void
+  setProgressionType: (type: ProgressionType) => void
+  updateCadenceSpec: (patch: Partial<CadenceSpec>) => void
   updateRoutineSpec: (patch: Partial<RoutineSpec>) => void
   start: () => void
   reset: () => void
@@ -202,7 +213,7 @@ const LOOKAHEAD = 6
 
 function buildExercise(
   topic: LearningTopic,
-  specs: Specs,
+  specs: Chosen,
   fingering: FingeringSystemId,
   range: NoteRange,
 ): Exercise | null {
@@ -217,7 +228,13 @@ function buildExercise(
     case 'arpeggios':
       return buildArpeggioExercise(specs.arpeggioSpec, options)
     case 'progressions':
-      return buildProgressionExercise(specs.progressionSpec, options)
+      // The area's own switch: a new type of progression is a case here.
+      switch (specs.progressionType) {
+        case 'cadences':
+          return buildCadenceExercise(specs.cadenceSpec, options)
+        default:
+          return null
+      }
     case 'exercises':
       return buildRoutineExercise(specs.routineSpec, options)
     default:
@@ -341,7 +358,7 @@ const initialExercise = buildScaleExercise(DEFAULT_SCALE_SPEC, {
 export const useLearningStore = create<LearningState>((set, get) => {
   const rebuild = (
     topic: LearningTopic,
-    specs: Specs,
+    specs: Chosen,
     mode: LearningMode,
     session: SessionState,
     fingering: FingeringSystemId = get().fingeringSystem,
@@ -388,11 +405,12 @@ export const useLearningStore = create<LearningState>((set, get) => {
         spec: state.spec,
         chordSpec: state.chordSpec,
         arpeggioSpec: state.arpeggioSpec,
-        progressionSpec: state.progressionSpec,
+        cadenceSpec: state.cadenceSpec,
         routineSpec: state.routineSpec,
         [key]: next,
       } as Specs
-      return { ...specs, ...rebuild(state.topic, specs, state.mode, session) }
+      const chosen = { ...specs, progressionType: state.progressionType }
+      return { ...specs, ...rebuild(state.topic, chosen, state.mode, session) }
     })
 
   return {
@@ -401,7 +419,8 @@ export const useLearningStore = create<LearningState>((set, get) => {
     spec: DEFAULT_SCALE_SPEC,
     chordSpec: DEFAULT_CHORD_SPEC,
     arpeggioSpec: DEFAULT_ARPEGGIO_SPEC,
-    progressionSpec: DEFAULT_PROGRESSION_SPEC,
+    progressionType: DEFAULT_PROGRESSION_TYPE,
+    cadenceSpec: DEFAULT_CADENCE_SPEC,
     routineSpec: DEFAULT_ROUTINE_SPEC,
     exercise: initialExercise,
     session: IDLE_SESSION,
@@ -429,7 +448,19 @@ export const useLearningStore = create<LearningState>((set, get) => {
     updateSpec: (patch) => respec('spec', patch),
     updateChordSpec: (patch) => respec('chordSpec', patch),
     updateArpeggioSpec: (patch) => respec('arpeggioSpec', patch),
-    updateProgressionSpec: (patch) => respec('progressionSpec', patch),
+    setProgressionType: (progressionType) =>
+      // A different kind of progression is a different exercise, so the run
+      // ends as it does on leaving for another area. Each type keeps its own
+      // settings, and comes back as it was left.
+      set((state) =>
+        state.progressionType === progressionType
+          ? state
+          : {
+              progressionType,
+              ...rebuild(state.topic, { ...state, progressionType }, state.mode, IDLE_SESSION),
+            },
+      ),
+    updateCadenceSpec: (patch) => respec('cadenceSpec', patch),
     updateRoutineSpec: (patch) => respec('routineSpec', patch),
 
     start: () =>

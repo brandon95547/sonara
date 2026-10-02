@@ -47,7 +47,8 @@ const DETAILS: Record<LearningTopic, { icon: LucideIcon; description: string }> 
   },
   progressions: {
     icon: Route,
-    description: 'The cadence of every key, in three positions: I – IV – I – V – I.',
+    // The area, not any one of its types: Cadences says the rest in its menu.
+    description: 'Chords in sequence. First, the cadence of every key: I – IV – I – V – I.',
   },
   exercises: {
     icon: Settings,
