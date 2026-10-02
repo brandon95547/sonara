@@ -21,14 +21,20 @@ afterEach(cleanup)
  */
 
 /*
- * The glyphs, measured in the running app with getBBox at the sizes the
- * stylesheet sets — jsdom does no layout, so it cannot measure them itself.
+ * The glyphs, measured in the running app at the sizes the stylesheet sets —
+ * jsdom does no layout, so it cannot measure them itself.
  *
  * These were guesses once, and both guesses were wrong in the direction that
  * hides a collision: the numeral is taller than it looks and the sharp is
  * narrower. If sonara.css changes a font size, these have to change with it.
+ *
+ * The sharp is its ink, from `measureText`, and the most of it that any face
+ * in `--font-music` draws. It used to be the box `getBBox` reports, which is
+ * the line the glyph is set on rather than the glyph: half as tall again as
+ * the sign, with air on both sides. Checking that box kept the air clear of
+ * the chord, and the sign a long way from its note.
  */
-const SHARP = { width: 10.46, above: 21.23, below: 5.31 }
+const SHARP = { width: 10.4, above: 16.2, below: 2.2 }
 const FINGER = { width: 4.27, above: 9.73, below: 2.48 }
 
 interface Box {
@@ -67,13 +73,13 @@ function boxes(svg: SVGElement): Box[] {
       what: line.classList.contains('staff__stem') ? 'stem' : 'ledger',
     })
   }
-  // Accidentals start at their x; fingerings are centred on theirs.
+  // Accidentals end at their x; fingerings are centred on theirs.
   for (const text of svg.querySelectorAll('.staff__accidental')) {
     const [x, y] = [num(text, 'x'), num(text, 'y')]
     out.push({
-      x1: x,
+      x1: x - SHARP.width,
       y1: y - SHARP.above,
-      x2: x + SHARP.width,
+      x2: x,
       y2: y + SHARP.below,
       what: `accidental@${y.toFixed(0)}`,
     })
@@ -173,6 +179,88 @@ describe('chord engraving', () => {
     const heads = [...svg.querySelectorAll('ellipse')].map((e) => num(e, 'cx'))
     const finger = Math.max(...[...svg.querySelectorAll('.staff__finger')].map((e) => num(e, 'x')))
     expect(finger - Math.max(...heads)).toBeLessThan(4 * STEP)
+  })
+})
+
+describe('an accidental and the note it belongs to', () => {
+  /**
+   * A sign a notehead's width from its note reads as belonging to nothing, and
+   * the notes being right does not rescue it. These measure the gap between a
+   * sign's right edge and the left edge of its own head.
+   */
+  const HEAD_RX = STEP * 1.35
+
+  /** How far each sign stands from its own notehead, by the note's height. */
+  function gaps(svg: SVGElement): number[] {
+    return [...svg.querySelectorAll('.staff__note')].flatMap((note) => {
+      const sign = note.querySelector('.staff__accidental')
+      if (!sign) return []
+      return [num(note.querySelector('ellipse')!, 'cx') - HEAD_RX - num(sign, 'x')]
+    })
+  }
+
+  it('sits against a note on its own', () => {
+    // G♯4, in C major.
+    const [gap] = gaps(draw([{ note: 68 }]))
+    expect(gap).toBeGreaterThan(0)
+    expect(gap).toBeLessThan(STEP * 0.5)
+  })
+
+  it('stays with its note when another head of the chord is displaced', () => {
+    // E7 in the bass, as the cadence in A minor writes it: D and E are a second
+    // apart, so with the stem down D crosses to the left — three steps under
+    // the G♯, which is nowhere near the sharp. The sharp used to clear it
+    // anyway, and stood two noteheads away from the G♯.
+    const svg = draw([{ note: 50 }, { note: 52 }, { note: 56 }])
+    expect(new Set([...svg.querySelectorAll('ellipse')].map((e) => num(e, 'cx'))).size).toBe(2)
+    expect(gaps(svg)).toHaveLength(1)
+    expect(gaps(svg)[0]).toBeLessThan(STEP * 0.5)
+    expect(collisions(svg)).toEqual([])
+  })
+
+  it('moves out past a displaced head that is level with it', () => {
+    // F and G♯ in the bass: a second, stem down, so F crosses to the left and
+    // is right beside the sharp. Now the sign does have to go round it.
+    const svg = draw([
+      { note: 53, hand: 'left' },
+      { note: 56, hand: 'left' },
+    ])
+    expect(gaps(svg)[0]).toBeGreaterThan(HEAD_RX * 2)
+    expect(collisions(svg)).toEqual([])
+  })
+
+  it('is not pushed out by a ledger line that is nowhere near it', () => {
+    // Middle C on its ledger line above the bass staff, over a G♯ a fourth
+    // below. The line's reach used to set the chord's left edge for every sign.
+    const svg = draw([
+      { note: 52, hand: 'left' },
+      { note: 56, hand: 'left' },
+      { note: 60, hand: 'left' },
+    ])
+    expect(svg.querySelectorAll('.staff__ledger')).toHaveLength(1)
+    expect(gaps(svg)[0]).toBeLessThan(STEP * 0.5)
+    expect(collisions(svg)).toEqual([])
+  })
+
+  it('has a ledger line give way rather than keep it from its note', () => {
+    // G♯3 under the treble staff hangs from the A line, and the sharp stands
+    // across that line. The line is cut back to a stub on the sign's side.
+    const svg = draw([{ note: 56, hand: 'right' }])
+    const head = num(svg.querySelector('ellipse')!, 'cx')
+    const lines = [...svg.querySelectorAll('.staff__ledger')]
+    const cut = lines.filter((line) => head - num(line, 'x1') < num(line, 'x2') - head)
+    expect(cut.length).toBeGreaterThan(0)
+    // Never back past the head: a ledger line has to show on both sides.
+    for (const line of lines) expect(num(line, 'x1')).toBeLessThan(head - HEAD_RX)
+    expect(gaps(svg)[0]).toBeLessThan(STEP)
+    expect(collisions(svg)).toEqual([])
+  })
+
+  it('leaves a ledger line whole when no sign is beside it', () => {
+    const svg = draw([{ note: 57, hand: 'right' }])
+    const head = num(svg.querySelector('ellipse')!, 'cx')
+    for (const line of svg.querySelectorAll('.staff__ledger'))
+      expect(head - num(line, 'x1')).toBeCloseTo(num(line, 'x2') - head, 5)
   })
 })
 

@@ -34,36 +34,59 @@ const HEAD_RX = STEP * 1.35
 const HEAD_RY = STEP * 0.98
 /** Half a ledger line, which reaches wider than the head it carries. */
 const LEDGER_RX = STEP * 2.2
+/** How far a ledger line still reaches past its head where a sign sits beside it. */
+const LEDGER_STUB = STEP * 0.2
 /** The room the arpeggio sign takes, outside everything else on the left. */
 const ARPEGGIO_WIDTH = STEP * 2.2
+/** The air between the arpeggio sign and whatever of the chord is leftmost. */
+const ARPEGGIO_GAP = STEP * 0.4
 
 /*
  * The numbers below are the glyphs, measured.
  *
- * At the sizes the stylesheet sets, a sharp is 10.5 units across and 26.5
- * tall, and a fingering numeral 4.3 by 12.2. Guessing at those is what put
- * fingerings on top of each other and accidental columns eight staff spaces
- * out from the notes they belonged to, so they are measurements now.
+ * Guessing at them is what put fingerings on top of each other and accidental
+ * columns eight staff spaces out from the notes they belonged to, so they are
+ * measurements now — and measurements of the ink, not of the box the glyph is
+ * set in. The box is what `getBBox` reports and it is far bigger than the
+ * sign: a sharp's is 10.5 by 20 around ink that is 6.8 by 15.9. Keeping the
+ * box clear of the chord is what left a sharp standing a notehead's width away
+ * from the note it belonged to.
  */
 
 /**
- * The sharp's ink, from its own anchor point.
+ * An accidental's ink, from its anchor: the right edge of the glyph, on the
+ * baseline.
  *
- * Every accidental is given the sharp's room. A flat is shorter and a natural
- * narrower, so this over-reserves for them — which costs a little white space
- * and can never let two signs touch. Measuring each glyph separately would buy
- * back that space and put the column's width at the mercy of which accidental
- * the music happens to use.
+ * Which glyph is drawn depends on the machine — `--font-music` is a stack of
+ * faces that may or may not be installed — so this is the most any of them
+ * reaches, measured with `measureText` at the size the stylesheet sets. Every
+ * accidental is given that room. A flat is shorter and a natural narrower, so
+ * it over-reserves for them, which costs a little white space and can never
+ * let two signs touch.
+ *
+ * Anchored on the right because that is the edge that has to sit against the
+ * note. The faces disagree by three units about how wide a sharp is and by
+ * rather less about how much air it carries on its right.
  */
-const SHARP_INK = { width: 10.5, above: 21.3, below: 5.4 }
+const SIGN_INK = { width: 11, above: 16.5, below: 2.5 }
 /** The fingering numeral's ink, from its own anchor point. It is centred. */
 const FINGER_INK = { half: 2.2, above: 9.8, below: 2.5 }
 
-/** The pitch of a column of accidentals: the sharp, plus air. */
+/** The pitch of a column of accidentals: the sign, plus air. */
 const ACCIDENTAL_WIDTH = STEP * 2.4
-/** The air between the chord and the first column of accidentals. */
-const ACCIDENTAL_GAP = STEP * 0.4
-/** How far apart two accidentals must be to share a column — a sharp is tall. */
+/**
+ * The air between a sign's glyph and what it sits against.
+ *
+ * Small, because the glyph brings air of its own: two units of it on the
+ * right, in the face a Mac draws these with.
+ */
+const ACCIDENTAL_GAP = STEP * 0.1
+/**
+ * How far apart two accidentals must be to share a column.
+ *
+ * A seventh, which is the engraver's rule rather than a measurement: closer
+ * than that and two signs read as one mark even when their ink does not touch.
+ */
 const ACCIDENTAL_CLEAR = 6
 /** The least vertical room between two fingering numerals. */
 const FINGER_CLEAR = STEP * 2.8
@@ -201,13 +224,16 @@ function layout(
    * here instead, each line spanning the heads that need it and lit if any of
    * them is.
    */
-  const ledgers = new Map<number, { from: number; to: number; sounding: boolean }>()
+  const ledgers = new Map<number, { from: number; to: number; head: number; sounding: boolean }>()
   for (const [index, entry] of placed.entries())
     for (const steps of ledgerSteps(entry.placement)) {
       const line = ledgers.get(steps)
       ledgers.set(steps, {
         from: Math.min(line?.from ?? Infinity, headX[index]! - LEDGER_RX),
         to: Math.max(line?.to ?? -Infinity, headX[index]! + LEDGER_RX),
+        // Where the leftmost head on the line begins, for the line to be cut
+        // back to when a sign needs the room.
+        head: Math.min(line?.head ?? Infinity, headX[index]! - HEAD_RX),
         sounding: (line?.sounding ?? false) || (entry.sounding ?? false),
       })
     }
@@ -222,33 +248,91 @@ function layout(
   )
 
   /*
-   * Accidentals, in columns to the left of the chord.
+   * Accidentals, each against whatever is actually beside it.
    *
-   * A sharp stands more than five steps tall, so two of them closer than a
-   * seventh collide if they share a column and the lower one has to move out.
-   * An engraver works down from the top and outwards, which is what this does.
-   * It is the difference between a dense chord you can read and a stack of
-   * sharps you cannot.
+   * A sign belongs to one note and has to read as part of it, so it goes as
+   * close to that note as the ink allows. What is in its way is only what
+   * shares its height: its own head, a head displaced across the stem at a
+   * second, a down-stem, a ledger line. This used to clear the widest point of
+   * the whole chord instead, and a sharp three steps above a displaced head, or
+   * level with nothing but another note's ledger line, stood off in the margin
+   * looking like it belonged to no note at all.
+   *
+   * Signs then keep clear of each other. Two closer than a seventh cannot share
+   * a column, so the later one moves out past the earlier — working down from
+   * the top and outwards, which is how an engraver does it. It is the
+   * difference between a dense chord you can read and a stack of sharps you
+   * cannot.
    */
-  const columns: number[][] = []
-  const column = new Map<number, number>()
-  const sign = new Map<number, Accidental>()
-  for (let i = placed.length - 1; i >= 0; i--) {
-    const entry = placed[i]!
-    // Whoever knew the bar has already decided. The live staff has no bar to
-    // remember in, so its notes arrive undecided and the key answers.
-    const show =
-      entry.accidental !== undefined ? entry.accidental : accidentalToShow(entry.placement, fifths)
-    if (show === null || show === undefined) continue
-    let at = 0
-    while (columns[at]?.some((steps) => Math.abs(steps - entry.placement.steps) < ACCIDENTAL_CLEAR))
-      at += 1
-    ;(columns[at] ??= []).push(entry.placement.steps)
-    column.set(entry.note, at)
-    sign.set(entry.note, show)
+  const signY = (steps: number) => yOn(steps, staff) + STEP * 0.9
+  const signBand = (steps: number) => ({
+    top: signY(steps) - SIGN_INK.above,
+    bottom: signY(steps) + SIGN_INK.below,
+  })
+  // Whoever knew the bar has already decided. The live staff has no bar to
+  // remember in, so its notes arrive undecided and the key answers.
+  const shown = placed.map((entry) =>
+    entry.accidental !== undefined ? entry.accidental : accidentalToShow(entry.placement, fifths),
+  )
+
+  /*
+   * A ledger line gives way to a sign.
+   *
+   * It reaches well past its notehead, and a sign kept clear of that reach is
+   * a sign kept away from its note. So the line is cut back on that side to a
+   * stub, the way it is in print, and the sign takes the room.
+   */
+  for (const [index, entry] of placed.entries()) {
+    // A natural is 0, so this has to ask for null and not for falsy.
+    if (shown[index] == null) continue
+    const { top, bottom } = signBand(entry.placement.steps)
+    for (const [steps, line] of ledgers) {
+      const y = yOn(steps, staff)
+      if (y + STROKE > top && y - STROKE < bottom)
+        ledgers.set(steps, { ...line, from: Math.max(line.from, line.head - LEDGER_STUB) })
+    }
   }
-  const accidentalX = (note: number) =>
-    headLeft - ACCIDENTAL_GAP - (column.get(note)! + 1) * ACCIDENTAL_WIDTH
+
+  const stemTop = Math.min(stemStart, stemEnd)
+  const stemBottom = Math.max(stemStart, stemEnd)
+  const signs = new Map<number, { x: number; steps: number; sign: Accidental }>()
+  for (let i = placed.length - 1; i >= 0; i--) {
+    const sign = shown[i]
+    if (sign == null) continue
+    const steps = placed[i]!.placement.steps
+    const { top, bottom } = signBand(steps)
+
+    // The right edge of the glyph: left of everything at this height.
+    let at = Infinity
+    for (const [index, other] of placed.entries()) {
+      const y = yOn(other.placement.steps, staff)
+      if (y + HEAD_RY > top && y - HEAD_RY < bottom) at = Math.min(at, headX[index]! - HEAD_RX)
+    }
+    for (const [line, { from }] of ledgers) {
+      const y = yOn(line, staff)
+      if (y + STROKE > top && y - STROKE < bottom) at = Math.min(at, from - STROKE)
+    }
+    if (value.stemmed && stemBottom > top && stemTop < bottom) at = Math.min(at, stemX - STROKE)
+    at -= ACCIDENTAL_GAP
+
+    // Then out past any sign it would crowd, until it crowds none.
+    for (let moved = true; moved;) {
+      moved = false
+      for (const other of signs.values()) {
+        if (Math.abs(other.steps - steps) >= ACCIDENTAL_CLEAR) continue
+        if (at > other.x - ACCIDENTAL_WIDTH && at - ACCIDENTAL_WIDTH < other.x) {
+          at = other.x - ACCIDENTAL_WIDTH
+          moved = true
+        }
+      }
+    }
+    signs.set(placed[i]!.note, { x: at, steps, sign })
+  }
+  // The leftmost ink of the chord itself: its heads, or a sign beyond them.
+  const chordLeft = Math.min(
+    headLeft,
+    ...[...signs.values()].map((sign) => sign.x - ACCIDENTAL_WIDTH),
+  )
 
   /*
    * The arpeggio sign, for a chord the hand cannot close on at once.
@@ -257,7 +341,7 @@ function layout(
    * the whole chord, so nothing of the chord may sit outside it.
    */
   const rolled = placed.some((entry) => entry.rolled)
-  const arpeggioX = headLeft - ACCIDENTAL_GAP - columns.length * ACCIDENTAL_WIDTH - ARPEGGIO_WIDTH
+  const arpeggioX = chordLeft - ARPEGGIO_GAP - ARPEGGIO_WIDTH
 
   // Dots go in one column clear of the whole chord, not each beside its own
   // head, so a displaced head cannot push its dot into the stem.
@@ -311,10 +395,10 @@ function layout(
       top = Math.min(top, fingerY[index]! - FINGER_INK.above)
       bottom = Math.max(bottom, fingerY[index]! + FINGER_INK.below)
     }
-    if (column.has(entry.note)) {
-      const at = yOn(entry.placement.steps, staff) + STEP * 0.9
-      top = Math.min(top, at - SHARP_INK.above)
-      bottom = Math.max(bottom, at + SHARP_INK.below)
+    if (signs.has(entry.note)) {
+      const band = signBand(entry.placement.steps)
+      top = Math.min(top, band.top)
+      bottom = Math.max(bottom, band.bottom)
     }
   }
 
@@ -328,22 +412,14 @@ function layout(
     stemStart,
     stemEnd,
     ledgers,
-    accidentalX,
-    column,
-    sign,
+    signs,
     dotX,
     fingerX,
     fingerY,
     rolled,
     arpeggioX,
     /** How far the ink reaches either side of the chord's own position. */
-    left:
-      (rolled
-        ? arpeggioX
-        : headLeft -
-          (columns.length > 0 ? ACCIDENTAL_GAP + columns.length * ACCIDENTAL_WIDTH : 0)) -
-      x -
-      STROKE,
+    left: (rolled ? arpeggioX : chordLeft) - x - STROKE,
     right: (marked ? fingerX + FINGER_INK.half : inked) - x + STROKE,
     top: top - STROKE,
     bottom: bottom + STROKE,
@@ -434,11 +510,7 @@ function StaffGroup({
           x={box.headX[index]!}
           placement={entry.placement}
           value={value}
-          accidental={
-            box.column.has(entry.note)
-              ? { x: box.accidentalX(entry.note), sign: box.sign.get(entry.note)! }
-              : null
-          }
+          accidental={box.signs.get(entry.note) ?? null}
           dotX={box.dotX}
           finger={entry.finger}
           fingerAt={{ x: box.fingerX, y: box.fingerY[index]! }}
@@ -462,7 +534,7 @@ function Head({
   x: number
   placement: StaffPlacement
   value: WrittenValue
-  /** Which sign to print and where, or null when nothing is printed. */
+  /** Which sign to print and where its right edge goes, or null for none. */
   accidental: { x: number; sign: Accidental } | null
   dotX: number
   finger?: number
@@ -489,7 +561,7 @@ function Head({
         />
       )}
       {accidental !== null && (
-        <text x={accidental.x} y={cy + STEP * 0.9} className="staff__accidental">
+        <text x={accidental.x} y={cy + STEP * 0.9} textAnchor="end" className="staff__accidental">
           {ACCIDENTAL_SIGNS[accidental.sign]}
         </text>
       )}
