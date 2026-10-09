@@ -108,8 +108,33 @@ describe('a song playing itself', () => {
     await play([note(60, 200, 100)])
 
     // Handed over whole as play begins, two hundred milliseconds early: the
-    // key, how hard, how long from now, and how long it lasts.
-    expect(handedOver).toEqual([[0, 60, 90, 200, 100]])
+    // key, how hard, how long from now, and how long it lasts. How hard is the
+    // written 90 brought toward mezzo-forte — see the next test.
+    expect(handedOver).toEqual([[0, 60, 85, 200, 100]])
+  })
+
+  it('sounds a score over half its written range, and lights the keys as written', async () => {
+    // Pianissimo, mezzo-forte, fortissimo. An instrument's loudness goes by
+    // the square of the velocity, so as written the first is twenty decibels
+    // under the last: one cannot be heard, or the other is too loud.
+    const written = [33, 80, 112]
+    const lit: number[] = []
+    const stop = useKeyboardStore.subscribe((state) => {
+      for (const index of written.keys()) {
+        const held = state.active[60 + index]
+        if (held && lit[index] === undefined) lit[index] = held.velocity
+      }
+    })
+    await play(
+      written.map((velocity, index) => ({ ...note(60 + index, index * 100, 50), velocity })),
+    )
+    act(() => vi.advanceTimersByTime(400))
+    stop()
+
+    const sounded = audio.play.mock.calls.map(([, velocity]) => velocity as number)
+    expect(sounded).toEqual([51, 80, 95])
+    // The key shows the dynamic the score wrote, soft notes paler.
+    expect(lit).toEqual(written)
   })
 
   it('calls off a note it has promised when the song is stopped before its moment', async () => {

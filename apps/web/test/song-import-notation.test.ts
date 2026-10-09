@@ -398,6 +398,118 @@ describe('a MusicXML score', () => {
     expect(song.notes.map((note) => note.durationQ)).toEqual([1.5, 0.5])
   })
 
+  /*
+   * Loudness, as the score writes it. The complaint behind these: a song too
+   * quiet to hear in one passage and too loud in the next.
+   */
+  const dynamic = (marking: string, staff?: number) =>
+    `<direction><direction-type><dynamics>${marking}</dynamics></direction-type>${
+      staff ? `<staff>${staff}</staff>` : ''
+    }</direction>`
+  const wedge = (type: string) =>
+    `<direction><direction-type><wedge type="${type}" number="1"/></direction-type></direction>`
+  const piano = (...measures: string[]) =>
+    importMusicXml(
+      xml(
+        `<part id="P1">${measures
+          .map(
+            (body, index) =>
+              `<measure number="${index + 1}">${
+                index === 0
+                  ? '<attributes><divisions>1</divisions><staves>2</staves><time><beats>4</beats><beat-type>4</beat-type></time></attributes>'
+                  : ''
+              }${body}</measure>`,
+          )
+          .join('')}</part>`,
+        scorePart('P1', 'Piano', 1),
+      ),
+      'loudness',
+    )!
+  const upper = (step: string) => xnote(step, 4, 1, '<staff>1</staff>')
+  const lower = (step: string) => xnote(step, 3, 1, '<staff>2</staff>')
+  const struck = (song: { notes: readonly { hand: string; velocity: number }[] }, hand: string) =>
+    song.notes.filter((note) => note.hand === hand).map((note) => note.velocity)
+
+  it('accents the one note a sforzando stands under, and no more', () => {
+    const song = piano(
+      dynamic('<p/>') + upper('C') + dynamic('<sf/>') + upper('D') + upper('E') + upper('F'),
+    )
+    // Read as a level, the sf left every note after it fortissimo.
+    expect(struck(song, 'right')).toEqual([49, 81, 49, 49])
+  })
+
+  it('is not moved by a marking that says nothing about loudness', () => {
+    const song = piano(
+      dynamic('<pp/>') +
+        upper('C') +
+        dynamic('<other-dynamics>dolce</other-dynamics>') +
+        upper('D') +
+        dynamic('<fz/>') +
+        upper('E') +
+        upper('F'),
+    )
+    // "dolce" used to reset the piece to mezzo-forte, and fz with it.
+    expect(struck(song, 'right')).toEqual([33, 33, 65, 33])
+  })
+
+  it('rises through a hairpin instead of jumping at the end of it', () => {
+    const song = piano(
+      dynamic('<p/>') + wedge('crescendo') + upper('C') + upper('D') + upper('E') + upper('F'),
+      wedge('stop') + dynamic('<f/>') + upper('G') + upper('A') + upper('B') + upper('C'),
+    )
+    expect(struck(song, 'right')).toEqual([49, 61, 73, 84, 96, 96, 96, 96])
+  })
+
+  it('gives both hands a marking at the moment it is written, whichever staff carries it', () => {
+    const backup = '<backup><duration>4</duration></backup>'
+    const song = piano(
+      // Written in the upper staff at the third beat; the lower staff comes
+      // later in the file and used to hear it from the first.
+      upper('C') +
+        upper('D') +
+        dynamic('<ff/>', 1) +
+        upper('E') +
+        upper('F') +
+        backup +
+        lower('C') +
+        lower('D') +
+        lower('E') +
+        lower('F'),
+      // And written in the lower staff, which the upper never heard that bar.
+      upper('G') +
+        upper('A') +
+        upper('B') +
+        upper('C') +
+        backup +
+        dynamic('<pp/>', 2) +
+        lower('G') +
+        lower('A') +
+        lower('B') +
+        lower('C'),
+    )
+    expect(struck(song, 'right')).toEqual([80, 80, 112, 112, 33, 33, 33, 33])
+    expect(struck(song, 'left')).toEqual([80, 80, 112, 112, 33, 33, 33, 33])
+  })
+
+  it('keeps each hand its own level where the score marks them apart', () => {
+    const backup = '<backup><duration>4</duration></backup>'
+    const song = piano(
+      dynamic('<mf/>', 1) +
+        upper('C') +
+        upper('D') +
+        upper('E') +
+        upper('F') +
+        backup +
+        dynamic('<p/>', 2) +
+        lower('C') +
+        lower('D') +
+        lower('E') +
+        lower('F'),
+    )
+    expect(struck(song, 'right')).toEqual([80, 80, 80, 80])
+    expect(struck(song, 'left')).toEqual([49, 49, 49, 49])
+  })
+
   it('reads a tuplet and a grace note', () => {
     const triplet = (step: string) =>
       xnote(

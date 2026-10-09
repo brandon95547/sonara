@@ -1,14 +1,18 @@
 import {
+  DEFAULT_VELOCITY,
+  applyDynamics,
   buildSong,
+  dynamicEvents,
   inferHand,
   modeForFifths,
   numberMeasures,
   spellingFromTpc,
   spellingName,
   tonicForFifths,
-  velocityForDynamic,
   type ChordSymbol,
   type DetectedKey,
+  type DynamicEvent,
+  type DynamicLine,
   type Hand,
   type NoteValue,
   type PedalSpan,
@@ -226,6 +230,16 @@ export function importMuseScore(text: string, fallbackTitle: string): Song | nul
   }
 
   let guessedAHand = false
+  /*
+   * What the score says about loudness, and the notes it says it to: applied
+   * once every staff has been read, by when a marking falls in the music. A
+   * marking used to last only to the end of the voice and bar it was written
+   * in, which is to say hardly at all.
+   */
+  const loudness: { events: DynamicEvent[]; notes: { index: number; line: DynamicLine }[] } = {
+    events: [],
+    notes: [],
+  }
 
   for (const [, idText, staffBody = ''] of staves) {
     const staffIndex = Number(idText)
@@ -269,7 +283,6 @@ export function importMuseScore(text: string, fallbackTitle: string): Song | nul
 
       for (const voiceBody of bodies) {
         let cursor = 0
-        let dynamic: string | undefined
         /** Tuplets in force, innermost last. Each scales what is under it. */
         const tuplets: { id: number; actual: number; normal: number }[] = []
 
@@ -289,7 +302,13 @@ export function importMuseScore(text: string, fallbackTitle: string): Song | nul
           'Harmony',
         ])) {
           if (element.tag === 'Dynamic') {
-            dynamic = inner(element.body, 'subtype')?.trim() || dynamic
+            loudness.events.push(
+              ...dynamicEvents(
+                inner(element.body, 'subtype')?.trim(),
+                measureStartQ + cursor,
+                staffIndex,
+              ),
+            )
             continue
           }
           if (element.tag === 'Tempo') {
@@ -434,7 +453,8 @@ export function importMuseScore(text: string, fallbackTitle: string): Song | nul
 
             const parsed: Parsed = {
               note: pitch,
-              velocity: velocityForDynamic(dynamic),
+              // Until every staff has been read: see where `loudness` is applied.
+              velocity: DEFAULT_VELOCITY,
               startMs: 0,
               durationMs: 0,
               startQ,
@@ -445,9 +465,9 @@ export function importMuseScore(text: string, fallbackTitle: string): Song | nul
               ...(spelling ? { spelling } : {}),
               ...(grace ? { grace: true } : {}),
               ...(finger ? { finger } : {}),
-              ...(dynamic ? { dynamic } : {}),
             }
             notes.push(parsed)
+            loudness.notes.push({ index: notes.length - 1, line: staffIndex })
             if (starts) tied.set(pitch, parsed)
           }
           if (!grace) {
@@ -489,6 +509,22 @@ export function importMuseScore(text: string, fallbackTitle: string): Song | nul
   }
 
   if (notes.length === 0) return null
+
+  // How hard each note is struck, now that every marking has a place in time.
+  // A grace note is governed with the beat it leans on.
+  if (loudness.events.length > 0) {
+    const struck = applyDynamics(
+      loudness.notes.map(({ index, line }) => {
+        const note = notes[index]!
+        return { startQ: note.grace ? note.startQ + GRACE_Q : note.startQ, line }
+      }),
+      loudness.events,
+    )
+    loudness.notes.forEach(({ index }, at) => {
+      const { velocity, dynamic } = struck[at]!
+      notes[index] = { ...notes[index]!, velocity, ...(dynamic ? { dynamic } : {}) }
+    })
+  }
 
   const toMs = clock(tempos)
   const timed: SongNote[] = notes.map((note) => ({

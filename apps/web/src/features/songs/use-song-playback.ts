@@ -1,5 +1,11 @@
 import * as React from 'react'
-import { playDuration, scoreWindows, type Song, type SongNote } from '@sonara/shared'
+import {
+  playDuration,
+  playbackVelocity,
+  scoreWindows,
+  type Song,
+  type SongNote,
+} from '@sonara/shared'
 import { useAudio } from '@/audio/AudioProvider'
 import { hitDrum } from '@/audio/drum-kit'
 import { keyboardActions } from '@/state/keyboard-store'
@@ -120,7 +126,13 @@ export function useSongPlayback(song: Song | null) {
       timers.current.add(timer)
     }
 
+    /** As written: what a key is lit with, soft notes paler. */
     const velocityOf = (note: SongNote) => Math.min(127, Math.max(1, Math.round(note.velocity)))
+    /**
+     * As sounded: the written dynamics over half their range, so a pianissimo
+     * can be heard and a fortissimo is not a jolt. See `playbackVelocity`.
+     */
+    const soundOf = (note: SongNote) => playbackVelocity(velocityOf(note))
 
     /**
      * Hands a note to the audio clock whole: when it begins, and how long it
@@ -129,7 +141,7 @@ export function useSongPlayback(song: Song | null) {
      */
     const promise = (note: SongNote, delayMs: number, scale: number): boolean =>
       note.role !== 'percussion' &&
-      audioRef.current.play(note.note, velocityOf(note), delayMs, note.durationMs / scale)
+      audioRef.current.play(note.note, soundOf(note), delayMs, note.durationMs / scale)
 
     /**
      * A note's moment: its key goes down, and comes up when its time is over.
@@ -142,7 +154,7 @@ export function useSongPlayback(song: Song | null) {
       // instrument, so it goes to the kit and never near the piano or the
       // keys — and it has no duration to release, only a decay of its own.
       if (note.role === 'percussion') {
-        hitDrum(note.note, velocity)
+        hitDrum(note.note, soundOf(note))
         return
       }
 
@@ -151,7 +163,7 @@ export function useSongPlayback(song: Song | null) {
         // Struck again while it is still down: let go first, so the
         // instrument hears a new note rather than more of the old one.
         if (sounding.current.has(note.note)) audioRef.current.noteOff(note.note)
-        audioRef.current.noteOn(note.note, velocity)
+        audioRef.current.noteOn(note.note, soundOf(note))
       }
       sounding.current.set(note.note, strikeId)
 

@@ -1,17 +1,22 @@
 import {
+  DEFAULT_VELOCITY,
+  applyDynamics,
   buildSong,
+  dynamicEvents,
   inferHand,
   modeForFifths,
   numberMeasures,
   playOrder,
   sectionsFor,
   spellingName,
+  swellOfWords,
   tonicForFifths,
   valueQuarters,
-  velocityForDynamic,
   type Accidental,
   type ChordSymbol,
   type DetectedKey,
+  type DynamicEvent,
+  type DynamicLine,
   type Hand,
   type NoteValue,
   type PartRole,
@@ -284,6 +289,17 @@ export function importMusicXml(text: string, fallbackTitle: string): Song | null
     ending?: readonly number[]
   }[] = []
   const notes: Parsed[] = []
+  /*
+   * What each instrument's score says about loudness, and the notes it says
+   * it to. Gathered as the parts are read and applied once they all have been:
+   * a marking governs by when it falls in the music, not where it falls in the
+   * file, and a piano written as a part a hand is one instrument with one set
+   * of markings.
+   */
+  const dynamics = new Map<
+    string,
+    { events: DynamicEvent[]; notes: { index: number; line?: DynamicLine }[] }
+  >()
   const pedalsQ: { fromQ: number; toQ: number }[] = []
   const chordsQ: { startQ: number; text: string }[] = []
   let leadNamesStaves = false
@@ -294,10 +310,9 @@ export function importMusicXml(text: string, fallbackTitle: string): Song | null
     let beats = 4
     let beatType = 4
     let measureStartQ = 0
-    // Both are in force until changed, so they are read as state rather than as
-    // a property of the note that happens to carry the marking.
-    let dynamic: string | undefined
     let pedalFromQ: number | null = null
+    /** Hairpins that have opened and not yet closed, by the number the file gives them. */
+    const wedges = new Map<string, { fromQ: number; direction: 'louder' | 'softer' }>()
     /** Open tied notes, so the continuation extends rather than restrikes. */
     const tied = new Map<string, Parsed>()
     /** The tuplet each voice is inside, if any. */
@@ -305,6 +320,9 @@ export function importMusicXml(text: string, fallbackTitle: string): Song | null
     const role: PartRole = piano?.parts.has(part.id) ? 'keyboard' : 'accompaniment'
     /** The hand this whole part is, when the piano is written as a part a hand. */
     const partHand = piano?.hands.get(part.id)
+    const loudnessOf = partHand ? 'piano' : part.id
+    const loudness = dynamics.get(loudnessOf) ?? { events: [], notes: [] }
+    dynamics.set(loudnessOf, loudness)
 
     const measures = [...part.body.matchAll(/<measure\b[^>]*>([\s\S]*?)<\/measure>/g)]
     for (const [index, [, body = '']] of measures.entries()) {
@@ -373,9 +391,47 @@ export function importMusicXml(text: string, fallbackTitle: string): Song | null
         }
 
         if (tag === 'direction' || tag === 'sound') {
-          // <dynamics><mf/> — the marking is the element name, not its text.
-          const marking = /<dynamics(?:\s[^>]*)?>\s*<([a-z]+)\s*\/>/.exec(content)?.[1]
-          if (marking) dynamic = marking
+          // Where it stands in the music, and on which staff — or, for a
+          // piano written as a part a hand, in which hand.
+          const atQ = measureStartQ + (cursor + (num(content, 'offset') ?? 0)) / divisions
+          const line: DynamicLine | undefined = partHand ? part.id : num(content, 'staff')
+          const on = line === undefined ? {} : { line }
+
+          // <dynamics><mf/> — the marking is the element name, not its text,
+          // except for one an edition made up, which is spelled out.
+          const marked = /<dynamics(?:\s[^>]*)?>([\s\S]*?)<\/dynamics>/.exec(content)?.[1] ?? ''
+          for (const [, name = '', text = ''] of marked.matchAll(
+            /<([a-z-]+)(?:\s[^>]*)?(?:\/>|>([^<]*)<\/\1>)/g,
+          )) {
+            const marking = name === 'other-dynamics' ? text.trim() : name
+            const swell = swellOfWords(marking)
+            if (swell) loudness.events.push({ kind: 'swell', fromQ: atQ, direction: swell, ...on })
+            else loudness.events.push(...dynamicEvents(marking, atQ, line))
+          }
+
+          // A hairpin is a spanner, like the pedal: it opens here and closes
+          // in a later direction.
+          for (const [, wedge = ''] of content.matchAll(/<wedge\b([^>]*)>/g)) {
+            const type = /type="([a-z]+)"/.exec(wedge)?.[1]
+            const number = /number="(\d+)"/.exec(wedge)?.[1] ?? '1'
+            if (type === 'crescendo' || type === 'diminuendo') {
+              wedges.set(number, {
+                fromQ: atQ,
+                direction: type === 'crescendo' ? 'louder' : 'softer',
+              })
+            } else if (type === 'stop') {
+              const open = wedges.get(number)
+              wedges.delete(number)
+              if (open && atQ > open.fromQ)
+                loudness.events.push({ kind: 'swell', ...open, toQ: atQ, ...on })
+            }
+          }
+
+          // The same thing written as a word: cresc., dim.
+          for (const [, words = ''] of content.matchAll(/<words\b[^>]*>([^<]*)<\/words>/g)) {
+            const swell = swellOfWords(words)
+            if (swell) loudness.events.push({ kind: 'swell', fromQ: atQ, direction: swell, ...on })
+          }
 
           // Pedal is a spanner: one direction starts it, another stops it.
           const pedalType = /<pedal\b[^>]*type="([a-z]+)"/.exec(content)?.[1]
@@ -541,7 +597,8 @@ export function importMusicXml(text: string, fallbackTitle: string): Song | null
 
         const note: Parsed = {
           note: midi,
-          velocity: velocityForDynamic(dynamic),
+          // Until the whole score has been read: see where `dynamics` is applied.
+          velocity: DEFAULT_VELOCITY,
           startMs: 0,
           durationMs: 0,
           startQ,
@@ -553,9 +610,10 @@ export function importMusicXml(text: string, fallbackTitle: string): Song | null
           ...(written ? { written } : {}),
           ...(isGrace ? { grace: true } : {}),
           ...(finger ? { finger } : {}),
-          ...(dynamic ? { dynamic } : {}),
         }
         notes.push(note)
+        const line: DynamicLine | undefined = partHand ? part.id : staff
+        loudness.notes.push({ index: notes.length - 1, ...(line === undefined ? {} : { line }) })
         if (/<tie[^>]*type="start"/.test(content)) tied.set(tieKey, note)
 
         if (!isChord && !isGrace) {
@@ -580,6 +638,27 @@ export function importMusicXml(text: string, fallbackTitle: string): Song | null
   }
 
   if (notes.length === 0) return null
+
+  // How hard each note is struck, now that every marking is known and has a
+  // place in time. A grace note is struck before the beat it leans on and is
+  // governed with it, so it is placed there for this.
+  for (const { events, notes: governed } of dynamics.values()) {
+    if (events.length === 0) continue
+    const struck = applyDynamics(
+      governed.map(({ index, line }) => {
+        const note = notes[index]!
+        return {
+          startQ: note.grace ? note.startQ + GRACE_Q : note.startQ,
+          ...(line === undefined ? {} : { line }),
+        }
+      }),
+      events,
+    )
+    governed.forEach(({ index }, at) => {
+      const { velocity, dynamic } = struck[at]!
+      notes[index] = { ...notes[index]!, velocity, ...(dynamic ? { dynamic } : {}) }
+    })
+  }
 
   // From crotchets to milliseconds, through every tempo mark in order.
   const toMs = clock(tempos)
