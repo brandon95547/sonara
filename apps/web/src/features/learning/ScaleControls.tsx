@@ -185,7 +185,8 @@ function rootOptions(scaleTypeId: string, selected: { pitchClass: number; tonic?
  * So that an exercise is placed where the book prints it when the keyboard
  * reaches that far: A major in contrary motion goes down to the A at the very
  * bottom of an 88, which a 61-key instrument does not have. With nothing
- * plugged in it is the on-screen keyboard's 61.
+ * plugged in it is a 61-key instrument's: every exercise then fits the smallest
+ * keyboard most players own, and the keyboard on screen shows at least that.
  */
 export function KeyboardRangeSync() {
   const { connectedPorts } = useMidi()

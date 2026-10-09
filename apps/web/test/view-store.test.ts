@@ -25,10 +25,11 @@ describe('the keyboard view', () => {
   })
 
   it('moves the visible keys an octave at a time, keeping their number', () => {
-    const before = view().window
+    // From a window with an octave of piano above it. The one it starts on has
+    // not: 76 keys leave five semitones to the top of an 88.
+    view().setWindow({ low: 36, high: 96 })
     view().shiftOctave(1)
-    expect(view().window.low).toBe(before.low + 12)
-    expect(view().window.high - view().window.low).toBe(before.high - before.low)
+    expect(view().window).toEqual({ low: 48, high: 108 })
   })
 
   it('stops at the ends of the piano rather than showing keys it does not have', () => {

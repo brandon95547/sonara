@@ -12,12 +12,11 @@ touchscreen or a USB MIDI keyboard, and watch every note land on the keys.
 
 - **A virtual keyboard on center stage**, responsive from 320px to a 4K monitor.
   It is sized in the sizes keyboards are sold in — 25, 32, 37, 49, 61, 76, 88 —
-  defaulting to **61 key**, and each one keeps the range that size really has
-  (a 32 starts on F, a 76 on E). Auto narrows when the screen cannot show 61 at
+  defaulting to **76 key**, and each one keeps the range that size really has
+  (a 32 starts on F, a 76 on E). Auto narrows when the screen cannot show 76 at
   a playable key width, and never widens past it: a 4K monitor has room for all
-  88, but that is not a reason to hand someone a keyboard twice the size of the
-  one they own. The view follows what you play, so a note off-screen still
-  shows up.
+  88, but that is not a reason to hand someone more keyboard than they need.
+  The view follows what you play, so a note off-screen still shows up.
 - **Seven pianos** — a sampled concert grand, an upright, a honky-tonk, a Rhodes,
   a Wurlitzer, and a fully synthesized one that needs no network at all.
 - **USB MIDI in**, with per-keyboard detection and configuration: transpose,

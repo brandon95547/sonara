@@ -90,27 +90,30 @@ describe('the size table', () => {
     }
   })
 
-  it('defaults to 61 key', () => {
-    expect(DEFAULT_KEY_COUNT).toBe(61)
-    expect(DEFAULT_SPAN.label).toBe('61 key')
+  it('defaults to 76 key', () => {
+    expect(DEFAULT_KEY_COUNT).toBe(76)
+    expect(DEFAULT_SPAN.label).toBe('76 key')
   })
 })
 
 describe('chooseSpan', () => {
   it('picks the default size on an ordinary desktop', () => {
-    expect(chooseSpan(1400, false).keyCount).toBe(61)
+    expect(chooseSpan(1400, false).keyCount).toBe(76)
   })
 
   it('never goes above the default, however much room there is', () => {
     // A 4K monitor has space for 88 keys. That is not a reason to hand someone
-    // a keyboard twice the size of the one they own.
+    // more keyboard than they need.
     expect(chooseSpan(3840, false).keyCount).toBe(DEFAULT_KEY_COUNT)
   })
 
   it('narrows once the default no longer fits', () => {
-    // 61 keys is 36 white keys, so it fits comfortably at 760px and does not
-    // at 600. Below that the sizes step down rather than squeezing.
-    expect(chooseSpan(1400, false).keyCount).toBe(61)
+    // 76 keys is 45 white keys, so it fits at 900px under a mouse and not at
+    // 880; 61 is 36, and fits at 760 and not at 600. Below that the sizes step
+    // down rather than squeezing.
+    expect(chooseSpan(1400, false).keyCount).toBe(76)
+    expect(chooseSpan(900, false).keyCount).toBe(76)
+    expect(chooseSpan(880, false).keyCount).toBe(61)
     expect(chooseSpan(760, false).keyCount).toBe(61)
     expect(chooseSpan(600, false).keyCount).toBeLessThan(61)
     expect(chooseSpan(340, true).keyCount).toBeLessThan(chooseSpan(600, false).keyCount)

@@ -112,12 +112,14 @@ export const KEYBOARD_SPANS: readonly KeyboardSpan[] = KEY_COUNTS.map((keyCount)
  * What the keyboard shows unless the player says otherwise, and the ceiling on
  * what auto will choose.
  *
- * 61 is the most common size sold and covers the large majority of teaching
- * material. Auto never goes above it — a 4K monitor has room for all 88, but
- * "there is space" is not a reason to hand someone a keyboard twice the size of
- * the one they own. Picking 76 or 88 from the list is one click away.
+ * 76 keys, E to G as the instrument is built. It was 61, the most common size
+ * sold, until a wider default was asked for; 76 is the next size up, and its
+ * 45 white keys still fit an ordinary desktop at a playable width. Auto never
+ * goes above it — a 4K monitor has room for all 88, but "there is space" is
+ * not a reason to hand someone more keyboard than they need. Picking 88 from
+ * the list is one click away.
  */
-export const DEFAULT_KEY_COUNT: KeyCount = 61
+export const DEFAULT_KEY_COUNT: KeyCount = 76
 
 export const DEFAULT_SPAN: KeyboardSpan = KEYBOARD_SPANS.find(
   (span) => span.keyCount === DEFAULT_KEY_COUNT,

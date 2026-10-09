@@ -42,7 +42,7 @@ export function KeyboardDock() {
 
   // Auto is capped at the default size, so the fallback before the container
   // has been measured is the same keyboard the player will end up with on any
-  // ordinary screen — no resize flash from 88 keys down to 61.
+  // ordinary screen — no resize flash from 88 keys down to 76.
   const autoSpan = React.useMemo(
     () => (width > 0 ? chooseSpan(width, coarse) : DEFAULT_SPAN),
     [width, coarse],

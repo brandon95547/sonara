@@ -165,7 +165,7 @@ interface LearningState {
    */
   fingeringSystem: FingeringSystemId
   /**
-   * The keys the player has: a connected keyboard's, or the on-screen 61.
+   * The keys the player has: a connected keyboard's, or a 61-key instrument's.
    *
    * It only ever moves an exercise by octaves — to where the book prints it
    * when the keyboard reaches that far, and onto the keys there are when it
