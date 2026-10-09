@@ -465,3 +465,74 @@ describe('a MusicXML score', () => {
     ])
   })
 })
+
+/**
+ * A piano is not always one part on two staves. These are the two other ways
+ * the built-in scores write one, each of which was once read as a piano with
+ * an accompaniment: the keys lit for one hand, or for a handful of ornaments.
+ */
+describe('a piano written as more than one part', () => {
+  const bar = (clef: 'G' | 'F', notes: string, staves = '') =>
+    `<measure number="1"><attributes><divisions>1</divisions>${staves}<clef><sign>${clef}</sign><line>2</line></clef></attributes>${notes}</measure>`
+  const hands = (parts: string, partList: string) =>
+    importMusicXml(xml(parts, partList), 'parts')!.notes.map((note) => [
+      note.note,
+      note.role,
+      note.hand,
+    ])
+  // Middle C in the bass part: by its pitch alone it would be the right hand's.
+  const treble = `<part id="P1">${bar('G', xnote('E', 4, 4))}</part>`
+  const bass = `<part id="P2">${bar('F', xnote('C', 4, 4))}</part>`
+
+  it('reads two one-staff piano parts, treble then bass, as its two hands', () => {
+    const song = importMusicXml(
+      xml(treble + bass, scorePart('P1', 'Piano') + scorePart('P2', 'Piano')),
+      'split',
+    )!
+    expect(song.notes.map((note) => [note.note, note.role, note.hand])).toEqual([
+      [60, 'keyboard', 'left'],
+      [64, 'keyboard', 'right'],
+    ])
+    // The score said which hand, so it is not a guess.
+    expect(song.handsInferred).toBe(false)
+  })
+
+  it('does the same where the parts have no name and only a piano program', () => {
+    expect(hands(treble + bass, scorePart('P1', '', 1) + scorePart('P2', '', 1))).toEqual([
+      [60, 'keyboard', 'left'],
+      [64, 'keyboard', 'right'],
+    ])
+  })
+
+  it('still reads any other pair of one-staff parts as two instruments', () => {
+    // A flute over a piano: one of them is not a keyboard.
+    expect(hands(treble + bass, scorePart('P1', 'Flute') + scorePart('P2', 'Piano'))).toEqual([
+      [60, 'keyboard', 'right'],
+      [64, 'accompaniment', 'right'],
+    ])
+    // Two keyboards both in the treble: a duet, not a pair of hands.
+    const second = `<part id="P2">${bar('G', xnote('C', 4, 4))}</part>`
+    expect(hands(treble + second, scorePart('P1', 'Piano') + scorePart('P2', 'Piano'))).toEqual([
+      [60, 'accompaniment', 'right'],
+      [64, 'keyboard', 'right'],
+    ])
+  })
+
+  it('takes the part on two staves for the piano, over a one-staff part that comes first', () => {
+    const ornaments = `<part id="P1">${bar('G', xnote('G', 5, 4))}</part>`
+    const piano = `<part id="P2">${bar(
+      'G',
+      xnote('E', 4, 4, '<staff>1</staff>') +
+        '<backup><duration>4</duration></backup>' +
+        xnote('C', 3, 4, '<staff>2</staff>'),
+      '<staves>2</staves>',
+    )}</part>`
+    expect(
+      hands(ornaments + piano, scorePart('P1', 'Piano ornaments') + scorePart('P2', 'Piano')),
+    ).toEqual([
+      [48, 'keyboard', 'left'],
+      [64, 'keyboard', 'right'],
+      [79, 'accompaniment', 'right'],
+    ])
+  })
+})

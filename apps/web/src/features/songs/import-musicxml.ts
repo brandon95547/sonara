@@ -132,27 +132,70 @@ function readPartList(text: string): PartInfo[] {
   )
 }
 
+const KEYBOARD_NAME = /piano|keyboard|klavier|clavier|harpsichord|organ|celest|rhodes|synth/i
+
+/** The parts under the player's fingers. */
+interface Piano {
+  readonly parts: ReadonlySet<string>
+  /** The hand a part is, where the score gives each hand a part of its own. */
+  readonly hands: ReadonlyMap<string, Hand>
+}
+
 /**
  * Which part is the piano.
  *
  * The one the part list calls a piano or a keyboard, else the one it gives a
  * keyboard program, else the one written on two staves, else the first. The
  * others are the rest of the room: heard, and not put under the fingers.
+ *
+ * Where several are called a piano, the one on two staves is it. A one-staff
+ * part beside it is a line of ornaments or an ossia, and taking that for the
+ * piano because it came first left the real one as accompaniment: eight notes
+ * to play in a piece of eighteen hundred.
+ *
+ * And a piano is sometimes written as two parts of one staff each, treble then
+ * bass, by a program that was given a staff per hand. Those two are one piano,
+ * the first its right hand and the second its left. Read as a piano and its
+ * accompaniment, the left hand was heard and never asked for. Only two
+ * keyboards in those two clefs are joined this way; any other pair of
+ * one-staff parts is still two instruments.
  */
-function chooseLead(
+function choosePiano(
   parts: readonly PartInfo[],
   staves: ReadonlyMap<string, number>,
-): string | null {
+  clefs: ReadonlyMap<string, string>,
+): Piano | null {
   if (parts.length === 0) return null
-  const named = parts.find((part) =>
-    /piano|keyboard|klavier|clavier|harpsichord|organ|celest|rhodes|synth/i.test(part.name),
-  )
-  if (named) return named.id
-  const programmed = parts.find((part) => part.program !== undefined && part.program <= 23)
-  if (programmed) return programmed.id
-  const twoStaves = parts.find((part) => (staves.get(part.id) ?? 1) >= 2)
-  if (twoStaves) return twoStaves.id
-  return parts[0]!.id
+  const only = (id: string): Piano => ({ parts: new Set([id]), hands: new Map() })
+  const grand = (part: PartInfo) => (staves.get(part.id) ?? 1) >= 2
+
+  const named = parts.filter((part) => KEYBOARD_NAME.test(part.name))
+  const keyboards =
+    named.length > 0
+      ? named
+      : parts.filter((part) => part.program !== undefined && part.program <= 23)
+  if (keyboards.length === 0) return only((parts.find(grand) ?? parts[0]!).id)
+
+  const onTwoStaves = keyboards.find(grand)
+  if (onTwoStaves) return only(onTwoStaves.id)
+
+  const [upper, lower] = keyboards
+  if (
+    keyboards.length === 2 &&
+    upper &&
+    lower &&
+    clefs.get(upper.id) === 'G' &&
+    clefs.get(lower.id) === 'F'
+  ) {
+    return {
+      parts: new Set([upper.id, lower.id]),
+      hands: new Map<string, Hand>([
+        [upper.id, 'right'],
+        [lower.id, 'left'],
+      ]),
+    }
+  }
+  return only(keyboards[0]!.id)
 }
 
 interface Parsed extends SongNote {
@@ -174,10 +217,16 @@ export function importMusicXml(text: string, fallbackTitle: string): Song | null
   if (parts.length === 0) return null
 
   const stavesOf = new Map<string, number>()
-  for (const part of parts) stavesOf.set(part.id, num(part.body, 'staves') ?? 1)
-  const lead = chooseLead(
+  /** The clef each part opens in. */
+  const clefOf = new Map<string, string>()
+  for (const part of parts) {
+    stavesOf.set(part.id, num(part.body, 'staves') ?? 1)
+    clefOf.set(part.id, inner(part.body, 'sign')?.trim() ?? '')
+  }
+  const piano = choosePiano(
     partList.length > 0 ? partList : parts.map((part) => ({ id: part.id, name: '' })),
     stavesOf,
+    clefOf,
   )
 
   let fifths: number | null = null
@@ -205,7 +254,9 @@ export function importMusicXml(text: string, fallbackTitle: string): Song | null
     const tied = new Map<string, Parsed>()
     /** The tuplet each voice is inside, if any. */
     const tuplets = new Map<string, { id: number; actual: number; normal: number }>()
-    const role: PartRole = part.id === lead ? 'keyboard' : 'accompaniment'
+    const role: PartRole = piano?.parts.has(part.id) ? 'keyboard' : 'accompaniment'
+    /** The hand this whole part is, when the piano is written as a part a hand. */
+    const partHand = piano?.hands.get(part.id)
 
     const measures = [...part.body.matchAll(/<measure\b[^>]*>([\s\S]*?)<\/measure>/g)]
     for (const [index, [, body = '']] of measures.entries()) {
@@ -336,8 +387,9 @@ export function importMusicXml(text: string, fallbackTitle: string): Song | null
         const spelling: Spelling = { letter: LETTER_INDEX[step] ?? 0, accidental: alter }
 
         const staff = num(content, 'staff')
-        if (role === 'keyboard' && staff !== undefined) leadNamesStaves = true
-        const hand: Hand = staff === 2 ? 'left' : staff === 1 ? 'right' : inferHand(midi)
+        if (role === 'keyboard' && (staff !== undefined || partHand)) leadNamesStaves = true
+        const hand: Hand =
+          partHand ?? (staff === 2 ? 'left' : staff === 1 ? 'right' : inferHand(midi))
 
         const startQ = isGrace
           ? Math.max(0, measureStartQ + start / divisions - GRACE_Q)
