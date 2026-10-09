@@ -130,6 +130,36 @@ describe('breaking a score into systems', () => {
     expect(systems.at(-1)!.to).toBe(measured.length)
   })
 
+  it('stands each bar line just in front of its bar, clear of the bar before', () => {
+    const placed = place(measured, headerEnd(0, true))
+    const lines = barLinesIn(placed)
+    expect(lines.length).toBeGreaterThan(4)
+    for (const line of lines) {
+      const next = placed.find((entry) => entry.bar === line.bar)!
+      const before = placed[placed.indexOf(next) - 1]!
+      // After everything the last bar printed, and before anything this one does.
+      expect(line.x).toBeGreaterThan(before.x + before.extent.right)
+      expect(line.x).toBeLessThan(next.x - next.extent.left)
+      // Nearer its own bar than the one it closes, as a bar line is printed.
+      expect(next.x - line.x).toBeLessThanOrEqual(line.x - before.x)
+    }
+  })
+
+  it('draws a line for every bar, including one in which nothing is struck', () => {
+    // Bar 1, then nothing until bar 4: two bars pass with no new note in them.
+    const held = measured
+      .filter((entry) => entry.bar === 1 || entry.bar >= 4)
+      .map((entry, index) => ({ ...entry, index }))
+    const bars = barLinesIn(place(held, headerEnd(0, true))).map((line) => line.bar)
+    expect(bars.slice(0, 4)).toEqual([2, 3, 4, 5])
+    // And they share the room between the two chords rather than stacking up.
+    const xs = barLinesIn(place(held, headerEnd(0, true)))
+      .slice(0, 3)
+      .map((line) => line.x)
+    expect(xs[1]! - xs[0]!).toBeGreaterThan(1)
+    expect(xs[2]! - xs[1]!).toBeCloseTo(xs[1]! - xs[0]!, 5)
+  })
+
   it('numbers the bars the same however the lines fall', () => {
     const flow = barLinesIn(place(measured, headerEnd(0, true))).map((line) => line.bar)
     const sheet = laidOut(measured, 0, 900).flatMap((system) =>

@@ -1,7 +1,7 @@
 import { act, cleanup, render } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as React from 'react'
-import { buildSong, type SongNote } from '@sonara/shared'
+import { buildSong, songSteps, type SongNote } from '@sonara/shared'
 import { useKeyboardStore } from '@/state/keyboard-store'
 
 /**
@@ -159,8 +159,10 @@ describe.each(['flow', 'sheet'] as const)('a key press against the %s view', (st
     const { SongScore } = await import('@/features/staff/SongScore')
 
     const { container } = render(<Stage Score={SongScore} />)
+    // A long piece, of which the page holds only the stretch near the window.
+    expect(songSteps(song, 'both').length).toBeGreaterThan(100)
     const total = container.querySelectorAll('.staff__step').length
-    expect(total).toBeGreaterThan(100)
+    expect(total).toBeGreaterThan(20)
 
     chordsDrawn = 0
     viewsDrawn = 0

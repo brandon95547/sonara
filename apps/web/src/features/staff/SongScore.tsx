@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { fingeringHints, type SongNote } from '@sonara/shared'
+import { fingeringHints, type SongNote, type SongStep } from '@sonara/shared'
 import { useSongStore, useCurrentSong } from '@/state/song-store'
 import { useMeasuredScore } from './score'
 import { FlowView } from './FlowView'
@@ -40,14 +40,23 @@ import type { Role } from './score-parts'
 /** How many steps ahead keep a marking, matching the keyboard's lookahead. */
 const LOOKAHEAD = 4
 
+/** The last step that has begun by `positionMs`, or -1 before the first. */
+function stepAt(steps: readonly SongStep[], positionMs: number): number {
+  let low = 0
+  let high = steps.length
+  while (low < high) {
+    const middle = (low + high) >> 1
+    if (steps[middle]!.startMs <= positionMs) low = middle + 1
+    else high = middle
+  }
+  return low - 1
+}
+
 export const SongScore = React.memo(function SongScore() {
   const song = useCurrentSong()
   const part = useSongStore((state) => state.part)
-  const mode = useSongStore((state) => state.mode)
   const density = useSongStore((state) => state.fingering)
   const view = useSongStore((state) => state.staffView)
-  const stepIndex = useSongStore((state) => state.stepIndex)
-  const positionMs = useSongStore((state) => state.positionMs)
 
   /*
    * Which fingerings the page prints.
@@ -66,23 +75,28 @@ export const SongScore = React.memo(function SongScore() {
     return fingeringHints(song)
   }, [song, density])
 
-  const { steps, measured } = useMeasuredScore(song, part, hints)
+  const { steps, measured } = useMeasuredScore(song, part, hints, view === 'sheet')
 
   /**
    * Which step is "here".
    *
    * In Learn it is the one you have to play. Anywhere else the song may be
    * playing itself, and the playhead is the truth.
+   *
+   * Asked of the store as a step, not worked out here from the time. The
+   * playhead moves forty times a second and the step a few: subscribed to the
+   * time, this component redrew the whole score on every tick of the clock,
+   * which kept the browser too busy to strike the notes when they were due.
+   * A song played with its staff showing came out late and uneven by a third
+   * of a second, and in time with it hidden.
    */
-  const here = React.useMemo(() => {
-    if (mode === 'learn') return stepIndex
-    let found = -1
-    for (const [index, step] of steps.entries()) {
-      if (step.startMs <= positionMs) found = index
-      else break
-    }
-    return found
-  }, [mode, stepIndex, positionMs, steps])
+  const here = useSongStore(
+    React.useCallback(
+      (state: { mode: string; stepIndex: number; positionMs: number }) =>
+        state.mode === 'learn' ? state.stepIndex : stepAt(steps, state.positionMs),
+      [steps],
+    ),
+  )
 
   const roleFor = React.useCallback(
     (index: number): Role => {

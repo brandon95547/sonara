@@ -37,11 +37,18 @@ export function Signatures({
   )
 }
 
+/** The top and bottom of a grand staff: where a line through both staves runs. */
+const SYSTEM_TOP = yOn(10, 'treble')
+const SYSTEM_BOTTOM = yOn(-10, 'bass')
+
 /**
  * The bar lines of one system, each numbered the way a part is.
  *
- * One line per staff rather than one through both: each staff is on its own
- * sheet of paper, and a line joining them would cross the stage between.
+ * One line through both staves, which is what makes the two of them one
+ * instrument on the page: a pianist reads a bar as a single column, top of the
+ * treble to the bottom of the bass. They were once two short lines, one per
+ * strip of paper, and a bar's two halves read as two bars that happened to
+ * line up.
  */
 export function BarLines({
   lines,
@@ -54,8 +61,7 @@ export function BarLines({
     <>
       {lines.map(({ x, bar }) => (
         <g key={x}>
-          <line x1={x} y1={yOn(10, 'treble')} x2={x} y2={yOn(2, 'treble')} className="staff__bar" />
-          <line x1={x} y1={yOn(-2, 'bass')} x2={x} y2={yOn(-10, 'bass')} className="staff__bar" />
+          <line x1={x} y1={SYSTEM_TOP} x2={x} y2={SYSTEM_BOTTOM} className="staff__bar" />
           {/* Numbered, so a player can say where they are out loud. */}
           {numbered && (
             <text x={x + STEP * 1.4} y={yOn(14, 'treble')} className="staff__bar-number">
@@ -64,6 +70,37 @@ export function BarLines({
           )}
         </g>
       ))}
+    </>
+  )
+}
+
+/**
+ * The line that closes a system, at the right-hand end of its staves.
+ *
+ * Every line of music ends on one. The last is the final bar line — a thin
+ * line and a thick one — which is how a page says the piece is over rather
+ * than continued overleaf.
+ */
+export function SystemEnd({ x, final = false }: { x: number; final?: boolean }) {
+  if (!final)
+    return <line x1={x} y1={SYSTEM_TOP} x2={x} y2={SYSTEM_BOTTOM} className="staff__system-line" />
+  const thick = STEP * 0.9
+  return (
+    <>
+      <line
+        x1={x - thick - STEP * 0.7}
+        y1={SYSTEM_TOP}
+        x2={x - thick - STEP * 0.7}
+        y2={SYSTEM_BOTTOM}
+        className="staff__system-line"
+      />
+      <rect
+        x={x - thick}
+        y={SYSTEM_TOP}
+        width={thick}
+        height={SYSTEM_BOTTOM - SYSTEM_TOP}
+        className="staff__final-bar"
+      />
     </>
   )
 }
@@ -279,6 +316,26 @@ export function LiveStep({
     ).join(','),
   )
   return <Step placed={placed} role={role} fifths={fifths} lit={lit} stems={stems} />
+}
+
+/**
+ * What a run of chords has to do with where the player is: all behind them,
+ * all still ahead, or some of each.
+ *
+ * A score is drawn in runs — a system of a page, a stretch of the moving staff
+ * — and a run that is wholly behind or wholly ahead looks the same whichever
+ * chord the player is on. So it is drawn once and left alone, and only the run
+ * the player is in redraws as they move through it. Redrawing every run for
+ * every chord is most of what made a playing song stutter.
+ */
+export type Phase = 'played' | 'ahead' | 'live'
+
+/** The phase of the chords from `from` up to but not including `to`. */
+export function phaseOf(roleFor: (index: number) => Role, from: number, to: number): Phase {
+  // The roles run in order along the piece, so two ends that agree speak for
+  // everything between them.
+  const first = roleFor(from)
+  return first === roleFor(to - 1) && (first === 'played' || first === 'ahead') ? first : 'live'
 }
 
 /**

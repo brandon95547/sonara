@@ -143,18 +143,36 @@ export function StaffLines({ from, to }: { from: number; to: number }) {
 }
 
 /**
- * The two clefs, with enough staff behind them to sit on.
+ * The brace, the line that opens the system, and the two clefs, with enough
+ * staff behind them to sit on.
  *
  * Drawn apart from the lines because a scrolling score pins this and lets the
  * music pass it by. A clef that scrolls off the left is a clef you cannot read
  * the music without, which is the one thing it is for.
  *
- * No brace. Each staff is on its own strip of paper, and a brace would have to
- * cross the stage between them to join two things that are visibly apart.
+ * The brace and the opening line are what say the two staves are one
+ * instrument. They cross the stage between the two strips of paper, as the bar
+ * lines do: the strips are where the lines of the staff are printed, and the
+ * system is both of them.
  */
 export function StaffGutter() {
+  const top = yOn(10, 'treble')
+  const bottom = yOn(-10, 'bass')
+  const middle = (top + bottom) / 2
+  // A curl either side of the middle, its point towards the margin.
+  const brace = STAFF_START - STEP * 0.9
+  const reach = STEP * 1.9
+  const bow = (bottom - top) * 0.09
   return (
     <>
+      <path
+        d={
+          `M ${brace} ${top} C ${brace - reach * 1.5} ${top + bow} ${brace + reach * 0.5} ${middle - bow} ${brace - reach} ${middle} ` +
+          `C ${brace + reach * 0.5} ${middle + bow} ${brace - reach * 1.5} ${bottom - bow} ${brace} ${bottom}`
+        }
+        className="staff__brace"
+      />
+      <line x1={STAFF_START} y1={top} x2={STAFF_START} y2={bottom} className="staff__system-line" />
       {(['treble', 'bass'] as const).map((staff) => (
         <g key={staff}>
           {STAFF_LINES[staff].map((steps) => (

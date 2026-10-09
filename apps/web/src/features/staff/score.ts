@@ -45,8 +45,13 @@ const MEASURE_WIDTH = 260
 const MIN_GAP = 40
 /** Never further than this: a held note should not push the next page away. */
 const MAX_GAP = 170
+/** The same two measures for the printed page, which sets its bars closer. */
+const PAGE_BAR_WIDTH = 150
+const PAGE_MIN_GAP = 26
 /** The white space two chords keep between their ink. */
 export const AIR = STEP * 3
+/** The extra two chords keep when a bar line stands between them. */
+const BAR_ROOM = STEP * 2
 /** How far a bar number's ink rises above its own baseline, measured. */
 const BAR_NUMBER_INK = 11
 
@@ -102,13 +107,15 @@ export interface ScoreSource {
    * two-octave run fits the paper instead of scrolling a third of itself away.
    */
   readonly barWidth?: number
+  /** The least room between two chords, in units, where `MIN_GAP` is too much. */
+  readonly minGap?: number
   /**
    * Join short notes into beats with beams.
    *
    * On for material whose rhythm is stated exactly — an exercise knows every
-   * note's length. Off for a song, whose onsets may be a performance: grouping
-   * by the beat needs a beat to group by, and a rubato bar does not have one
-   * this code can trust.
+   * note's length, and so does a song read from a score. Off for a song that
+   * is a performance: grouping by the beat needs a beat to group by, and a
+   * rubato bar does not have one this code can trust.
    */
   readonly beams?: boolean
 }
@@ -166,6 +173,8 @@ export function measureScore(
       : measureMs > 0
         ? Math.floor(step.startMs / measureMs) + 1
         : 1
+    /** The first chord of a bar, which has that bar's line to make room for. */
+    const opensBar = index > 0 && bar !== openBar
     if (bar !== openBar) {
       memory.treble.startBar()
       memory.bass.startBar()
@@ -235,7 +244,11 @@ export function measureScore(
     if (index > 0) {
       const elapsed = step.startMs - steps[index - 1]!.startMs
       const rhythmic = Math.min(MAX_GAP, (elapsed / measureMs) * (song?.barWidth ?? MEASURE_WIDTH))
-      gap = Math.max(MIN_GAP, rhythmic, previous + extent.left + AIR)
+      gap = Math.max(
+        song?.minGap ?? MIN_GAP,
+        rhythmic,
+        previous + extent.left + AIR + (opensBar ? BAR_ROOM : 0),
+      )
     }
     previous = extent.right
 
@@ -260,7 +273,7 @@ export function measureScore(
     }
   })
 
-  return song?.beams ? beamed(measured, beat, measureMs) : measured
+  return song?.beams ? beamed(measured, beat, measureMs, measures) : measured
 }
 
 /**
@@ -276,10 +289,41 @@ export function measureScore(
  * Each staff is grouped by itself. The hands keep their own rhythm, and a beam
  * never joins them.
  */
-function beamed(measured: readonly Measured[], beat: number, measureMs: number): Measured[] {
+function beamed(
+  measured: readonly Measured[],
+  beat: number,
+  measureMs: number,
+  /** The bars as the score wrote them, where it did: each has its own start, tempo and metre. */
+  measures?: Song['measures'],
+): Measured[] {
   const beamOf: Record<Staff, Map<number, number>> = { treble: new Map(), bass: new Map() }
-  const beatsPerBar = Math.round(measureMs / beat)
   let nextId = 0
+
+  /**
+   * The bar a moment falls in: where it starts, how long a crotchet lasts in
+   * it, how long its beat is, and how many crotchets it holds.
+   *
+   * A beat is a crotchet, except in compound time — six, nine or twelve
+   * quavers to the bar, and three to a bar of 3/8 — where it is three quavers
+   * and the beam runs across all three.
+   */
+  const barAt = (startMs: number, bar: number) => {
+    const written = measures?.[barIndexAt(measures, startMs)]
+    if (!written)
+      return {
+        startMs: (bar - 1) * measureMs,
+        quarterMs: beat,
+        beatMs: beat,
+        quarters: Math.round(measureMs / beat),
+      }
+    const compound = written.beatType === 8 && written.beats % 3 === 0
+    return {
+      startMs: written.startMs,
+      quarterMs: written.quarterMs,
+      beatMs: written.quarterMs * (compound ? 1.5 : 1),
+      quarters: compound ? 0 : Math.round((written.beats * 4) / written.beatType),
+    }
+  }
 
   for (const staff of ['treble', 'bass'] as const) {
     /** The beam being gathered, if one is open. */
@@ -304,13 +348,16 @@ function beamed(measured: readonly Measured[], beat: number, measureMs: number):
       if (mine.length === 0) continue
       const value = entry.value[staff]
       const tuplet = mine.find((note) => note.written?.tuplet)?.written?.tuplet
-      const length =
-        valueQuarters(value.value, value.dots) * beat * (tuplet ? tuplet.normal / tuplet.actual : 1)
       const start = entry.step.startMs
+      const bar = barAt(start, entry.bar)
+      const length =
+        valueQuarters(value.value, value.dots) *
+        bar.quarterMs *
+        (tuplet ? tuplet.normal / tuplet.actual : 1)
       // Which beat of its bar it starts on. The small allowance is for thirds
       // of a beat, which do not add up to a whole one in floating point.
-      const inBar = start - (entry.bar - 1) * measureMs
-      const onBeat = Math.floor(inBar / beat + 1e-6)
+      const inBar = start - bar.startMs
+      const onBeat = Math.floor(inBar / bar.beatMs + 1e-6)
       const plain = value.flags === 1 && !value.dotted && !tuplet
 
       if (value.flags === 0) {
@@ -321,12 +368,14 @@ function beamed(measured: readonly Measured[], beat: number, measureMs: number):
       if (
         current !== null &&
         current.bar === entry.bar &&
-        Math.abs(start - current.end) < 1 &&
+        // Two milliseconds: a bar read from a score puts its notes where its
+        // tempo marks say, and they add up to within a rounding of each other.
+        Math.abs(start - current.end) < 2 &&
         (onBeat === current.beat ||
           // Plain quavers in four: beats one and two, or three and four.
           (current.plain &&
             plain &&
-            beatsPerBar === 4 &&
+            bar.quarters === 4 &&
             Math.floor(onBeat / 2) === Math.floor(current.beat / 2)))
       ) {
         current.members.push(entry.index)
@@ -368,9 +417,32 @@ function beamed(measured: readonly Measured[], beat: number, measureMs: number):
  * numeral takes room on the page, and a score spaced for numbers it does not
  * print is spaced wrong.
  */
-export function useMeasuredScore(song: Song | null, part: SongPart, hints?: ReadonlySet<SongNote>) {
+export function useMeasuredScore(
+  song: Song | null,
+  part: SongPart,
+  hints?: ReadonlySet<SongNote>,
+  /**
+   * Spaced for the printed page rather than for the moving staff.
+   *
+   * The moving staff shows a few bars and gives them room; a page is read a
+   * line at a time and wants as many bars on the line as an engraver would
+   * set. Same notes, same ink, less air between them.
+   */
+  page = false,
+) {
   const steps = React.useMemo(() => (song ? songSteps(song, part) : []), [song, part])
-  const measured = React.useMemo(() => measureScore(song, steps, hints), [song, steps, hints])
+  const source = React.useMemo<ScoreSource | null>(
+    () =>
+      song && {
+        ...song,
+        // A score states every length, so its short notes can be beamed. A
+        // performance only implies them.
+        beams: song.provides?.rhythm === true,
+        ...(page ? { barWidth: PAGE_BAR_WIDTH, minGap: PAGE_MIN_GAP } : {}),
+      },
+    [song, page],
+  )
+  const measured = React.useMemo(() => measureScore(source, steps, hints), [source, steps, hints])
   return { steps, measured }
 }
 
@@ -434,13 +506,49 @@ export function place(measured: readonly Measured[], startX: number, stretch = 1
   })
 }
 
-/** A bar line wherever the bar number changes, halfway between the two chords. */
+/** How far a bar line stands in front of the first ink of its bar. */
+const BAR_LEAD = STEP * 2.4
+/** The least a bar line keeps from the ink of the bar it closes. */
+const BAR_TRAIL = STEP * 0.8
+/** The most bars with nothing struck in them that get a line each between two chords. */
+const MAX_EMPTY_BARS = 16
+
+/**
+ * The bar lines of a run of chords: one for every bar, each numbered.
+ *
+ * A line stands just in front of the bar it opens — a bar's first note follows
+ * its line closely, and the room a long note is given is after it, inside its
+ * own bar. Halfway between the two chords, which is where these used to be
+ * drawn, put the line in the middle of that room and left a semibreve looking
+ * as though it belonged to neither bar.
+ *
+ * And every bar gets one, including a bar in which nothing is struck: a chord
+ * held across three bars has three bar lines over it, and counting bars on a
+ * page that skips the quiet ones gives the wrong number. Those lines share the
+ * room between the two chords evenly.
+ */
 export function barLinesIn(placed: readonly Placed[]): { x: number; bar: number }[] {
   const lines: { x: number; bar: number }[] = []
-  for (let i = 1; i < placed.length; i++)
-    if (placed[i]!.bar !== placed[i - 1]!.bar)
-      lines.push({ x: (placed[i - 1]!.x + placed[i]!.x) / 2, bar: placed[i]!.bar })
+  for (let i = 1; i < placed.length; i++) {
+    const before = placed[i - 1]!
+    const after = placed[i]!
+    if (after.bar === before.bar) continue
+    const earliest = before.x + before.extent.right + BAR_TRAIL
+    const last = Math.max(earliest, after.x - after.extent.left - BAR_LEAD)
+    const count = Math.min(MAX_EMPTY_BARS, Math.max(1, after.bar - before.bar))
+    for (let n = 1; n <= count; n++)
+      lines.push({
+        x: earliest + ((last - earliest) * n) / count,
+        bar: after.bar - (count - n),
+      })
+  }
   return lines
+}
+
+/** Where the music of a run ends, for the line that closes it. */
+export function endOf(placed: readonly Placed[]): number {
+  const last = placed.at(-1)
+  return last ? last.x + last.extent.right + BAR_LEAD : 0
 }
 
 /** The most a system's gaps may be opened up to fill its line. */

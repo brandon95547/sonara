@@ -778,6 +778,11 @@
   text-anchor: start;
 }
 
+/* The thick half of the final bar line. */
+.staff__final-bar {
+  fill: var(--c-ink);
+}
+
 /* The brace and clefs belong with the notation, not with the lines: they are
    what tells you how to read everything else. */
 .staff__brace {

@@ -6,15 +6,18 @@ import {
   Beams,
   isLive,
   LiveStep,
+  phaseOf,
   Playhead,
   PLAYHEAD_SHOWN,
   Signatures,
   Step,
+  SystemEnd,
   watchedIn,
+  type Phase,
   type Role,
   type Watched,
 } from './score-parts'
-import { barLinesIn, frameOf, headerEnd, place, type Measured, type Placed } from './score'
+import { barLinesIn, endOf, frameOf, headerEnd, place, type Measured, type Placed } from './score'
 import { beamsIn, type StepStems } from './beams'
 
 /**
@@ -33,6 +36,13 @@ import { beamsIn, type StepStems } from './beams'
  * the clefs end and stops where the strips do — so a note leaving the view goes
  * out at an edge, rather than sliding under an opaque cover laid over the
  * clefs.
+ *
+ * Only the stretch of music near the window is drawn. The system is as long as
+ * the piece — a few thousand notes and tens of thousands of pixels — and with
+ * all of it in the page, every chord that changed colour had the browser
+ * laying out and repainting the whole song. That took a quarter of a second at
+ * a time, during which nothing else ran: not the clock that strikes the notes,
+ * so a song played late and unevenly for as long as its staff was showing.
  */
 
 export function FlowView({
@@ -116,6 +126,58 @@ export function FlowView({
   const musicWidth = totalWidth - GUTTER
   const pixelWidth = musicWidth * scale
 
+  /*
+   * Which stretch is drawn: the window, and a window's width either side.
+   *
+   * Counted in half-windows of scroll rather than in pixels, so the drawing
+   * changes when the view has moved half a screen and not on every pixel of a
+   * drag. The margin either side is wider than any jump the view makes to
+   * follow the player, so what it lands on is already there.
+   *
+   * Everything, until the panel has been measured: there is no window yet to
+   * draw a part of.
+   */
+  const [page, setPage] = React.useState(0)
+  const stride = Math.max(1, visible / 2)
+  const span = React.useMemo(() => {
+    if (visible <= 0) return null
+    return {
+      from: GUTTER + (page * stride - visible) / scale,
+      to: GUTTER + ((page + 1) * stride + visible * 2) / scale,
+    }
+  }, [page, stride, visible, scale])
+  const shown = React.useMemo(
+    () => (span ? placed.filter((entry) => entry.x >= span.from && entry.x <= span.to) : placed),
+    [placed, span],
+  )
+  // The stretch in runs of a few chords, each drawn again only when the player
+  // is in it. Cut where the chord's number divides, not where the window
+  // starts, so a run is the same run as the window slides over it.
+  const runs = React.useMemo(() => {
+    const groups: Placed[][] = []
+    for (const entry of shown) {
+      const group = groups.at(-1)
+      if (group && Math.floor(group[0]!.index / RUN) === Math.floor(entry.index / RUN))
+        group.push(entry)
+      else groups.push([entry])
+    }
+    return groups
+  }, [shown])
+  const barLines = React.useMemo(() => barLinesIn(placed), [placed])
+  const shownBars = React.useMemo(
+    () => (span ? barLines.filter((line) => line.x >= span.from && line.x <= span.to) : barLines),
+    [barLines, span],
+  )
+  const shownBeams = React.useMemo(() => {
+    const first = shown[0]?.index ?? 0
+    const last = shown.at(-1)?.index ?? -1
+    return span
+      ? beaming.beams.filter((beam) =>
+          beam.indices.some((index) => index >= first && index <= last),
+        )
+      : beaming.beams
+  }, [beaming, shown, span])
+
   // Keep the current chord on screen, the way the keyboard follows what you
   // play. Nothing to do until the panel has been laid out — a width of zero
   // makes every margin zero, and the score scrolls to nowhere before the first
@@ -164,7 +226,12 @@ export function FlowView({
         <StaffGutter />
       </svg>
 
-      <div ref={scrollRef} className="staff-scroll" style={{ left: gutterPx, right: insetPx }}>
+      <div
+        ref={scrollRef}
+        className="staff-scroll"
+        style={{ left: gutterPx, right: insetPx }}
+        onScroll={(event) => setPage(Math.floor(event.currentTarget.scrollLeft / stride))}
+      >
         <svg
           viewBox={`${GUTTER} ${frame.top} ${musicWidth} ${height}`}
           width={pixelWidth || undefined}
@@ -176,29 +243,82 @@ export function FlowView({
         >
           <StaffLines from={GUTTER} to={totalWidth} />
           <Signatures fifths={fifths} beats={beats} beatType={beatType} withTime={withTime} />
-          <BarLines lines={barLinesIn(placed)} numbered={numbered} />
+          <BarLines lines={shownBars} numbered={numbered} />
+          {placed.length > 0 && <SystemEnd x={endOf(placed)} final />}
           {PLAYHEAD_SHOWN && placed[here] && <Playhead x={placed[here]!.x} />}
-          <Beams beams={beaming.beams} roleFor={roleFor} />
-          {placed.map((entry) => {
-            const role = roleFor(entry.index)
-            return (
-              <StepAt
-                key={entry.index}
-                placed={entry}
-                role={role}
-                live={watchAll || isLive(role)}
-                fifths={fifths}
-                watched={watched}
-                position={position}
-                stems={beaming.stems.get(entry.index)}
-              />
-            )
-          })}
+          <Beams beams={shownBeams} roleFor={roleFor} />
+          {runs.map((run) => (
+            <Run
+              key={run[0]!.index}
+              entries={run}
+              // A scale watches every chord, so every run of one is live.
+              phase={watchAll ? 'live' : phaseOf(roleFor, run[0]!.index, run.at(-1)!.index + 1)}
+              roleFor={roleFor}
+              watchAll={watchAll}
+              fifths={fifths}
+              watched={watched}
+              position={position}
+              stems={beaming.stems}
+            />
+          ))}
         </svg>
       </div>
     </div>
   )
 }
+
+/** How many chords are drawn, and redrawn, together. */
+const RUN = 16
+
+interface RunProps {
+  entries: readonly Placed[]
+  phase: Phase
+  roleFor: (index: number) => Role
+  watchAll: boolean
+  fifths: number
+  watched: readonly Watched[]
+  position: number
+  stems: ReadonlyMap<number, StepStems>
+}
+
+/**
+ * A few chords of the system, drawn again only when the player is among them.
+ * See `phaseOf`: a run wholly behind or wholly ahead is the same picture
+ * wherever the player is.
+ */
+const Run = React.memo(
+  function Run({ entries, roleFor, watchAll, fifths, watched, position, stems }: RunProps) {
+    return (
+      <>
+        {entries.map((entry) => {
+          const role = roleFor(entry.index)
+          return (
+            <StepAt
+              key={entry.index}
+              placed={entry}
+              role={role}
+              live={watchAll || isLive(role)}
+              fifths={fifths}
+              watched={watched}
+              position={position}
+              stems={stems.get(entry.index)}
+            />
+          )
+        })}
+      </>
+    )
+  },
+  (before, after) =>
+    before.entries === after.entries &&
+    before.phase === after.phase &&
+    before.fifths === after.fifths &&
+    before.stems === after.stems &&
+    before.watchAll === after.watchAll &&
+    (after.phase !== 'live' ||
+      (before.roleFor === after.roleFor &&
+        before.watched === after.watched &&
+        before.position === after.position)),
+)
 
 /** Watched if it is live, drawn once and left alone if it is not. */
 function StepAt({
