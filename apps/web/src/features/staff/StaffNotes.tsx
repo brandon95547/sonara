@@ -132,6 +132,41 @@ export interface DrawnNote {
    * live staff, which draws a single moment and asks the key instead.
    */
   readonly accidental?: Accidental | null
+  /**
+   * A tied note's second notehead: written here, and not struck here.
+   *
+   * It is drawn as a note, because that is what the page shows, and joined to
+   * the head before it by a tie. It is never the note to play: the key is
+   * already down.
+   */
+  readonly held?: boolean
+}
+
+/** A tie arriving at a notehead: which note, and where the head it comes from stands. */
+export interface TieArc {
+  readonly note: number
+  /** The step the tie comes from, or null where that is on another line. */
+  readonly fromX: number | null
+}
+
+/** How far a tie that runs off the end of a line, or arrives from the line before, is drawn. */
+const TIE_STUB = STEP * 5
+
+/**
+ * A tie: a thin crescent from one notehead to the next, clear of both.
+ *
+ * Curving away from the stem, the way one is engraved — and, where a staff has
+ * two voices, away from the other voice, which is the same side as the stem.
+ */
+function tiePath(from: number, to: number, y: number, above: boolean): string {
+  const side = above ? -1 : 1
+  const base = y + side * STEP * 0.95
+  const bow = side * Math.min(STEP * 1.5, STEP * 0.7 + (to - from) * 0.05)
+  const middle = (from + to) / 2
+  return (
+    `M ${from} ${base} Q ${middle} ${base + bow * 2} ${to} ${base} ` +
+    `Q ${middle} ${base + bow * 2 - side * STEP * 0.42} ${from} ${base} Z`
+  )
 }
 
 /**
@@ -513,6 +548,8 @@ function StaffGroup({
   fifths,
   stem,
   direction,
+  ties,
+  tiesOut,
 }: {
   x: number
   notes: readonly DrawnNote[]
@@ -520,16 +557,41 @@ function StaffGroup({
   fifths: number
   stem?: StemOverride
   direction?: 'up' | 'down'
+  /** The ties arriving at this step's held notes. */
+  ties?: readonly TieArc[]
+  /** The notes whose tie runs on to another line. */
+  tiesOut?: readonly number[]
 }) {
   const box = layout(x, notes, value, fifths, stem, direction)
   if (!box) return null
   const { placed, staff, up, sounding } = box
+  // Away from the stem; with two voices, away from the other voice instead.
+  const above = direction ? direction === 'up' : !up
+  const arcs = placed.flatMap((entry, index) => {
+    const cy = yOn(entry.placement.steps, staff)
+    const head = box.headX[index]!
+    const drawn: string[] = []
+    const arriving = entry.held ? ties?.find((tie) => tie.note === entry.note) : undefined
+    if (arriving) {
+      const to = head - HEAD_RX - STEP * 0.3
+      const from = arriving.fromX === null ? to - TIE_STUB : arriving.fromX + HEAD_RX + STEP * 0.3
+      if (to - from > STEP) drawn.push(tiePath(from, to, cy, above))
+    }
+    if (tiesOut?.includes(entry.note)) {
+      const from = (value.dotted ? box.dotX + STEP * 0.6 : head + HEAD_RX) + STEP * 0.3
+      drawn.push(tiePath(from, from + TIE_STUB, cy, above))
+    }
+    return drawn
+  })
 
   const top = Math.min(...placed.map((entry) => yOn(entry.placement.steps, staff)))
   const bottom = Math.max(...placed.map((entry) => yOn(entry.placement.steps, staff)))
 
   return (
     <>
+      {arcs.map((d) => (
+        <path key={d} d={d} className="staff__tie" />
+      ))}
       {box.rolled && <Arpeggio x={box.arpeggioX} from={top - HEAD_RY} to={bottom + HEAD_RY} />}
       {[...box.ledgers].map(([steps, line]) => (
         <line
@@ -568,6 +630,7 @@ function StaffGroup({
           finger={entry.finger}
           fingerAt={{ x: box.fingerX, y: box.fingerY[index]! }}
           sounding={entry.sounding ?? false}
+          held={entry.held ?? false}
         />
       ))}
     </>
@@ -583,6 +646,7 @@ function Head({
   finger,
   fingerAt,
   sounding,
+  held,
 }: {
   x: number
   placement: StaffPlacement
@@ -593,6 +657,7 @@ function Head({
   finger?: number
   fingerAt: { x: number; y: number }
   sounding: boolean
+  held?: boolean
 }) {
   const staff = placement.staff
   const cy = yOn(placement.steps, staff)
@@ -601,6 +666,7 @@ function Head({
     <g
       className={`staff__note${value.filled ? '' : ' staff__note--hollow'}`}
       data-sounding={sounding ? 'true' : undefined}
+      data-held={held ? 'true' : undefined}
     >
       <ellipse cx={x} cy={cy} rx={HEAD_RX} ry={HEAD_RY} transform={`rotate(-18 ${x} ${cy})`} />
       {value.dotted && (
@@ -695,6 +761,8 @@ export function Chord({
   fifths = 0,
   stems,
   parts,
+  ties,
+  tiesOut,
 }: {
   x: number
   notes: readonly DrawnNote[]
@@ -715,6 +783,9 @@ export function Chord({
    * of its own, with its own length and its stem pointing away from the other.
    */
   parts?: readonly VoicePart[]
+  /** The ties arriving at this step's held notes, and the notes whose tie runs off the line. */
+  ties?: readonly TieArc[]
+  tiesOut?: readonly number[]
 }) {
   if (parts) {
     // A beam belongs to the first voice on its staff, which is the one the
@@ -732,6 +803,8 @@ export function Chord({
             fifths={fifths}
             stem={first.get(part.staff) === part ? stems?.[part.staff] : undefined}
             direction={part.stem}
+            ties={ties}
+            tiesOut={tiesOut}
           />
         ))}
       </>
@@ -744,8 +817,24 @@ export function Chord({
 
   return (
     <>
-      <StaffGroup x={x} notes={treble} value={per.treble} fifths={fifths} stem={stems?.treble} />
-      <StaffGroup x={x} notes={bass} value={per.bass} fifths={fifths} stem={stems?.bass} />
+      <StaffGroup
+        x={x}
+        notes={treble}
+        value={per.treble}
+        fifths={fifths}
+        stem={stems?.treble}
+        ties={ties}
+        tiesOut={tiesOut}
+      />
+      <StaffGroup
+        x={x}
+        notes={bass}
+        value={per.bass}
+        fifths={fifths}
+        stem={stems?.bass}
+        ties={ties}
+        tiesOut={tiesOut}
+      />
     </>
   )
 }

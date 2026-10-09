@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { songSteps } from '@sonara/shared'
 import { importMusicXml } from '@/features/songs/import-musicxml'
-import { measureScore } from '@/features/staff/score'
+import { measureScore, place } from '@/features/staff/score'
 
 /**
  * Two voices on one staff.
@@ -67,5 +67,53 @@ describe('two voices on one staff', () => {
     expect(apart.parts!.map((part) => part.dx)).toEqual([0, 0])
     // And room is kept for the one that moved.
     expect(close.extent.right).toBeGreaterThan(apart.extent.right)
+  })
+})
+
+/**
+ * A tied note: struck once, written twice.
+ *
+ * The second notehead stands at its own moment, with whatever else is written
+ * there, and a tie joins it to the first. It is on the page and not among the
+ * notes to play.
+ */
+describe('a tied note', () => {
+  const tied = (step: string, duration: number, type: string, tie: 'start' | 'stop') =>
+    `<note><pitch><step>${step}</step><octave>5</octave></pitch><duration>${duration}</duration><tie type="${tie}"/><voice>1</voice><type>${type}</type><staff>1</staff></note>`
+  const bass = (step: string) =>
+    `<note><pitch><step>${step}</step><octave>3</octave></pitch><duration>4</duration><voice>5</voice><type>whole</type><staff>2</staff></note>`
+  // C held from bar 1 into bar 2, over a left hand that moves at the bar line.
+  const bars = [
+    `${tied('C', 4, 'whole', 'start')}<backup><duration>4</duration></backup>${bass('C')}`,
+    `${tied('C', 2, 'half', 'stop')}<backup><duration>2</duration></backup>${bass('G')}`,
+  ]
+  const song = score(bars)
+  const steps = songSteps(song, 'both')
+  const measured = measureScore(song, steps)
+
+  it('is one note to play, and two noteheads on the page', () => {
+    // Two moments, and the second asks only for the left hand's G.
+    expect(steps.map((step) => step.notes.map((entry) => entry.note))).toEqual([[48, 72], [55]])
+    expect(measured[1]!.notes.map((entry) => [entry.note, entry.held ?? false])).toEqual([
+      [55, false],
+      [72, true],
+    ])
+    // Written as the score writes it: a minim, where the first was a semibreve.
+    expect(measured[1]!.value.treble.value).toBe('half')
+  })
+
+  it('is joined to the head before it, and says where that is', () => {
+    expect(measured[0]!.tiesOut).toEqual([{ note: 72, toIndex: 1 }])
+    expect(measured[1]!.ties).toEqual([{ note: 72, fromIndex: 0 }])
+    const placed = place(measured, 100)
+    expect(placed[1]!.arcs).toEqual([{ note: 72, fromX: placed[0]!.x }])
+    expect(placed[0]!.arcsOut).toBeUndefined()
+  })
+
+  it('runs off the end of a line and arrives on the next, where a line breaks between', () => {
+    const first = place(measured.slice(0, 1), 100)
+    const second = place(measured.slice(1), 100)
+    expect(first[0]!.arcsOut).toEqual([72])
+    expect(second[0]!.arcs).toEqual([{ note: 72, fromX: null }])
   })
 })

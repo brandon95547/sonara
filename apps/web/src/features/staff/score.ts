@@ -23,6 +23,7 @@ import {
   staffOf,
   VOICE_SHIFT,
   type DrawnNote,
+  type TieArc,
   type VoicePart,
 } from './StaffNotes'
 import type { SongPart } from '@/state/song-store'
@@ -101,6 +102,10 @@ export interface Measured {
    * it always was.
    */
   readonly parts?: readonly VoicePart[]
+  /** The ties arriving at its held notes: which note, and the step each comes from. */
+  readonly ties?: readonly { readonly note: number; readonly fromIndex: number }[]
+  /** The ties leaving its notes: which note, and the step each goes to. */
+  readonly tiesOut?: readonly { readonly note: number; readonly toIndex: number }[]
   /** How far its ink reaches, so a page can make room for it. */
   readonly extent: { left: number; right: number; top: number; bottom: number }
   /** How far after the previous chord this one sits. Zero for the first. */
@@ -226,8 +231,70 @@ export function measureScore(
     }
   }
 
+  /*
+   * Tied notes: where each is written again.
+   *
+   * A tied note is struck once and written twice or more, and the later
+   * noteheads stand at later moments — where, almost always, something else is
+   * being struck, in the other hand or the other voice. So each is given to
+   * the chord at its own moment, to be drawn with it, with a note of which
+   * chord its tie comes from.
+   *
+   * One that falls where nothing at all is struck has no chord to join and is
+   * not drawn yet; its tie then runs on to wherever the note is next written.
+   */
+  const heldAt = new Map<number, { note: SongNote; fromIndex: number }[]>()
+  const tiedOut = new Map<number, { note: number; toIndex: number }[]>()
+  const stepNear = (ms: number): number => {
+    let low = 0
+    let high = steps.length - 1
+    while (low < high) {
+      const middle = (low + high + 1) >> 1
+      if (steps[middle]!.startMs <= ms + 30) low = middle
+      else high = middle - 1
+    }
+    return steps[low] && Math.abs(steps[low]!.startMs - ms) <= 30 ? low : -1
+  }
+  for (const [index, step] of steps.entries())
+    for (const note of step.notes) {
+      let from = index
+      for (const segment of note.tied ?? []) {
+        const at = stepNear(segment.startMs)
+        if (at <= from) continue
+        const held: SongNote = {
+          ...note,
+          written: segment.written,
+          finger: undefined,
+          rolled: undefined,
+          tied: undefined,
+        }
+        heldAt.set(at, [...(heldAt.get(at) ?? []), { note: held, fromIndex: from }])
+        tiedOut.set(from, [...(tiedOut.get(from) ?? []), { note: note.note, toIndex: at }])
+        from = at
+      }
+    }
+  // A held note is in its voice as much as a struck one is.
+  for (const [at, helds] of heldAt) {
+    const bar = barOf(steps[at]!)
+    for (const { note } of helds) {
+      if (note.voice === undefined) continue
+      const key = `${bar}:${staffFor(note.note, note.hand)}`
+      const seen = voicesIn.get(key) ?? []
+      if (!seen.includes(note.voice))
+        voicesIn.set(
+          key,
+          [...seen, note.voice].sort((a, b) => a - b),
+        )
+    }
+  }
+
   const measured = steps.map((step, index): Measured => {
     const bar = barOf(step)
+    /** The notes written at this moment and held from before, not struck. */
+    const helds = heldAt.get(index) ?? []
+    const heldNotes = new Set(helds.map(({ note }) => note))
+    /** Everything the page writes here: what is struck, and what is held over. */
+    const writtenHere = helds.length > 0 ? [...step.notes, ...heldNotes] : step.notes
     /** The first chord of a bar, which has that bar's line to make room for. */
     const opensBar = index > 0 && bar !== openBar
     /** Whether that line is a repeat sign: one closing the bar before, or opening this. */
@@ -251,7 +318,7 @@ export function measureScore(
     // it writes it as a crotchet with a stem.
     const value = { treble: valueOn('treble'), bass: valueOn('bass') }
     function valueOn(staff: Staff): WrittenValue {
-      const here = step.notes.filter((note) => staffFor(note.note, note.hand) === staff)
+      const here = writtenHere.filter((note) => staffFor(note.note, note.hand) === staff)
       if (here.length === 0) return writtenValue(beat, beat)
 
       // One stem per staff, so one value for the chord under it: the longest,
@@ -281,19 +348,25 @@ export function measureScore(
      * that the reader's density setting suppresses spaces the whole score for
      * ink that is never laid down.
      */
-    const sorted = [...step.notes].sort((a, b) => a.note - b.note)
+    const sorted = [...writtenHere].sort((a, b) => a.note - b.note)
     const notes: DrawnNote[] = sorted.map((note) => {
+      const held = heldNotes.has(note)
       const drawn = {
         note: note.note,
         finger: !hints || hints.has(note) ? note.finger : undefined,
         rolled: note.rolled,
         spelling: note.spelling,
         hand: note.hand,
+        ...(held ? { held } : {}),
       }
       const staff = staffOf(drawn)
       return {
         ...drawn,
-        accidental: memory[staff].printFor(staffPlacement(note.note, note.spelling, staff)),
+        // A tied note keeps the sign its first notehead had, and does not
+        // print it again.
+        accidental: held
+          ? null
+          : memory[staff].printFor(staffPlacement(note.note, note.spelling, staff)),
       }
     })
 
@@ -407,6 +480,10 @@ export function measureScore(
       notes,
       value: shown,
       ...(parts ? { parts } : {}),
+      ...(helds.length > 0
+        ? { ties: helds.map(({ note, fromIndex }) => ({ note: note.note, fromIndex })) }
+        : {}),
+      ...(tiedOut.has(index) ? { tiesOut: tiedOut.get(index)! } : {}),
       extent,
       gap,
       bar,
@@ -638,6 +715,10 @@ export function frameOf(
 
 export interface Placed extends Measured {
   readonly x: number
+  /** The ties arriving here, each with where it comes from on this line. */
+  readonly arcs?: readonly TieArc[]
+  /** The notes whose tie leaves this line, to be finished on the next. */
+  readonly arcsOut?: readonly number[]
 }
 
 /**
@@ -649,9 +730,30 @@ export interface Placed extends Measured {
  */
 export function place(measured: readonly Measured[], startX: number, stretch = 1): Placed[] {
   let x = startX
-  return measured.map((entry, index) => {
+  const placed = measured.map((entry, index): Placed => {
     if (index > 0) x += entry.gap * stretch
     return { ...entry, x }
+  })
+  if (!placed.some((entry) => entry.ties || entry.tiesOut)) return placed
+
+  // A tie is drawn from one chord to another, so it needs both placed. One
+  // whose other end is on another line is drawn as far as the edge of this.
+  const at = new Map(placed.map((entry) => [entry.index, entry.x]))
+  return placed.map((entry) => {
+    const leaving = entry.tiesOut?.filter((tie) => !at.has(tie.toIndex)).map((tie) => tie.note)
+    if (!entry.ties && !leaving?.length) return entry
+    return {
+      ...entry,
+      ...(entry.ties
+        ? {
+            arcs: entry.ties.map((tie) => ({
+              note: tie.note,
+              fromX: at.get(tie.fromIndex) ?? null,
+            })),
+          }
+        : {}),
+      ...(leaving?.length ? { arcsOut: leaving } : {}),
+    }
   })
 }
 

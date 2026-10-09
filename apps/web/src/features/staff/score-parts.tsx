@@ -262,6 +262,8 @@ export const Step = React.memo(function Step({
         value={placed.value}
         fifths={fifths}
         stems={stems}
+        ties={placed.arcs}
+        tiesOut={placed.arcsOut}
         parts={placed.parts?.map((part) => ({
           ...part,
           notes: part.notes.map((note) => ({

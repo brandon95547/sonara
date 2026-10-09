@@ -966,13 +966,24 @@
 /* Where you are: the note to play now, in the same blue as its key. Sounding
    still wins — the rule for held notes is later in the cascade than this. */
 .staff__step[data-role='target']
-  .staff__note:not([data-sounding='true'])
+  .staff__note:not([data-sounding='true'], [data-held='true'])
   :is(ellipse, .staff__accidental, .staff__dot) {
   fill: var(--c-now);
 }
-.staff__step[data-role='target'] .staff__note--hollow:not([data-sounding='true']) ellipse {
+.staff__step[data-role='target']
+  .staff__note--hollow:not([data-sounding='true'], [data-held='true'])
+  ellipse {
   fill: none;
   stroke: var(--c-now);
+}
+/* A tie, and the notehead it leads to. That head is written here and not
+   struck here — the key is already down — so it never takes the colour of the
+   note to play: it stays ink, and the tie says why. */
+.staff__tie {
+  fill: var(--c-ink);
+}
+.staff__step[data-role='played'] .staff__tie {
+  fill: var(--c-ink-played);
 }
 .staff__step[data-role='target'] .staff__stem:not([data-sounding='true']) {
   stroke: var(--c-now);
