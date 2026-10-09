@@ -18,6 +18,7 @@ export const COLOR_THEMES = [
   { id: 'peaceful', label: 'Peaceful', swatch: '#6867c9' },
   { id: 'powerful', label: 'Powerful', swatch: '#c65151' },
   { id: 'mysterious', label: 'Mysterious', swatch: '#0f7f78' },
+  { id: 'dark-concert', label: 'Dark Concert', swatch: '#82b7ff' },
 ] as const
 
 export type ColorTheme = (typeof COLOR_THEMES)[number]['id']
@@ -26,13 +27,13 @@ const STORAGE_KEY = 'sonara.color-theme'
 /** The theme the app was first drawn in, and the one the tokens describe unaided. */
 const DEFAULT_THEME: ColorTheme = 'peaceful'
 
-const isTheme = (value: unknown): value is ColorTheme =>
+export const isColorTheme = (value: unknown): value is ColorTheme =>
   COLOR_THEMES.some((theme) => theme.id === value)
 
 function stored(): ColorTheme {
   try {
     const value = globalThis.localStorage?.getItem(STORAGE_KEY)
-    return isTheme(value) ? value : DEFAULT_THEME
+    return isColorTheme(value) ? value : DEFAULT_THEME
   } catch {
     return DEFAULT_THEME
   }

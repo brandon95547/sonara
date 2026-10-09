@@ -135,6 +135,7 @@
   --c-key-label-pressed: rgb(255 255 255 / 0.85);
   --c-key-label-on-fill: rgb(255 255 255 / 0.9); /* target blue, wrong red */
   --c-key-label-on-accent: rgb(0 0 0 / 0.8); /* a held key in Learn: 4.7:1 */
+  --c-key-label-anchor: var(--ds-accent-active); /* the C that names its octave */
   --c-key-numeral: rgb(0 0 0 / 0.78); /* the finger number */
   --c-key-numeral-black: rgb(255 255 255 / 0.88);
   --c-key-cue: rgb(0 0 0 / 0.55); /* "thumb under" */
@@ -297,6 +298,63 @@
   --c-wash-upper: 150 149 240;
 }
 
+/* Dark Concert: the one theme where the paper is not white. The stage, the
+   staff's paper, its lines and its ink, the keys and the lit blue are the
+   colors asked for, as given; the rest is derived from them.
+
+   The lit blue is a light one, made to be read on a dark staff: 7.4:1 on the
+   paper. White on it is 2.1:1, so what is written on it — a button's label,
+   the number on a held key — is the stage's own near-black, at 9.1:1.
+
+   It is also the blue of the note to play, near enough: a key you are asked
+   for and a key you are holding would be two blues. So here the note to play
+   is a gold, the far side of the wheel from the blue and as bright on the
+   dark paper (9.2:1), and what is printed on a gold or a wrong key is dark.
+
+   The text colors given are the page's primary and secondary. The third, a
+   muted #8c909a, is 4.8:1 on this paper but 4.1:1 on a drawer and 3.4:1 in
+   a field, where muted text mostly lives — the Bible's stays there. */
+:root[data-color-theme='dark-concert'] {
+  --c-stage: #101114;
+  --c-paper: #22252b;
+  --c-ink: #e8eaf0;
+  --c-ink-line: #737a86;
+  /* Behind you: 2.9:1 on the paper, as the gray on white paper is 2.6:1. */
+  --c-ink-played: #666c78;
+
+  --c-key-white: #e5e5e5;
+  --c-key-white-hover: #f0f0f0;
+  --c-key-white-lip: #b9b9b9;
+  --c-key-black: #24272e;
+  --c-key-black-face: #16181d;
+  --c-key-black-hover: #30343d;
+  --c-key-gap: #555963;
+
+  --ds-accent: #82b7ff;
+  --ds-accent-hover: #a4caff;
+  --ds-accent-active: #5b97e7;
+  --ds-accent-fg: #101114;
+  --ds-accent-subtle: rgb(130 183 255 / 0.16);
+  --ds-accent-subtle-hover: rgb(130 183 255 / 0.24);
+  --ds-accent-border: rgb(130 183 255 / 0.4);
+  --ds-accent-text: #aacdfe;
+  --ds-focus-ring: #82b7ff;
+  --ds-layer-selected: rgb(130 183 255 / 0.16);
+  /* A tint has to show on a light key, so the white keys' is a deeper blue. */
+  --c-wash-white: 68 134 222;
+  --c-wash-black: 130 183 255;
+  --c-key-label-pressed: rgb(0 0 0 / 0.85);
+  /* 4.9:1 on the key: the lit blue's dark step is too pale to read there. */
+  --c-key-label-anchor: #2b5fb5;
+
+  --c-now: #f4c152;
+  --c-now-deep: #c69612;
+  --c-key-label-on-fill: rgb(0 0 0 / 0.85);
+
+  --ds-fg: #e8e8eb;
+  --ds-fg-secondary: #a6abb6;
+}
+
 /* ============================================================================
    TOUCH TARGETS — UI Bible
    ----------------------------------------------------------------------------
@@ -457,7 +515,7 @@
   color: var(--c-key-label-pressed);
 }
 .piano-key__label--anchor {
-  color: var(--ds-accent-active);
+  color: var(--c-key-label-anchor);
   font-weight: 700;
 }
 

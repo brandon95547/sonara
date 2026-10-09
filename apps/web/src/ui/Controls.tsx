@@ -199,9 +199,11 @@ export function Switch({
       >
         <span
           className={cn(
-            'absolute top-1/2 h-4 w-4 -translate-y-1/2 rounded-full bg-white shadow-e1',
+            'absolute top-1/2 h-4 w-4 -translate-y-1/2 rounded-full shadow-e1',
             'transition-[left] duration-[160ms] ease-[cubic-bezier(0.32,0.72,0,1)]',
-            checked ? 'left-[21px]' : 'left-[3px]',
+            // On, the knob is whatever the accent carries its labels in: white
+            // on every fill but a pale one, where white would be lost.
+            checked ? 'left-[21px] bg-[var(--ds-accent-fg)]' : 'left-[3px] bg-white',
           )}
         />
       </button>

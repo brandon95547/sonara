@@ -19,7 +19,7 @@ import { InstrumentSelect } from '@/features/instruments/InstrumentSelect'
 import { KEYBOARD_SPANS, canShift } from '@/features/keyboard/keyboard-layout'
 import { useLearningStore, type KeyLabels } from '@/state/learning-store'
 import { AUTO_SPAN, useViewStore } from '@/state/view-store'
-import { COLOR_THEMES, useThemeStore, type ColorTheme } from '@/state/theme-store'
+import { COLOR_THEMES, isColorTheme, useThemeStore } from '@/state/theme-store'
 import { useCurrentSong, useSongStore, type FingeringDensity } from '@/state/song-store'
 import { panelActions, usePanelStore } from '@/state/panel-store'
 import { RecordButton } from '@/features/recording/RecordControls'
@@ -104,19 +104,24 @@ export function SettingsDrawer({
 }
 
 /**
- * The color theme: the same three the bar's palette offers, here for a bar too
- * narrow to show it.
+ * The color theme: the same ones the bar's palette offers, here for a bar too
+ * narrow to show it. A list rather than a row of segments — the names do not
+ * fit side by side on a phone, and there is room for more of them.
  */
 function AppearanceSection() {
   const theme = useThemeStore((state) => state.theme)
   const setTheme = useThemeStore((state) => state.setTheme)
   return (
     <Section title="Appearance">
-      <Field label="Color theme">
-        <SegmentedControl<ColorTheme>
-          label="Color theme"
+      <Field label="Color theme" htmlFor="color-theme">
+        <Select
+          id="color-theme"
+          size="sm"
+          className="min-w-[9rem]"
           value={theme}
-          onChange={setTheme}
+          onChange={(event) => {
+            if (isColorTheme(event.target.value)) setTheme(event.target.value)
+          }}
           options={COLOR_THEMES.map((option) => ({ value: option.id, label: option.label }))}
         />
       </Field>

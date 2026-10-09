@@ -20,11 +20,12 @@ afterEach(() => {
 })
 
 describe('the color theme', () => {
-  it('offers Peaceful, Powerful and Mysterious, in that order', () => {
+  it('offers Peaceful, Powerful, Mysterious and Dark Concert, in that order', () => {
     expect(COLOR_THEMES.map((option) => option.label)).toEqual([
       'Peaceful',
       'Powerful',
       'Mysterious',
+      'Dark Concert',
     ])
   })
 
@@ -38,6 +39,8 @@ describe('the color theme', () => {
     expect(root.dataset.colorTheme).toBe('powerful')
     theme().setTheme('mysterious')
     expect(root.dataset.colorTheme).toBe('mysterious')
+    theme().setTheme('dark-concert')
+    expect(root.dataset.colorTheme).toBe('dark-concert')
     theme().setTheme('peaceful')
     expect(root.dataset.colorTheme).toBeUndefined()
   })
@@ -71,6 +74,7 @@ describe('the color theme', () => {
       peaceful: accentIn(styles('tokens.css'), ":root,\n[data-theme='dark']"),
       powerful: accentIn(styles('sonara.css'), ":root[data-color-theme='powerful'] {"),
       mysterious: accentIn(styles('sonara.css'), ":root[data-color-theme='mysterious'] {"),
+      'dark-concert': accentIn(styles('sonara.css'), ":root[data-color-theme='dark-concert'] {"),
     }
     for (const option of COLOR_THEMES) expect(option.swatch).toBe(fills[option.id])
   })
