@@ -240,29 +240,60 @@
    that carry the hue, given again. Peaceful is the violet the tokens above
    already are, and has no block of its own.
 
-   What means something keeps its color in every theme: the blue of the note to
-   play, the orange of a wrong one, the green of a connected keyboard. Powerful
-   is a crimson for that reason, well clear of the orange.
+   What means something keeps its meaning in every theme: the blue of the note
+   to play, the color of a wrong one, the green of a connected keyboard. Where
+   a theme's own hue would land on one of those, it is the meaning's color
+   that moves aside, in that theme only. */
 
-   The stage and the two washes are the violet ones turned to the new hue at
-   the lightness they had, so the ink on the stage and a tint on a key read as
-   they did. Measured, as the violet was: white on the fill is 5.6:1 on the
-   crimson and 4.9:1 on the teal; the accent text on its own subtle fill is
-   5.0:1 and 5.3:1 at worst; the focus ring is 3.6:1 and 4.5:1 at worst. */
+/* Powerful: the stage and the fill are the two colors asked for, as given.
+   Everything else is derived from the fill.
+
+   The fill is lighter than the violet, and white on it measures 4.2:1. Its
+   labels are the near-black the Bible puts on its own orange instead: 4.6:1
+   on the fill and 6.0:1 on its hover.
+
+   It is also the orange a wrong note was — #cd6133 beside #bf623d, the same
+   key twice. So here a wrong note is a rose, a red still but well clear of
+   the terracotta, and the whole danger family goes with it so the misses
+   counted on the bar are the color of the keys that were missed. */
 :root[data-color-theme='powerful'] {
-  --ds-accent: #c0303f;
-  --ds-accent-hover: #d54a59;
-  --ds-accent-active: #9b2331;
-  --ds-accent-subtle: rgb(214 72 90 / 0.18);
-  --ds-accent-subtle-hover: rgb(214 72 90 / 0.26);
-  --ds-accent-border: rgb(214 72 90 / 0.42);
-  --ds-accent-text: #eeaaae;
-  --ds-focus-ring: #e5727f;
-  --ds-layer-selected: rgb(214 72 90 / 0.16);
-  --c-stage: #ea9c9c;
-  --c-wash-white: 198 82 89;
-  --c-wash-black: 231 125 128;
+  --ds-accent: #bf623d;
+  --ds-accent-hover: #d47a57;
+  --ds-accent-active: #9d5133;
+  --ds-accent-fg: #101010;
+  --ds-accent-subtle: rgb(204 110 73 / 0.18);
+  --ds-accent-subtle-hover: rgb(204 110 73 / 0.26);
+  --ds-accent-border: rgb(204 110 73 / 0.42);
+  --ds-accent-text: #eeac93;
+  --ds-focus-ring: #da7b55;
+  --ds-layer-selected: rgb(204 110 73 / 0.16);
+  --c-stage: #ffdec0;
+  --c-wash-white: 200 106 69;
+  --c-wash-black: 230 137 100;
+  /* The note name on a held key, for the same reason as the labels above. */
+  --c-key-label-pressed: #101010;
+
+  --ds-danger: #f85581;
+  --ds-danger-hover: #fd7b97;
+  --ds-danger-active: #c52c5c;
+  --ds-danger-subtle: rgb(248 85 129 / 0.14);
+  --ds-danger-border: rgb(248 85 129 / 0.36);
+  --ds-danger-text: #f6a3b1;
 }
+/* A finger number takes the label color of the key under it. Two keys here
+   are not the terracotta: the one to play is blue in every theme, and a black
+   key held outside Learn is the fill's dark step. White on both, 5.5:1 and
+   5.7:1. */
+:root[data-color-theme='powerful'] .key-badge[data-role='target']:not([data-active='true']),
+:root[data-color-theme='powerful']
+  .keybed:not([data-mode='learn'])
+  .key-badge[data-black='true'][data-active='true'] {
+  color: #ffffff;
+}
+
+/* Mysterious: the violet's stage and washes turned to teal at the lightness
+   they had. White on the fill is 4.9:1; the accent text on its own subtle
+   fill is 5.3:1 at worst; the focus ring 4.5:1 at worst. */
 :root[data-color-theme='mysterious'] {
   --ds-accent: #0f7f78;
   --ds-accent-hover: #17998f;
