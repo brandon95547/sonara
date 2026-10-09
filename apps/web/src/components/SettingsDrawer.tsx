@@ -19,6 +19,7 @@ import { InstrumentSelect } from '@/features/instruments/InstrumentSelect'
 import { KEYBOARD_SPANS, canShift } from '@/features/keyboard/keyboard-layout'
 import { useLearningStore, type KeyLabels } from '@/state/learning-store'
 import { AUTO_SPAN, useViewStore } from '@/state/view-store'
+import { COLOR_THEMES, useThemeStore, type ColorTheme } from '@/state/theme-store'
 import { useCurrentSong, useSongStore, type FingeringDensity } from '@/state/song-store'
 import { panelActions, usePanelStore } from '@/state/panel-store'
 import { RecordButton } from '@/features/recording/RecordControls'
@@ -70,6 +71,8 @@ export function SettingsDrawer({
           catalogueFailed={catalogueFailed}
         />
         <Divider />
+        <AppearanceSection />
+        <Divider />
         <KeyboardSection />
         <Divider />
         <StaffSection />
@@ -97,6 +100,27 @@ export function SettingsDrawer({
         </Section>
       </div>
     </Drawer>
+  )
+}
+
+/**
+ * The color theme: the same three the bar's palette offers, here for a bar too
+ * narrow to show it.
+ */
+function AppearanceSection() {
+  const theme = useThemeStore((state) => state.theme)
+  const setTheme = useThemeStore((state) => state.setTheme)
+  return (
+    <Section title="Appearance">
+      <Field label="Color theme">
+        <SegmentedControl<ColorTheme>
+          label="Color theme"
+          value={theme}
+          onChange={setTheme}
+          options={COLOR_THEMES.map((option) => ({ value: option.id, label: option.label }))}
+        />
+      </Field>
+    </Section>
   )
 }
 

@@ -7,6 +7,7 @@ import {
   LayoutGrid,
   Lock,
   MoreVertical,
+  Palette,
   Piano,
   Settings,
   Square,
@@ -21,6 +22,7 @@ import { panelActions } from '@/state/panel-store'
 import { pageActions, usePageStore } from '@/state/page-store'
 import { useRecordingStore } from '@/state/recording-store'
 import { useCurrentSong } from '@/state/song-store'
+import { COLOR_THEMES, useThemeStore } from '@/state/theme-store'
 import { AREAS, COMING_NEXT } from '@/features/areas/areas'
 import { OptionsButton } from '@/components/OptionsDrawer'
 import { LastTakeButton, RecordButton } from '@/features/recording/RecordControls'
@@ -70,6 +72,8 @@ export function TopBar() {
         {area === 'songs' && <NowPlaying />}
 
         <span className="top-bar__spacer" />
+
+        {area && <ThemeMenu className="bar-sm" />}
 
         {area && area !== 'songs' && (
           <>
@@ -141,6 +145,31 @@ function NowPlaying() {
     <p className="top-bar__now bar-full" title={song.title}>
       <span className="top-bar__now-verb">Playing</span> {song.title}
     </p>
+  )
+}
+
+/**
+ * The color theme, beside the mode tabs: a palette, and the three themes under
+ * it, each with a dot of its own color.
+ *
+ * On a bar too narrow to hold it, the same choice is in Settings.
+ */
+function ThemeMenu({ className }: { className?: string }) {
+  const theme = useThemeStore((state) => state.theme)
+  const setTheme = useThemeStore((state) => state.setTheme)
+  return (
+    <ActionMenu
+      label="Color theme"
+      icon={<Palette size={18} aria-hidden />}
+      className={className}
+      actions={COLOR_THEMES.map((option) => ({
+        id: option.id,
+        label: option.label,
+        icon: <span className="theme-swatch" style={{ backgroundColor: option.swatch }} />,
+        checked: theme === option.id,
+        onSelect: () => setTheme(option.id),
+      }))}
+    />
   )
 }
 

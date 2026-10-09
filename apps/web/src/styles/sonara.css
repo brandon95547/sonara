@@ -233,6 +233,54 @@
   --c-area-exercises: #7fd48a;
 }
 
+/* ---- Color themes -----------------------------------------------------------
+   One hue runs through everything that is lit: the stage, the keys being
+   played, the buttons that start things. A theme is that hue changed, and
+   nothing else — so each is the accent's own tokens and the few of Sonara's
+   that carry the hue, given again. Peaceful is the violet the tokens above
+   already are, and has no block of its own.
+
+   What means something keeps its color in every theme: the blue of the note to
+   play, the orange of a wrong one, the green of a connected keyboard. Powerful
+   is a crimson for that reason, well clear of the orange.
+
+   The stage and the two washes are the violet ones turned to the new hue at
+   the lightness they had, so the ink on the stage and a tint on a key read as
+   they did. Measured, as the violet was: white on the fill is 5.6:1 on the
+   crimson and 4.9:1 on the teal; the accent text on its own subtle fill is
+   5.0:1 and 5.3:1 at worst; the focus ring is 3.6:1 and 4.5:1 at worst. */
+:root[data-color-theme='powerful'] {
+  --ds-accent: #c0303f;
+  --ds-accent-hover: #d54a59;
+  --ds-accent-active: #9b2331;
+  --ds-accent-subtle: rgb(214 72 90 / 0.18);
+  --ds-accent-subtle-hover: rgb(214 72 90 / 0.26);
+  --ds-accent-border: rgb(214 72 90 / 0.42);
+  --ds-accent-text: #eeaaae;
+  --ds-focus-ring: #e5727f;
+  --ds-layer-selected: rgb(214 72 90 / 0.16);
+  --c-stage: #ea9c9c;
+  --c-wash-white: 198 82 89;
+  --c-wash-black: 231 125 128;
+}
+:root[data-color-theme='mysterious'] {
+  --ds-accent: #0f7f78;
+  --ds-accent-hover: #17998f;
+  --ds-accent-active: #0a625c;
+  --ds-accent-subtle: rgb(31 168 157 / 0.18);
+  --ds-accent-subtle-hover: rgb(31 168 157 / 0.26);
+  --ds-accent-border: rgb(31 168 157 / 0.42);
+  --ds-accent-text: #8fd8cf;
+  --ds-focus-ring: #3bb9ae;
+  --ds-layer-selected: rgb(31 168 157 / 0.16);
+  --c-stage: #7ec3bc;
+  --c-wash-white: 20 144 136;
+  --c-wash-black: 31 184 174;
+  /* The upper tetrachord is a teal of its own, which here would be the lower
+     one's color again. It takes the violet instead: two halves, two hues. */
+  --c-wash-upper: 150 149 240;
+}
+
 /* ============================================================================
    TOUCH TARGETS — UI Bible
    ----------------------------------------------------------------------------
@@ -1295,6 +1343,18 @@
   font-weight: 700;
   letter-spacing: -0.01em;
 }
+/* A dot of a theme's own color, beside its name in the palette's menu. Set
+   down and in from the corner of the mark's slot, which is cut for a 16px
+   icon, so the dot is on the label's center line. */
+.theme-swatch {
+  display: block;
+  width: 14px;
+  height: 14px;
+  margin: 3px 1px 0;
+  border-radius: var(--radius-pill);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.28);
+}
+
 /* The song that is open, after the options button. It shrinks before anything
    else on the bar does, and is cut short with an ellipsis when it has to. */
 .top-bar__now {

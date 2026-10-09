@@ -199,7 +199,7 @@
   pointer-events: none;
   z-index: 0;
   background:
-    radial-gradient(64rem 40rem at 50% 108%, rgb(112 111 211 / 0.1), transparent 62%),
+    radial-gradient(64rem 40rem at 50% 108%, rgb(var(--c-wash-white) / 0.1), transparent 62%),
     radial-gradient(46rem 34rem at 6% -8%, rgb(52 172 224 / 0.045), transparent 58%);
 }
 
