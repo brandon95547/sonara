@@ -19,8 +19,20 @@ import { click as playClick } from '@/audio/click'
  * instead of an audio file.
  */
 
-/** How often the scheduler looks. Short enough that a note lands on time. */
+/** How often the scheduler looks. */
 const TICK_MS = 25
+/**
+ * How far past the clock each look reaches, in real milliseconds.
+ *
+ * A note is not struck by the look that finds it. It is given a timer of its
+ * own for the moment it is due, so it lands on that moment rather than on the
+ * next look after it. Struck by the look, every note was up to a tick late and
+ * no two were late by the same amount: a run of sixteenths at a hundred and
+ * fifty milliseconds came out with gaps anywhere from a hundred and twenty-five
+ * to a hundred and seventy-five. Two looks' worth, so a look that is itself
+ * late still finds the notes in time.
+ */
+const LOOKAHEAD_MS = TICK_MS * 2
 
 export function useSongPlayback(song: Song | null) {
   const audio = useAudio()
@@ -39,10 +51,24 @@ export function useSongPlayback(song: Song | null) {
   const live = React.useRef({ song, part, tempoScale, metronome })
   live.current = { song, part, tempoScale, metronome }
 
-  const sounding = React.useRef(new Set<number>())
+  /**
+   * The keys that are down, each with the number of the strike holding it.
+   *
+   * A key is released by the strike that pressed it and by no other. Released
+   * by pitch alone, a note repeated the moment the last one ended was let go by
+   * the earlier note's timer as often as not, a few milliseconds after it had
+   * been struck: it never sounded, and the phrase had a hole in it. Canon in D
+   * has eighty-four notes placed like that.
+   */
+  const sounding = React.useRef(new Map<number, number>())
+  const strikes = React.useRef(0)
+  /** Every timer still to fire: the notes waiting to be struck, and the releases. */
+  const timers = React.useRef(new Set<number>())
 
   const silence = React.useCallback(() => {
-    for (const note of sounding.current) {
+    for (const timer of timers.current) window.clearTimeout(timer)
+    timers.current.clear()
+    for (const note of sounding.current.keys()) {
       audioRef.current.noteOff(note)
       keyboardActions.noteOff(note)
     }
@@ -62,6 +88,52 @@ export function useSongPlayback(song: Song | null) {
     let cursor = originSong
     let lastBeat = -1
 
+    /** A timer that takes itself off the list when it fires. */
+    const after = (delayMs: number, run: () => void) => {
+      const timer = window.setTimeout(
+        () => {
+          timers.current.delete(timer)
+          run()
+        },
+        Math.max(0, delayMs),
+      )
+      timers.current.add(timer)
+    }
+
+    const strike = (note: SongNote, scale: number) => {
+      const velocity = Math.min(127, Math.max(1, Math.round(note.velocity)))
+
+      // A drum is not a note. On the percussion channel the number names an
+      // instrument, so it goes to the kit and never near the piano or the
+      // keys — and it has no duration to release, only a decay of its own.
+      if (note.role === 'percussion') {
+        hitDrum(note.note, velocity)
+        return
+      }
+
+      // Struck again while it is still down: let go first, so the instrument
+      // hears a new note rather than more of the old one.
+      if (sounding.current.has(note.note)) audioRef.current.noteOff(note.note)
+      const strikeId = ++strikes.current
+      sounding.current.set(note.note, strikeId)
+
+      audioRef.current.noteOn(note.note, velocity)
+      // Only the part being learned lights up. Bass and strings sound so the
+      // piece makes sense, but they are not notes to put fingers on, and
+      // lighting them would say they were.
+      if (note.role === 'keyboard') keyboardActions.noteOn(note.note, velocity, 'pointer')
+
+      // The release is stretched by the same scale the gaps are, so a slow
+      // pass is slower playing rather than the same playing with long gaps.
+      after(note.durationMs / scale, () => {
+        // Struck again since: that strike holds the key now, and lets it go.
+        if (sounding.current.get(note.note) !== strikeId) return
+        sounding.current.delete(note.note)
+        audioRef.current.noteOff(note.note)
+        keyboardActions.noteOff(note.note)
+      })
+    }
+
     const timer = window.setInterval(() => {
       const { song: current, part: hands, tempoScale: scale, metronome: click } = live.current
       if (!current) return
@@ -75,33 +147,10 @@ export function useSongPlayback(song: Song | null) {
         return
       }
 
-      for (const note of notesBetween(current, cursor, at, hands)) {
-        const velocity = Math.min(127, Math.max(1, Math.round(note.velocity)))
-
-        // A drum is not a note. On the percussion channel the number names an
-        // instrument, so it goes to the kit and never near the piano or the
-        // keys — and it has no duration to release, only a decay of its own.
-        if (note.role === 'percussion') {
-          hitDrum(note.note, velocity)
-          continue
-        }
-
-        audioRef.current.noteOn(note.note, velocity)
-        // Only the part being learned lights up. Bass and strings sound so the
-        // piece makes sense, but they are not notes to put fingers on, and
-        // lighting them would say they were.
-        if (note.role === 'keyboard') {
-          keyboardActions.noteOn(note.note, velocity, 'pointer')
-        }
-        sounding.current.add(note.note)
-        // The release is stretched by the same scale the gaps are, so a slow
-        // pass is slower playing rather than the same playing with long gaps.
-        window.setTimeout(() => {
-          audioRef.current.noteOff(note.note)
-          keyboardActions.noteOff(note.note)
-          sounding.current.delete(note.note)
-        }, note.durationMs / scale)
-      }
+      // Everything due before the look after next, each on its own timer.
+      const horizon = Math.max(cursor, at + LOOKAHEAD_MS * scale)
+      for (const note of notesBetween(current, cursor, horizon, hands))
+        after((note.startMs - at) / scale, () => strike(note, scale))
 
       if (click) {
         const beat = Math.floor(at / (60000 / current.bpm))
@@ -111,7 +160,7 @@ export function useSongPlayback(song: Song | null) {
         }
       }
 
-      cursor = at
+      cursor = horizon
       seek(at)
     }, TICK_MS)
 
