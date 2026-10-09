@@ -1315,6 +1315,9 @@
   color: var(--c-bar-fg-muted);
 }
 .top-bar__now-verb {
+  /* Two spaces' worth past the one already between the words: a margin,
+     since a run of spaces in the markup collapses to one. */
+  margin-right: 0.5em;
   font-style: italic;
 }
 .top-bar__divider {
