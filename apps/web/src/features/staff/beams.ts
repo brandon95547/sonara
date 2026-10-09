@@ -1,7 +1,7 @@
-import { MIDDLE_LINE, stemDirection, type Staff } from '@sonara/shared'
+import { MIDDLE_LINE, stemDirection } from '@sonara/shared'
 import { STEP, yOn } from './staff-frame'
-import { placementOf, staffOf, STEM_STEPS, stemXFor } from './StaffNotes'
-import type { Placed } from './score'
+import { placementOf, STEM_STEPS, stemXFor } from './StaffNotes'
+import { BEAM_LINES, staffOfLine, voiceOn, type BeamLine, type Placed } from './score'
 
 /**
  * Beams: the bars that join short notes into the beats they belong to.
@@ -38,7 +38,7 @@ export interface StemOverride {
 }
 
 /** The stems of one step that beams have decided, by staff. */
-export type StepStems = Partial<Record<Staff, StemOverride>>
+export type StepStems = Partial<Record<BeamLine, StemOverride>>
 
 /** One beam, or one level of it, as a four-cornered shape. */
 export interface BeamBar {
@@ -80,12 +80,13 @@ export function beamsIn(placed: readonly Placed[]): {
   const stems = new Map<number, StepStems>()
   const beams: BeamShape[] = []
 
-  for (const staff of ['treble', 'bass'] as const) {
-    // Gather the groups on this staff. A group that runs over the end of a
+  for (const line of BEAM_LINES) {
+    const staff = staffOfLine(line)
+    // Gather the groups on this line: a staff's, or its lower voice's. A group that runs over the end of a
     // line is two groups, one on each: a beam does not cross a system break.
     const groups = new Map<number, Placed[]>()
     for (const entry of placed) {
-      const id = entry.beam?.[staff]
+      const id = entry.beam?.[line]
       if (id === undefined) continue
       const group = groups.get(id)
       if (group) group.push(entry)
@@ -95,13 +96,12 @@ export function beamsIn(placed: readonly Placed[]): {
     for (const [id, entries] of groups) {
       if (entries.length < 2) continue
       const chords = entries.map((entry) => {
-        // Where the staff has two voices, the beam is its first voice's: the
-        // notes under it are that voice's, and so is the way its stems point.
-        const voice = entry.parts?.find((part) => part.staff === staff)
-        const steps = (voice ? voice.notes : entry.notes.filter((note) => staffOf(note) === staff))
-          .map((note) => placementOf(note).steps)
-          .sort((a, b) => a - b)
-        return { entry, steps, stem: voice?.stem }
+        // The notes under the beam are this voice's, and so is the way its
+        // stems point, where the staff has two.
+        const voice = voiceOn(entry, line)!
+        const steps = voice.notes.map((note) => placementOf(note).steps).sort((a, b) => a - b)
+        const part = entry.parts?.find((candidate) => candidate.notes === voice.notes)
+        return { entry, steps, stem: voice.stem, dx: part?.dx ?? 0, flags: voice.value.flags }
       })
       const voiced = chords.find(({ stem }) => stem !== undefined)?.stem
       const up = voiced
@@ -111,12 +111,12 @@ export function beamsIn(placed: readonly Placed[]): {
           ) === 'up'
       const middle = MIDDLE_LINE[staff]
 
-      const members: Member[] = chords.map(({ entry, steps }) => ({
+      const members: Member[] = chords.map(({ entry, steps, dx, flags }) => ({
         index: entry.index,
-        x: stemXFor(entry.x, up),
+        x: stemXFor(entry.x + dx, up),
         outer: up ? steps.at(-1)! : steps[0]!,
         steps,
-        flags: entry.value[staff].flags,
+        flags,
         tuplet: entry.tuplet?.[staff],
       }))
 
@@ -141,7 +141,7 @@ export function beamsIn(placed: readonly Placed[]): {
       for (const member of members) {
         stems.set(member.index, {
           ...stems.get(member.index),
-          [staff]: { up, end: edge(member.x) },
+          [line]: { up, end: edge(member.x) },
         })
       }
 
@@ -189,7 +189,7 @@ export function beamsIn(placed: readonly Placed[]): {
       const midX = (first.x + last.x) / 2
 
       beams.push({
-        key: `${staff}-${id}-${first.index}`,
+        key: `${line}-${id}-${first.index}`,
         indices: members.map((member) => member.index),
         bars,
         ...(whole

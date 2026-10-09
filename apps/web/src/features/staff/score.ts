@@ -128,7 +128,7 @@ export interface Measured {
    * The beam this chord is under on each staff: a number shared by every chord
    * of the group. Absent for a note that stands alone and keeps its flags.
    */
-  readonly beam?: Partial<Record<Staff, number>>
+  readonly beam?: Partial<Record<BeamLine, number>>
   /** The tuplet its notes on each staff belong to, where the score said. */
   readonly tuplet?: Partial<Record<Staff, { readonly id: number; readonly actual: number }>>
 }
@@ -140,6 +140,34 @@ export interface Measured {
  * written out the same way — a scale is a run of steps in a key, and nothing
  * about engraving it needs a title or a track list. A song is one of these.
  */
+/**
+ * A line of music that can be beamed: a staff, or a staff's lower voice.
+ *
+ * Two voices on a staff are beamed apart. The upper voice — and a staff with
+ * one voice — is the staff's own line; the lower voice, where there is one, is
+ * a second line with a `2` to its name.
+ */
+export type BeamLine = Staff | 'treble2' | 'bass2'
+export const BEAM_LINES: readonly BeamLine[] = ['treble', 'bass', 'treble2', 'bass2']
+export const staffOfLine = (line: BeamLine): Staff =>
+  line.startsWith('treble') ? 'treble' : 'bass'
+
+/** The notes a chord has on one line, with what they are written as, or null where it has none. */
+export function voiceOn(
+  entry: Measured,
+  line: BeamLine,
+): { notes: readonly DrawnNote[]; value: WrittenValue; stem?: 'up' | 'down' } | null {
+  const staff = staffOfLine(line)
+  const lower = line.endsWith('2')
+  if (entry.parts)
+    return (
+      entry.parts.find((part) => part.staff === staff && (part.stem === 'down') === lower) ?? null
+    )
+  if (lower) return null
+  const notes = entry.notes.filter((note) => staffOf(note) === staff)
+  return notes.length > 0 ? { notes, value: entry.value[staff] } : null
+}
+
 /** A rest beside a chord: its staff, what it is written as, and how far before the chord it stands. */
 export interface RestMark {
   readonly staff: Staff
@@ -650,7 +678,12 @@ function beamed(
   /** The bars as the score wrote them, where it did: each has its own start, tempo and metre. */
   measures?: Song['measures'],
 ): Measured[] {
-  const beamOf: Record<Staff, Map<number, number>> = { treble: new Map(), bass: new Map() }
+  const beamOf: Record<BeamLine, Map<number, number>> = {
+    treble: new Map(),
+    bass: new Map(),
+    treble2: new Map(),
+    bass2: new Map(),
+  }
   let nextId = 0
 
   /**
@@ -679,7 +712,7 @@ function beamed(
     }
   }
 
-  for (const staff of ['treble', 'bass'] as const) {
+  for (const line of BEAM_LINES) {
     /** The beam being gathered, if one is open. */
     interface Group {
       members: number[]
@@ -692,16 +725,20 @@ function beamed(
     const close = () => {
       if (open.group && open.group.members.length > 1) {
         const id = nextId++
-        for (const index of open.group.members) beamOf[staff].set(index, id)
+        for (const index of open.group.members) beamOf[line].set(index, id)
       }
       open.group = null
     }
 
     for (const entry of measured) {
-      const mine = entry.step.notes.filter((note) => staffFor(note.note, note.hand) === staff)
-      if (mine.length === 0) continue
-      const value = entry.value[staff]
-      const tuplet = mine.find((note) => note.written?.tuplet)?.written?.tuplet
+      // Each voice is beamed by itself: the hands keep their own rhythm, and
+      // so do two voices in one hand.
+      const voice = voiceOn(entry, line)
+      if (!voice) continue
+      const value = voice.value
+      const tuplet = entry.step.notes.find(
+        (note) => note.written?.tuplet && voice.notes.some((drawn) => drawn.note === note.note),
+      )?.written?.tuplet
       const start = entry.step.startMs
       const bar = barAt(start, entry.bar)
       const length =
@@ -750,16 +787,12 @@ function beamed(
   }
 
   return measured.map((entry) => {
-    const treble = beamOf.treble.get(entry.index)
-    const bass = beamOf.bass.get(entry.index)
-    if (treble === undefined && bass === undefined) return entry
-    return {
-      ...entry,
-      beam: {
-        ...(treble !== undefined ? { treble } : {}),
-        ...(bass !== undefined ? { bass } : {}),
-      },
+    const beam: Partial<Record<BeamLine, number>> = {}
+    for (const line of BEAM_LINES) {
+      const id = beamOf[line].get(entry.index)
+      if (id !== undefined) beam[line] = id
     }
+    return Object.keys(beam).length > 0 ? { ...entry, beam } : entry
   })
 }
 

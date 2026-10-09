@@ -789,10 +789,6 @@ export function Chord({
   tiesOut?: readonly number[]
 }) {
   if (parts) {
-    // A beam belongs to the first voice on its staff, which is the one the
-    // beaming was worked out for.
-    const first = new Map<Staff, VoicePart>()
-    for (const part of parts) if (!first.has(part.staff)) first.set(part.staff, part)
     return (
       <>
         {parts.map((part, index) => (
@@ -802,7 +798,9 @@ export function Chord({
             notes={part.notes}
             value={part.value}
             fifths={fifths}
-            stem={first.get(part.staff) === part ? stems?.[part.staff] : undefined}
+            // Each voice has its own beams: the lower voice's are under the
+            // staff's second line.
+            stem={stems?.[part.stem === 'down' ? (`${part.staff}2` as const) : part.staff]}
             direction={part.stem}
             ties={ties}
             tiesOut={tiesOut}
