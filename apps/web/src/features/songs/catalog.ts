@@ -338,13 +338,6 @@ export const SONG_CATALOG: readonly CatalogSong[] = [
     category: 'playful',
   },
   {
-    id: 'joplin-the-entertainer-2',
-    title: 'The Entertainer',
-    composer: 'Scott Joplin',
-    category: 'playful',
-    edition: 'Version 2',
-  },
-  {
     id: 'joplin-maple-leaf-rag',
     title: 'Maple Leaf Rag',
     composer: 'Scott Joplin',
