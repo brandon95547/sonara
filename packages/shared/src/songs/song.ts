@@ -34,6 +34,42 @@ export interface WrittenNote {
   readonly tuplet?: { readonly id: number; readonly actual: number; readonly normal: number }
 }
 
+/**
+ * A note written again and tied to the one before: another notehead on the
+ * page, and no new press of the key.
+ *
+ * A tie is how a score writes a length it has no single note for, or carries a
+ * note over a bar line. It is one sound, so it is one `SongNote` — struck once,
+ * held for the whole of it — and these are the rest of what the page shows.
+ */
+export interface TiedSegment {
+  readonly startQ: number
+  readonly startMs: number
+  /** What this stretch is written as, where the score said. */
+  readonly written?: WrittenNote
+}
+
+/**
+ * A rest: a silence the score writes down.
+ *
+ * Notation only. Nothing is played for one, so it is not among the notes; it
+ * is here so the page can show a hand that is waiting as plainly as one that
+ * is playing.
+ */
+export interface SongRest {
+  readonly startQ: number
+  readonly startMs: number
+  readonly durationQ: number
+  /** The staff it is written on, as the hand that staff belongs to. */
+  readonly hand: Hand
+  /** The voice it is written in, as the score numbers them. */
+  readonly voice?: number
+  /** Its written length, where the score said. */
+  readonly written?: { readonly value: NoteValue; readonly dots: number }
+  /** A rest for the whole bar, whatever the bar's length: written the same in every metre. */
+  readonly wholeBar?: boolean
+}
+
 export interface SongNote {
   readonly note: number
   readonly velocity: number
@@ -92,6 +128,16 @@ export interface SongNote {
   readonly durationQ?: number
   /** Its written value, where a score gave one. */
   readonly written?: WrittenNote
+  /**
+   * The voice it is written in, as the score numbers them.
+   *
+   * A staff can carry two lines at once — a melody over held notes — each with
+   * its own rhythm and its own stems. The number says which line a note
+   * belongs to; it means nothing to the fingers and everything to the page.
+   */
+  readonly voice?: number
+  /** Where it is written again and tied: the noteheads after the first. */
+  readonly tied?: readonly TiedSegment[]
   /**
    * A grace note: struck just before the beat it decorates, taking no time
    * of its own. Drawn small, and never asked for as a step of its own.
@@ -208,6 +254,8 @@ export interface Song {
    * the other.
    */
   readonly sections?: readonly SongSection[]
+  /** The rests the score writes, for the page. See `SongRest`. */
+  readonly rests?: readonly SongRest[]
 }
 
 export function songDuration(notes: readonly SongNote[]): number {
@@ -272,6 +320,7 @@ export function buildSong(input: {
   /** The bars as the file laid them out. Without them, one tempo and one metre. */
   measures?: readonly SongMeasure[]
   sections?: readonly SongSection[]
+  rests?: readonly SongRest[]
   /** Chord symbols the file printed. */
   chords?: readonly ChordSymbol[]
 }): Song {

@@ -608,3 +608,65 @@ describe('a score with repeats', () => {
     expect(score(bar(1, 'C') + bar(2, 'D')).sections ?? []).toEqual([])
   })
 })
+
+/**
+ * What a score writes besides which keys to press: the voice a note belongs
+ * to, the rests, and a tied note's second notehead. None of it is played, and
+ * all of it is what the page is made of.
+ */
+describe('the notation a score carries beyond its notes', () => {
+  const opening =
+    '<attributes><divisions>1</divisions><time><beats>4</beats><beat-type>4</beat-type></time></attributes>'
+  const score = (measures: string) =>
+    importMusicXml(xml(`<part id="P1">${measures}</part>`, scorePart('P1', 'Piano')), 'written')!
+
+  it('keeps the voice each note is written in', () => {
+    const song = score(
+      `<measure number="1">${opening}${xnote('E', 5, 4, '<voice>1</voice><staff>1</staff>')}` +
+        `<backup><duration>4</duration></backup>${xnote('C', 4, 4, '<voice>2</voice><staff>1</staff>')}</measure>`,
+    )
+    expect(song.notes.map((note) => [note.note, note.voice])).toEqual([
+      [60, 2],
+      [76, 1],
+    ])
+  })
+
+  it('plays a tied note once and remembers where it is written again', () => {
+    const song = score(
+      `<measure number="1">${opening}${xnote('C', 4, 4, '<tie type="start"/><type>whole</type>')}</measure>` +
+        `<measure number="2">${xnote('C', 4, 2, '<tie type="stop"/><type>half</type>')}${xnote('D', 4, 2, '<type>half</type>')}</measure>`,
+    )
+    // Two keys pressed, not three: the C is held across the bar line.
+    expect(song.notes.map((note) => [note.note, note.durationQ])).toEqual([
+      [60, 6],
+      [62, 2],
+    ])
+    expect(song.notes[0]!.tied).toEqual([
+      { startQ: 4, startMs: 2400, written: { value: 'half', dots: 0 } },
+    ])
+    expect(song.notes[1]!.tied).toBeUndefined()
+  })
+
+  it('keeps the rests, on the staff they are written on, and knows a whole bar of one', () => {
+    const rest = (inside: string) => `<note>${inside}</note>`
+    const song = score(
+      `<measure number="1">${opening}${xnote('C', 5, 2, '<staff>1</staff><type>half</type>')}` +
+        rest('<rest/><duration>2</duration><voice>1</voice><type>half</type><staff>1</staff>') +
+        '<backup><duration>4</duration></backup>' +
+        rest('<rest measure="yes"/><duration>4</duration><voice>5</voice><staff>2</staff>') +
+        '</measure>',
+    )
+    expect(song.notes).toHaveLength(1)
+    expect(song.rests).toEqual([
+      {
+        startQ: 2,
+        startMs: 1200,
+        durationQ: 2,
+        hand: 'right',
+        voice: 1,
+        written: { value: 'half', dots: 0 },
+      },
+      { startQ: 0, startMs: 0, durationQ: 4, hand: 'left', voice: 5, wholeBar: true },
+    ])
+  })
+})

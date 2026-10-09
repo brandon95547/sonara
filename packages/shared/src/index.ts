@@ -30,6 +30,8 @@ export {
   type Song,
   type SongNote,
   type SongProvides,
+  type SongRest,
+  type TiedSegment,
   type SongStep,
   type WrittenNote,
 } from './songs/song.js'

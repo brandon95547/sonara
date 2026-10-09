@@ -19,6 +19,7 @@ import {
   type Song,
   type SongMeasure,
   type SongNote,
+  type SongRest,
   type Spelling,
   type WrittenNote,
 } from '@sonara/shared'
@@ -270,6 +271,8 @@ export function importMusicXml(text: string, fallbackTitle: string): Song | null
   const tempos: { atQ: number; bpm: number }[] = []
   /** Each bar's length and metre, longest of any part that has it. */
   const bars: { durationQ: number; beats: number; beatType: number }[] = []
+  /** The rests the piano's staves write, for the page. */
+  const rests: SongRest[] = []
   /** The repeat signs and ending brackets on each bar, from whichever part wrote them. */
   const signs: {
     start?: boolean
@@ -419,6 +422,34 @@ export function importMusicXml(text: string, fallbackTitle: string): Song | null
         const voice = inner(content, 'voice')?.trim() ?? '1'
 
         if (flag(content, 'rest')) {
+          // Written down for the page: a rest is not played, but it is what
+          // shows a hand waiting. Only the piano's, and only the ones printed.
+          if (role === 'keyboard' && !isGrace && !/<note\b[^>]*print-object="no"/.test(content)) {
+            const restType = inner(content, 'type')?.trim()
+            const onStaff = num(content, 'staff')
+            const barQ = (beats * 4) / beatType
+            rests.push({
+              startQ: measureStartQ + start / divisions,
+              startMs: 0,
+              durationQ: duration / divisions,
+              hand: partHand ?? (onStaff === 2 ? 'left' : 'right'),
+              voice: Number(voice) || 1,
+              ...(restType
+                ? {
+                    written: {
+                      value: TYPE_VALUES[restType] ?? 'quarter',
+                      dots: (content.match(/<dot\s*\/>/g) ?? []).length,
+                    },
+                  }
+                : {}),
+              // Marked as the bar's, or given no length of its own and the
+              // bar's whole duration, which is how most programs write one.
+              ...(/<rest\b[^>]*measure="yes"/.test(content) ||
+              (!restType && duration / divisions >= barQ - 1e-6)
+                ? { wholeBar: true }
+                : {}),
+            })
+          }
           cursor = start + duration
           longest = Math.max(longest, cursor)
           continue
@@ -479,7 +510,16 @@ export function importMusicXml(text: string, fallbackTitle: string): Song | null
             // Replace the held note with a longer one rather than adding a second.
             const index = notes.lastIndexOf(held)
             if (index >= 0) {
-              const extended: Parsed = { ...held, durationQ: startQ + durationQ - held.startQ }
+              const extended: Parsed = {
+                ...held,
+                durationQ: startQ + durationQ - held.startQ,
+                // One sound, written twice: the second notehead is kept for
+                // the page, with the tie that joins it to the first.
+                tied: [
+                  ...(held.tied ?? []),
+                  { startQ, startMs: 0, ...(written ? { written } : {}) },
+                ],
+              }
               notes[index] = extended
               if (/<tie[^>]*type="start"/.test(content)) tied.set(tieKey, extended)
               else tied.delete(tieKey)
@@ -509,6 +549,7 @@ export function importMusicXml(text: string, fallbackTitle: string): Song | null
           hand,
           role: unpitched ? 'percussion' : role,
           spelling,
+          voice: Number(voice) || 1,
           ...(written ? { written } : {}),
           ...(isGrace ? { grace: true } : {}),
           ...(finger ? { finger } : {}),
@@ -595,6 +636,9 @@ export function importMusicXml(text: string, fallbackTitle: string): Song | null
     ...note,
     startMs: toMs(note.startQ),
     durationMs: Math.max(30, toMs(note.startQ + note.durationQ) - toMs(note.startQ)),
+    ...(note.tied
+      ? { tied: note.tied.map((segment) => ({ ...segment, startMs: toMs(segment.startQ) })) }
+      : {}),
   }))
   const pedal: PedalSpan[] = pedalsQ.map((span) => ({
     startMs: toMs(span.fromQ),
@@ -640,6 +684,7 @@ export function importMusicXml(text: string, fallbackTitle: string): Song | null
     measures: numberMeasures(measureList),
     // The order the bars are played in, where a repeat or an ending makes that
     // something other than once through. The notes above stay as written.
+    rests: rests.map((rest) => ({ ...rest, startMs: toMs(rest.startQ) })),
     sections: sectionsFor(
       measureList,
       playOrder(measureList),
