@@ -127,6 +127,28 @@ const VIEW_KEY = 'sonara.staff-view.v1'
 /** Nothing in progress. */
 const IDLE = { stepIndex: 0, learning: false } as const
 
+/** The fastest a song opens at, in beats a minute. */
+export const OPENING_BPM = 90
+/** The slowest the tempo goes, as a share of the song's own. */
+const MIN_TEMPO_SCALE = 0.25
+
+/**
+ * The speed a song opens at, as a share of the tempo it is written at.
+ *
+ * Its own tempo, unless that is faster than ninety, and then ninety. A piece
+ * marked at a hundred and eighty is that fast for someone who can already play
+ * it; opened at full speed it is past a learner before they have found the
+ * first note, and the first thing they did with every quick piece was turn it
+ * down. Faster is still there to be chosen: this is where it starts.
+ *
+ * Worked out afresh for each song rather than carried from the last one. A
+ * share that was right for a presto is far too slow for an adagio.
+ */
+function openingScale(song: Song | undefined): number {
+  if (!song || !(song.bpm > OPENING_BPM)) return 1
+  return Math.max(MIN_TEMPO_SCALE, OPENING_BPM / song.bpm)
+}
+
 /**
  * Brings a stored song up to the current shape.
  *
@@ -254,10 +276,24 @@ export const useSongStore = create<SongState>((set) => ({
       const library = [song, ...state.library]
       save(library)
       // A freshly imported song is the one you want open.
-      return { library, currentId: song.id, positionMs: 0, playing: false, ...IDLE }
+      return {
+        library,
+        currentId: song.id,
+        positionMs: 0,
+        playing: false,
+        tempoScale: openingScale(song),
+        ...IDLE,
+      }
     }),
 
-  open: (currentId) => set({ currentId, positionMs: 0, playing: false, ...IDLE }),
+  open: (currentId) =>
+    set((state) => ({
+      currentId,
+      positionMs: 0,
+      playing: false,
+      tempoScale: openingScale(state.library.find((song) => song.id === currentId)),
+      ...IDLE,
+    })),
 
   openBuiltIn: (song) =>
     set((state) => ({
@@ -267,6 +303,7 @@ export const useSongStore = create<SongState>((set) => ({
       currentId: song.id,
       positionMs: 0,
       playing: false,
+      tempoScale: openingScale(song),
       ...IDLE,
     })),
 
@@ -283,7 +320,8 @@ export const useSongStore = create<SongState>((set) => ({
   setPlaying: (playing) => set({ playing }),
   seek: (positionMs) => set({ positionMs: Math.max(0, positionMs) }),
   setPart: (part) => set({ part }),
-  setTempoScale: (tempoScale) => set({ tempoScale: Math.min(2, Math.max(0.25, tempoScale)) }),
+  setTempoScale: (tempoScale) =>
+    set({ tempoScale: Math.min(2, Math.max(MIN_TEMPO_SCALE, tempoScale)) }),
   setMetronome: (metronome) => set({ metronome }),
 
   // Switching how you are working on the piece stops whatever the other way

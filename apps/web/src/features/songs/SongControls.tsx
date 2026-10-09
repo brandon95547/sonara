@@ -135,9 +135,11 @@ const MAX_SCALE = 2
  * The song's tempo, in beats a minute: on the bar, and in Settings for a bar
  * too narrow to hold it.
  *
- * The song keeps its speed as a share of the tempo it is written at, so that
- * opening another song keeps the share. The player thinks in beats a minute,
- * so that is what the field shows and what is typed into it.
+ * The song keeps its speed as a share of the tempo it is written at, which is
+ * what slows every bar of a piece that changes tempo by the same amount. The
+ * player thinks in beats a minute, so that is what the field shows and what is
+ * typed into it. A song opens at its own tempo, or at ninety if it is written
+ * faster — see `openingScale` in the song store.
  */
 export function SongTempoControl({ className, panel }: { className?: string; panel?: boolean }) {
   const song = useCurrentSong()

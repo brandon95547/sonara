@@ -130,6 +130,25 @@ describe('the song chooser', () => {
     expect(fetched).toHaveBeenCalledTimes(1)
   })
 
+  it('opens a quick song at ninety, and a slow one at its own tempo', async () => {
+    vi.stubGlobal('fetch', serveScores())
+    const onClose = vi.fn()
+    render(<SongPicker open onClose={onClose} />)
+
+    // Maple Leaf Rag is written at a hundred.
+    fireEvent.click(song('Maple Leaf Rag'))
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
+    const rag = useSongStore.getState()
+    expect(rag.builtIn[0]!.bpm).toBe(100)
+    expect(rag.builtIn[0]!.bpm * rag.tempoScale).toBeCloseTo(90, 5)
+
+    // Ave Maria at forty: nothing to slow down, and nothing carried over from
+    // the rag, whose nine tenths would have made it thirty-six.
+    fireEvent.click(song('Ave Maria'))
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(2))
+    expect(useSongStore.getState().tempoScale).toBe(1)
+  })
+
   it('says so when a score does not arrive, and stays open', async () => {
     vi.stubGlobal(
       'fetch',
