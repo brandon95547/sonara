@@ -160,20 +160,6 @@ export const SONG_CATALOG: readonly CatalogSong[] = [
     category: 'romantic',
   },
   {
-    id: 'senneville-mariage-d-amour-2',
-    title: "Mariage d'Amour",
-    composer: 'Paul de Senneville',
-    category: 'romantic',
-    edition: 'Version 2',
-  },
-  {
-    id: 'senneville-mariage-d-amour-3',
-    title: "Mariage d'Amour",
-    composer: 'Paul de Senneville',
-    category: 'romantic',
-    edition: 'Version 3',
-  },
-  {
     id: 'senneville-hungarian-sonata',
     title: 'Hungarian Sonata',
     composer: 'Paul de Senneville',
