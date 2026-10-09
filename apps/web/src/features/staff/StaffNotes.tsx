@@ -1,3 +1,4 @@
+import * as React from 'react'
 import {
   accidentalToShow,
   ACCIDENTAL_SIGNS,
@@ -836,6 +837,100 @@ export function Chord({
         tiesOut={tiesOut}
       />
     </>
+  )
+}
+
+/** Half the room a rest takes, for the spacing: the widest of them, the semibreve's block. */
+export const REST_HALF = STEP * 1.3
+
+/**
+ * A rest, drawn on its staff at `x`.
+ *
+ * Drawn rather than set from a music font, like the noteheads: the fonts that
+ * carry these glyphs are not on every machine, and a missing rest is a silence
+ * the page forgot to mention. A whole rest hangs from the fourth line and a
+ * half rest sits on the third, which is the only thing that tells them apart;
+ * a rest for a whole bar is the hanging one in every metre.
+ */
+export function Rest({
+  x,
+  staff,
+  value,
+  dots = 0,
+}: {
+  x: number
+  staff: Staff
+  value: WrittenValue['value']
+  dots?: number
+}) {
+  // The middle line of the staff, and the height of one space.
+  const middle = yOn(staff === 'treble' ? 6 : -6, staff)
+  const space = STEP * 2
+  const dot = (cx: number, cy: number) => (
+    <circle cx={cx} cy={cy} r={STEP * 0.42} className="staff__dot" />
+  )
+  /** One hook of a quaver rest: a dot, and a curl from it to the stem. */
+  const hook = (cy: number, key: number) => (
+    <g key={key}>
+      {dot(x - STEP * 0.55, cy)}
+      <path
+        d={`M ${x - STEP * 0.55} ${cy + STEP * 0.35} Q ${x + STEP * 0.5} ${cy + STEP * 0.5} ${x + STEP * 1.05} ${cy - STEP * 0.45}`}
+        className="staff__rest-line"
+      />
+    </g>
+  )
+
+  let glyph: React.ReactNode
+  let dotX = x + REST_HALF + STEP * 0.5
+  if (value === 'whole' || value === 'half') {
+    // The same block, hanging from one line or sitting on the next.
+    const top = value === 'whole' ? middle - space : middle - space / 2
+    glyph = (
+      <rect
+        x={x - REST_HALF}
+        y={top}
+        width={REST_HALF * 2}
+        height={space / 2}
+        className="staff__rest"
+      />
+    )
+  } else if (value === 'quarter') {
+    // Down the staff in three strokes and a curl back under.
+    glyph = (
+      <path
+        d={
+          `M ${x - STEP * 0.5} ${middle - space * 1.45} L ${x + STEP * 0.7} ${middle - space * 0.6} ` +
+          `L ${x - STEP * 0.7} ${middle + space * 0.15} L ${x + STEP * 0.6} ${middle + space * 0.8} ` +
+          `Q ${x - STEP * 1.5} ${middle + space * 0.55} ${x - STEP * 0.1} ${middle + space * 1.45}`
+        }
+        className="staff__rest-line staff__rest-line--heavy"
+      />
+    )
+    dotX = x + STEP * 1.4
+  } else {
+    // A quaver rest and its shorter kin: a stem leaning back, with a hook for
+    // every flag the note of that length would carry.
+    const hooks = value === 'eighth' ? 1 : value === 'sixteenth' ? 2 : 3
+    const top = middle - space * (hooks > 2 ? 1 : 0.5)
+    glyph = (
+      <>
+        <path
+          d={`M ${x + STEP * 1.05} ${top - STEP * 0.45} L ${x - STEP * 0.2} ${top + space * (hooks + 0.6)}`}
+          className="staff__rest-line"
+        />
+        {Array.from({ length: hooks }, (_, index) => hook(top + index * space, index))}
+      </>
+    )
+    dotX = x + STEP * 1.9
+  }
+
+  return (
+    <g className="staff__rest-mark">
+      {glyph}
+      {Array.from({ length: dots }, (_, index) => (
+        <React.Fragment key={index}>{dot(dotX + index * STEP, middle - space / 2)}</React.Fragment>
+      ))}
+    </g>
   )
 }
 

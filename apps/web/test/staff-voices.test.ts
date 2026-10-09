@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { songSteps } from '@sonara/shared'
 import { importMusicXml } from '@/features/songs/import-musicxml'
-import { measureScore, place } from '@/features/staff/score'
+import { barLinesIn, barRestsIn, measureScore, place } from '@/features/staff/score'
 
 /**
  * Two voices on one staff.
@@ -115,5 +115,96 @@ describe('a tied note', () => {
     const second = place(measured.slice(1), 100)
     expect(first[0]!.arcsOut).toEqual([72])
     expect(second[0]!.arcs).toEqual([{ note: 72, fromX: null }])
+  })
+})
+
+/**
+ * Rests: a hand that is waiting.
+ *
+ * Shown where a hand has nothing to play, and not for every rest the score
+ * writes — a voice resting while the same hand plays the other voice is
+ * bookkeeping, and the hand is busy.
+ */
+describe('rests', () => {
+  const pitched = (
+    step: string,
+    octave: number,
+    duration: number,
+    type: string,
+    voice: number,
+    staff: number,
+  ) =>
+    `<note><pitch><step>${step}</step><octave>${octave}</octave></pitch><duration>${duration}</duration><voice>${voice}</voice><type>${type}</type><staff>${staff}</staff></note>`
+  const rest = (duration: number, type: string | null, voice: number, staff: number) =>
+    `<note><rest${type ? '' : ' measure="yes"'}/><duration>${duration}</duration><voice>${voice}</voice>${type ? `<type>${type}</type>` : ''}<staff>${staff}</staff></note>`
+  const back = (duration: number) => `<backup><duration>${duration}</duration></backup>`
+  const measured = (bars: string[]) => {
+    const song = score(bars)
+    return measureScore(song, songSteps(song, 'both'))
+  }
+
+  it('stands a rest with the chord the other hand strikes at that moment', () => {
+    // Right hand: a minim, then a minim rest. Left hand: two minims.
+    const [, second] = measured([
+      pitched('C', 5, 2, 'half', 1, 1) +
+        rest(2, 'half', 1, 1) +
+        back(4) +
+        pitched('C', 3, 2, 'half', 5, 2) +
+        pitched('G', 3, 2, 'half', 5, 2),
+    ])
+    expect(second!.rests).toEqual([{ staff: 'treble', value: 'half', dots: 0, back: 0, bar: 1 }])
+  })
+
+  it('says nothing of a voice resting while the same hand plays the other', () => {
+    // The upper voice rests for the second half; the lower holds a semibreve.
+    const all = measured([
+      pitched('E', 5, 2, 'half', 1, 1) +
+        rest(2, 'half', 1, 1) +
+        back(4) +
+        pitched('C', 4, 4, 'whole', 2, 1),
+    ])
+    expect(all.flatMap((entry) => entry.rests ?? [])).toEqual([])
+  })
+
+  it('puts a rest for the whole bar in the middle of its bar', () => {
+    // The left hand rests for bar 1 and plays in bar 2.
+    const all = measured([
+      pitched('C', 5, 4, 'whole', 1, 1) + back(4) + rest(4, null, 5, 2),
+      pitched('D', 5, 4, 'whole', 1, 1) + back(4) + pitched('G', 3, 4, 'whole', 5, 2),
+    ])
+    expect(all.map((entry) => entry.barRest)).toEqual([['bass'], undefined])
+    const placed = place(all, 100)
+    const lines = barLinesIn(placed)
+    const [whole] = barRestsIn(placed, lines, 100, 900)
+    expect(whole).toMatchObject({ staff: 'bass', bar: 1 })
+    // Between where the bar starts and the line that ends it.
+    expect(whole!.x).toBeCloseTo((100 + lines[0]!.x) / 2, 5)
+  })
+
+  it('stands a rest neither hand plays through in the room before the next chord, and makes that room', () => {
+    // Both hands: a crotchet, a crotchet rest, then a minim.
+    const hands = (withRest: boolean) =>
+      measured([
+        pitched('C', 5, 1, 'quarter', 1, 1) +
+          (withRest ? rest(1, 'quarter', 1, 1) : pitched('D', 5, 1, 'quarter', 1, 1)) +
+          pitched('E', 5, 2, 'half', 1, 1) +
+          back(4) +
+          pitched('C', 3, 1, 'quarter', 5, 2) +
+          (withRest ? rest(1, 'quarter', 5, 2) : pitched('D', 3, 1, 'quarter', 5, 2)) +
+          pitched('E', 3, 2, 'half', 5, 2),
+      ])
+    const resting = hands(true)
+    expect(resting).toHaveLength(2)
+    // One place in front of the chord, shared by both staves' rests.
+    expect(resting[1]!.rests!.map((mark) => [mark.staff, mark.value, mark.back > 0])).toEqual([
+      ['treble', 'quarter', true],
+      ['bass', 'quarter', true],
+    ])
+    expect(resting[1]!.rests![0]!.back).toBe(resting[1]!.rests![1]!.back)
+    const placed = place(resting, 100)
+    const drawn = placed[1]!.restsAt![0]!
+    // Clear of the chord before it and the chord after.
+    expect(drawn.x).toBeGreaterThan(placed[0]!.x + placed[0]!.extent.right)
+    expect(drawn.x).toBeLessThan(placed[1]!.x - placed[1]!.extent.left)
   })
 })

@@ -11,6 +11,7 @@ import {
 } from './staff-frame'
 import {
   BarLines,
+  BarRests,
   Beams,
   isLive,
   LiveStep,
@@ -29,6 +30,7 @@ import {
 } from './score-parts'
 import {
   barLinesIn,
+  barRestsIn,
   breakIntoSystems,
   frameOf,
   headerEnd,
@@ -299,6 +301,7 @@ const SystemRow = React.memo(
           withTime={system.from === 0}
         />
         <BarLines lines={lines} />
+        <BarRests rests={barRestsIn(system.placed, lines, opening, end)} />
         {PLAYHEAD_SHOWN && here >= system.from && here < system.to && (
           <Playhead x={system.placed[here - system.from]!.x} />
         )}

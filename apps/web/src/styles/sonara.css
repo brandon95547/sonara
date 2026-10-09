@@ -976,6 +976,26 @@
   fill: none;
   stroke: var(--c-now);
 }
+/* Rests: the blocks of the long ones, and the strokes of the short. */
+.staff__rest {
+  fill: var(--c-ink);
+}
+.staff__rest-line {
+  fill: none;
+  stroke: var(--c-ink);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.staff__rest-line--heavy {
+  stroke-width: 2.3;
+}
+.staff__step[data-role='played'] .staff__rest-mark :is(.staff__rest, .staff__dot) {
+  fill: var(--c-ink-played);
+}
+.staff__step[data-role='played'] .staff__rest-mark .staff__rest-line {
+  stroke: var(--c-ink-played);
+}
 /* A tie, and the notehead it leads to. That head is written here and not
    struck here — the key is already down — so it never takes the colour of the
    note to play: it stays ink, and the tie says why. */

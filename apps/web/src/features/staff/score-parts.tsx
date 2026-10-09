@@ -1,8 +1,16 @@
 import * as React from 'react'
 import { KEY_X, STEP, yOn } from './staff-frame'
-import { Chord, KeySignature, TimeSignature } from './StaffNotes'
+import { Chord, KeySignature, Rest, TimeSignature } from './StaffNotes'
 import { useKeyboardStore } from '@/state/keyboard-store'
-import { timeX, VOLTA_Y, type BarLine, type Measured, type Placed, type Volta } from './score'
+import {
+  timeX,
+  VOLTA_Y,
+  type BarLine,
+  type BarRest,
+  type Measured,
+  type Placed,
+  type Volta,
+} from './score'
 import type { BeamShape, StepStems } from './beams'
 
 /**
@@ -121,6 +129,17 @@ export function RepeatSign({ x, closes, opens }: { x: number; closes?: boolean; 
       {closes && <RepeatDots x={left - THIN_GAP - DOT_GAP} />}
       {opens && thin(left + THICK + THIN_GAP)}
       {opens && <RepeatDots x={left + THICK + THIN_GAP + DOT_GAP} />}
+    </>
+  )
+}
+
+/** The rests for a whole bar, each in the middle of the bar it silences. */
+export function BarRests({ rests }: { rests: readonly BarRest[] }) {
+  return (
+    <>
+      {rests.map((rest) => (
+        <Rest key={`${rest.bar}:${rest.staff}`} x={rest.x} staff={rest.staff} value="whole" />
+      ))}
     </>
   )
 }
@@ -250,6 +269,15 @@ export const Step = React.memo(function Step({
 
   return (
     <g className="staff__step" data-role={role}>
+      {placed.restsAt?.map((rest) => (
+        <Rest
+          key={`${rest.staff}:${rest.x}`}
+          x={rest.x}
+          staff={rest.staff}
+          value={rest.value}
+          dots={rest.dots}
+        />
+      ))}
       <Chord
         x={placed.x}
         /* Spelled, handed, signed and fingered when the score was measured —

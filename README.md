@@ -391,6 +391,18 @@ brackets instead of growing a bar for every bar repeated. MusicXML's repeats
 and endings are read; D.C., D.S. and codas are not yet, and neither are a
 MuseScore file's repeats.
 
+The page is engraved from the same song, by one engraver for both views. A
+staff that carries two voices in a bar is written as two: each voice a chord
+of its own, with its own length and its stem pointing away from the other
+(`VoicePart`, decided bar by bar in `staff/score.ts`). A tied note is one note
+to play and as many noteheads as the score wrote, the later ones standing at
+their own moments with a tie back to the one before. Rests are drawn where a
+hand is waiting — in the middle of the bar for a whole bar's rest, with the
+other hand's chord at the same moment, or in the room before the next chord —
+and not for a voice that rests while its own hand plays the other. Everything
+drawn is attached to a chord or a bar, so both views lay it out the same way
+and only the stretch near the window is ever in the page.
+
 The songs that come with the app are scores in `apps/web/public/songs`, listed
 in `features/songs/catalog.ts` with a title, a composer and a style each. They
 are read through `read-song.ts` like any other file, one at a time as they are

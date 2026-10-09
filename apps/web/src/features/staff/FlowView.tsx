@@ -3,6 +3,7 @@ import { useElementSize } from '@/lib/hooks'
 import { GUTTER, STAFF_BANDS, STAFF_START, StaffGutter, StaffLines, STEP } from './staff-frame'
 import {
   BarLines,
+  BarRests,
   Beams,
   isLive,
   LiveStep,
@@ -21,6 +22,7 @@ import {
 } from './score-parts'
 import {
   barLinesIn,
+  barRestsIn,
   endOf,
   frameOf,
   headerEnd,
@@ -185,6 +187,14 @@ export function FlowView({
     () => voltasIn(placed, barLines, marks, opening, endOf(placed)),
     [placed, barLines, marks, opening],
   )
+  const barRests = React.useMemo(
+    () => barRestsIn(placed, barLines, opening, endOf(placed)),
+    [placed, barLines, opening],
+  )
+  const shownBarRests = React.useMemo(
+    () => (span ? barRests.filter((rest) => rest.x >= span.from && rest.x <= span.to) : barRests),
+    [barRests, span],
+  )
   const shownVoltas = React.useMemo(
     () =>
       span ? voltas.filter((volta) => volta.to >= span.from && volta.from <= span.to) : voltas,
@@ -281,6 +291,7 @@ export function FlowView({
             <RepeatSign x={opening} opens />
           )}
           <Voltas voltas={shownVoltas} />
+          <BarRests rests={shownBarRests} />
           {PLAYHEAD_SHOWN && placed[here] && <Playhead x={placed[here]!.x} />}
           <Beams beams={shownBeams} roleFor={roleFor} />
           {runs.map((run) => (

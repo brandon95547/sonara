@@ -20,6 +20,7 @@ import {
   chordExtent,
   partsExtent,
   placementOf,
+  REST_HALF,
   staffOf,
   VOICE_SHIFT,
   type DrawnNote,
@@ -62,6 +63,8 @@ const PAGE_MIN_GAP = 26
 export const AIR = STEP * 3
 /** The extra two chords keep when a bar line stands between them. */
 const BAR_ROOM = STEP * 2
+/** The room a bar with nothing in it but a rest is given. */
+const EMPTY_BAR = STEP * 9
 /** And the extra again when that line is a repeat sign, which has dots and a thick line to fit. */
 const REPEAT_ROOM = STEP * 3
 
@@ -102,6 +105,15 @@ export interface Measured {
    * it always was.
    */
   readonly parts?: readonly VoicePart[]
+  /**
+   * The rests written with it: at its own moment, on the staff that is
+   * waiting, or in the room before it where neither hand is playing.
+   */
+  readonly rests?: readonly RestMark[]
+  /** The staves that rest for the whole of its bar. On the bar's first chord. */
+  readonly barRest?: readonly Staff[]
+  /** The bars before it in which nothing is struck at all, and the staves resting in each. */
+  readonly emptyBars?: readonly { readonly bar: number; readonly staves: readonly Staff[] }[]
   /** The ties arriving at its held notes: which note, and the step each comes from. */
   readonly ties?: readonly { readonly note: number; readonly fromIndex: number }[]
   /** The ties leaving its notes: which note, and the step each goes to. */
@@ -128,6 +140,17 @@ export interface Measured {
  * written out the same way — a scale is a run of steps in a key, and nothing
  * about engraving it needs a title or a track list. A song is one of these.
  */
+/** A rest beside a chord: its staff, what it is written as, and how far before the chord it stands. */
+export interface RestMark {
+  readonly staff: Staff
+  readonly value: WrittenValue['value']
+  readonly dots: number
+  /** How far left of the chord, in units at the natural spacing. Zero for one at the chord's own moment. */
+  readonly back: number
+  /** The bar it is in, which is not always the chord's: a rest can end the bar before. */
+  readonly bar: number
+}
+
 export interface ScoreSource {
   readonly bpm: number
   readonly measureMs: number
@@ -151,6 +174,8 @@ export interface ScoreSource {
    * rubato bar does not have one this code can trust.
    */
   readonly beams?: boolean
+  /** The rests the score writes, for the hands being shown. */
+  readonly rests?: Song['rests']
 }
 
 /**
@@ -287,6 +312,70 @@ export function measureScore(
         )
     }
   }
+
+  /*
+   * Rests: where a hand is waiting.
+   *
+   * Not every rest the score writes. A staff with two voices rests one of them
+   * while the other plays, and those are bookkeeping: the hand is busy. What a
+   * player needs to see is the hand with nothing to do, so a rest is kept only
+   * where no note of its hand is sounding — and, where both voices of a staff
+   * rest at once, once.
+   *
+   * A rest for a whole bar goes in the middle of its bar. Any other stands at
+   * its own moment: with the chord struck then, which will be the other
+   * hand's, or in the room before the next chord where nothing is struck.
+   */
+  const restsBy = new Map<number, RestMark[]>()
+  /** The rests waiting in the room before a chord, by the moment each begins. */
+  const leadsBy = new Map<number, { at: number; mark: Omit<RestMark, 'back'> }[]>()
+  const barRests = new Map<number, Staff[]>()
+  if (song?.rests?.length && measures) {
+    const sounding = { treble: [] as [number, number][], bass: [] as [number, number][] }
+    const filled = new Set<string>()
+    for (const step of steps)
+      for (const note of step.notes) {
+        const staff = staffFor(note.note, note.hand)
+        sounding[staff].push([note.startMs, note.startMs + note.durationMs])
+        // Every bar the note sounds in, not only the one it starts in.
+        const last = barIndexAt(measures, note.startMs + note.durationMs - 1)
+        for (let at = barIndexAt(measures, note.startMs); at <= last; at++)
+          filled.add(`${measures[at]!.number}:${staff}`)
+      }
+    const seen = new Set<string>()
+    for (const rest of [...song.rests].sort((a, b) => b.durationQ - a.durationQ)) {
+      const staff: Staff = rest.hand === 'left' ? 'bass' : 'treble'
+      const measure = measures[barIndexAt(measures, rest.startMs)]!
+      const endMs = rest.startMs + rest.durationQ * measure.quarterMs
+      const whole =
+        rest.wholeBar ||
+        (Math.abs(rest.startQ - measure.startQ) < 1e-6 &&
+          rest.durationQ >= measure.durationQ - 1e-6)
+      if (whole) {
+        if (
+          !filled.has(`${measure.number}:${staff}`) &&
+          !barRests.get(measure.number)?.includes(staff)
+        )
+          barRests.set(measure.number, [...(barRests.get(measure.number) ?? []), staff])
+        continue
+      }
+      if (sounding[staff].some(([from, to]) => from < endMs - 1 && to > rest.startMs + 1)) continue
+      const key = `${staff}:${Math.round(rest.startMs)}`
+      if (seen.has(key)) continue
+      seen.add(key)
+
+      const shape = rest.written ?? writtenValue(endMs - rest.startMs, measure.quarterMs)
+      const mark = { staff, value: shape.value, dots: shape.dots, bar: measure.number }
+      const at = stepNear(rest.startMs)
+      if (at >= 0) restsBy.set(at, [...(restsBy.get(at) ?? []), { ...mark, back: 0 }])
+      else {
+        // The next chord after it: the rest stands in the room before that.
+        const next = steps.findIndex((step) => step.startMs > rest.startMs)
+        if (next >= 0) leadsBy.set(next, [...(leadsBy.get(next) ?? []), { at: rest.startMs, mark }])
+      }
+    }
+  }
+  let lastBar = Number.NaN
 
   const measured = steps.map((step, index): Measured => {
     const bar = barOf(step)
@@ -452,7 +541,45 @@ export function measureScore(
         }
       : value
 
-    const extent = parts ? partsExtent(parts, fifths) : chordExtent(notes, value, fifths)
+    const inked = parts ? partsExtent(parts, fifths) : chordExtent(notes, value, fifths)
+    /*
+     * The rests with this chord.
+     *
+     * Those at its own moment stand in its column, on the other staff. Those
+     * before it take a place each in the room in front, in the order they
+     * come, two that begin together sharing one — the last nearest the chord.
+     */
+    const waiting = [...(leadsBy.get(index) ?? [])].sort((a, b) => a.at - b.at)
+    const moments = [...new Set(waiting.map((lead) => Math.round(lead.at)))]
+    const slot = REST_HALF * 2 + AIR
+    const rests: RestMark[] = [
+      ...(restsBy.get(index) ?? []),
+      ...waiting.map(({ at, mark }) => ({
+        ...mark,
+        back:
+          inked.left +
+          AIR +
+          REST_HALF +
+          (moments.length - 1 - moments.indexOf(Math.round(at))) * slot,
+      })),
+    ]
+    /** The room the rests in front need, on top of the chord's own. */
+    const lead = moments.length * slot
+    const beside = (restsBy.get(index)?.length ?? 0) > 0 ? REST_HALF + STEP : 0
+    const extent = {
+      ...inked,
+      left: Math.max(inked.left, beside),
+      right: Math.max(inked.right, beside),
+    }
+
+    /** The bars since the last chord in which nothing at all is struck, and who rests in them. */
+    const emptyBars: { bar: number; staves: Staff[] }[] = []
+    if (index > 0 && bar - lastBar > 1 && bar - lastBar <= 64)
+      for (let empty = lastBar + 1; empty < bar; empty++)
+        if (barRests.has(empty)) emptyBars.push({ bar: empty, staves: barRests.get(empty)! })
+    const firstOfBar = bar !== lastBar
+    lastBar = bar
+
     let gap = 0
     if (index > 0) {
       const elapsed = step.startMs - steps[index - 1]!.startMs
@@ -460,7 +587,13 @@ export function measureScore(
       gap = Math.max(
         song?.minGap ?? MIN_GAP,
         rhythmic,
-        previous + extent.left + AIR + (opensBar ? BAR_ROOM : 0) + (repeats ? REPEAT_ROOM : 0),
+        previous +
+          extent.left +
+          AIR +
+          lead +
+          emptyBars.length * EMPTY_BAR +
+          (opensBar ? BAR_ROOM : 0) +
+          (repeats ? REPEAT_ROOM : 0),
       )
     }
     previous = extent.right
@@ -484,6 +617,9 @@ export function measureScore(
         ? { ties: helds.map(({ note, fromIndex }) => ({ note: note.note, fromIndex })) }
         : {}),
       ...(tiedOut.has(index) ? { tiesOut: tiedOut.get(index)! } : {}),
+      ...(rests.length > 0 ? { rests } : {}),
+      ...(firstOfBar && barRests.has(bar) ? { barRest: barRests.get(bar)! } : {}),
+      ...(emptyBars.length > 0 ? { emptyBars } : {}),
       extent,
       gap,
       bar,
@@ -656,9 +792,12 @@ export function useMeasuredScore(
         // A score states every length, so its short notes can be beamed. A
         // performance only implies them.
         beams: song.provides?.rhythm === true,
+        // The rests of the hands being shown. A hand that is not on the page
+        // has no silences to mark on it.
+        rests: song.rests?.filter((rest) => part === 'both' || rest.hand === part),
         ...(page ? { barWidth: PAGE_BAR_WIDTH, minGap: PAGE_MIN_GAP } : {}),
       },
-    [song, page],
+    [song, page, part],
   )
   const measured = React.useMemo(() => measureScore(source, steps, hints), [source, steps, hints])
   return { steps, measured }
@@ -719,6 +858,8 @@ export interface Placed extends Measured {
   readonly arcs?: readonly TieArc[]
   /** The notes whose tie leaves this line, to be finished on the next. */
   readonly arcsOut?: readonly number[]
+  /** Its rests, each where it stands on this line. */
+  readonly restsAt?: readonly (RestMark & { readonly x: number })[]
 }
 
 /**
@@ -732,7 +873,17 @@ export function place(measured: readonly Measured[], startX: number, stretch = 1
   let x = startX
   const placed = measured.map((entry, index): Placed => {
     if (index > 0) x += entry.gap * stretch
-    return { ...entry, x }
+    // A rest in front of the chord keeps its share of the room as the line is
+    // opened up. The first chord of a line has no room to share, and its
+    // rests stand as close as they were measured.
+    const open = index > 0 ? stretch : 1
+    return {
+      ...entry,
+      x,
+      ...(entry.rests
+        ? { restsAt: entry.rests.map((rest) => ({ ...rest, x: x - rest.back * open })) }
+        : {}),
+    }
   })
   if (!placed.some((entry) => entry.ties || entry.tiesOut)) return placed
 
@@ -784,8 +935,19 @@ export function barLinesIn(placed: readonly Placed[], marks?: BarMarks): BarLine
     const before = placed[i - 1]!
     const after = placed[i]!
     if (after.bar === before.bar) continue
-    const earliest = before.x + before.extent.right + BAR_TRAIL
-    const last = Math.max(earliest, after.x - after.extent.left - BAR_LEAD)
+    // A rest in front of the chord is in one bar or the other: the line goes
+    // after the ones that end the bar before, and before the ones that begin
+    // this bar.
+    const closing = (after.restsAt ?? []).filter((rest) => rest.bar < after.bar && rest.back > 0)
+    const opening = (after.restsAt ?? []).filter((rest) => rest.bar >= after.bar && rest.back > 0)
+    const earliest =
+      Math.max(before.x + before.extent.right, ...closing.map((rest) => rest.x + REST_HALF)) +
+      BAR_TRAIL
+    const last = Math.max(
+      earliest,
+      Math.min(after.x - after.extent.left, ...opening.map((rest) => rest.x - REST_HALF)) -
+        BAR_LEAD,
+    )
     const count = Math.min(MAX_EMPTY_BARS, Math.max(1, after.bar - before.bar))
     for (let n = 1; n <= count; n++) {
       const bar = after.bar - (count - n)
@@ -856,6 +1018,45 @@ export function voltasIn(
     })
   }
   return voltas
+}
+
+/** A rest for a whole bar: where the middle of its bar is, and the staff it is on. */
+export interface BarRest {
+  readonly x: number
+  readonly staff: Staff
+  readonly bar: number
+}
+
+/**
+ * The whole-bar rests of a run, each in the middle of its bar.
+ *
+ * In the middle, between the bar's two lines, which is where one is always
+ * printed: it is the bar that is silent, not a beat of it.
+ */
+export function barRestsIn(
+  placed: readonly Placed[],
+  lines: readonly BarLine[],
+  startX: number,
+  endX: number,
+): BarRest[] {
+  const found: BarRest[] = []
+  const first = placed[0]?.bar
+  const middle = (bar: number) => {
+    const from = bar === first ? startX : (lines.find((line) => line.bar === bar)?.x ?? startX)
+    const to = lines.find((line) => line.bar === bar + 1)?.x ?? endX
+    return (from + to) / 2
+  }
+  for (const entry of placed) {
+    for (const staff of entry.barRest ?? [])
+      found.push({ x: middle(entry.bar), staff, bar: entry.bar })
+    // A bar with no chord of its own is found through the chord after it —
+    // unless that chord starts the line, and the bar was on the one before.
+    if (entry !== placed[0])
+      for (const empty of entry.emptyBars ?? [])
+        for (const staff of empty.staves)
+          found.push({ x: middle(empty.bar), staff, bar: empty.bar })
+  }
+  return found
 }
 
 /** Where the music of a run ends, for the line that closes it. */
