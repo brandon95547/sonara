@@ -271,13 +271,6 @@ export const SONG_CATALOG: readonly CatalogSong[] = [
     category: 'dramatic',
   },
   {
-    id: 'beethoven-moonlight-sonata-3-2',
-    title: 'Moonlight Sonata, 3rd Movement',
-    composer: 'Ludwig van Beethoven',
-    category: 'dramatic',
-    edition: 'Version 2',
-  },
-  {
     id: 'chopin-ballade-no-1',
     title: 'Ballade No. 1 in G Minor, Op. 23',
     composer: 'Frédéric Chopin',
