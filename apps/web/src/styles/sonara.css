@@ -246,8 +246,8 @@
    that moves aside, in that theme only. */
 
 /* Powerful: the stage and the fill are the two colors asked for, as given —
-   a sage stage under red keys and buttons. Everything else is derived from
-   the fill. Its labels are white, as asked: 4.5:1 on the fill.
+   a light gray stage under red keys and buttons. Everything else is derived
+   from the fill. Its labels are white, as asked: 4.5:1 on the fill.
 
    A red that is lit cannot also be the color of a wrong note, and the orange
    a wrong note is elsewhere sits right beside it — #cd6133 against #c65151.
@@ -264,7 +264,7 @@
   --ds-accent-text: #f0a8a4;
   --ds-focus-ring: #dd7572;
   --ds-layer-selected: rgb(212 93 92 / 0.16);
-  --c-stage: #cbddcb;
+  --c-stage: #d9d9d9;
   --c-wash-white: 207 89 89;
   --c-wash-black: 232 131 128;
 
