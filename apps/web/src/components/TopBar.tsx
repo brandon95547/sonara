@@ -2,6 +2,9 @@ import {
   AudioWaveform,
   BookOpen,
   Circle,
+  CircleOff,
+  Film,
+  Flame,
   Gauge,
   Hand,
   LayoutGrid,
@@ -22,6 +25,7 @@ import { panelActions } from '@/state/panel-store'
 import { pageActions, usePageStore } from '@/state/page-store'
 import { useRecordingStore } from '@/state/recording-store'
 import { useCurrentSong } from '@/state/song-store'
+import { BACKDROPS, useBackdropStore } from '@/state/backdrop-store'
 import { COLOR_THEMES, useThemeStore } from '@/state/theme-store'
 import { AREAS, COMING_NEXT } from '@/features/areas/areas'
 import { OptionsButton } from '@/components/OptionsDrawer'
@@ -73,6 +77,7 @@ export function TopBar() {
 
         <span className="top-bar__spacer" />
 
+        {area && <BackdropMenu className="bar-sm" />}
         {area && <ThemeMenu className="bar-sm" />}
 
         {area && area !== 'songs' && (
@@ -169,6 +174,42 @@ function ThemeMenu({ className }: { className?: string }) {
         checked: theme === option.id,
         onSelect: () => setTheme(option.id),
       }))}
+    />
+  )
+}
+
+/**
+ * The film behind the music, beside the color theme: none, or one of the
+ * loops. A menu though there is one film so far — the next is a line in the
+ * list.
+ *
+ * On a bar too narrow to hold it, the same choice is in Settings.
+ */
+function BackdropMenu({ className }: { className?: string }) {
+  const backdrop = useBackdropStore((state) => state.backdrop)
+  const setBackdrop = useBackdropStore((state) => state.setBackdrop)
+  return (
+    <ActionMenu
+      label="Background video"
+      icon={<Film size={18} aria-hidden />}
+      // Lit while a film is playing, as the metronome's button is while it ticks.
+      className={cn(className, backdrop !== 'none' && 'bar-icon-button--on')}
+      actions={[
+        {
+          id: 'none',
+          label: 'None',
+          icon: <CircleOff size={16} aria-hidden />,
+          checked: backdrop === 'none',
+          onSelect: () => setBackdrop('none'),
+        },
+        ...BACKDROPS.map((option) => ({
+          id: option.id,
+          label: option.label,
+          icon: <Flame size={16} aria-hidden />,
+          checked: backdrop === option.id,
+          onSelect: () => setBackdrop(option.id),
+        })),
+      ]}
     />
   )
 }

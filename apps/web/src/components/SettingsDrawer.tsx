@@ -19,6 +19,7 @@ import { InstrumentSelect } from '@/features/instruments/InstrumentSelect'
 import { KEYBOARD_SPANS, canShift } from '@/features/keyboard/keyboard-layout'
 import { useLearningStore, type KeyLabels } from '@/state/learning-store'
 import { AUTO_SPAN, useViewStore } from '@/state/view-store'
+import { BACKDROPS, isBackdropChoice, useBackdropStore } from '@/state/backdrop-store'
 import { COLOR_THEMES, isColorTheme, useThemeStore } from '@/state/theme-store'
 import { useCurrentSong, useSongStore, type FingeringDensity } from '@/state/song-store'
 import { panelActions, usePanelStore } from '@/state/panel-store'
@@ -104,13 +105,16 @@ export function SettingsDrawer({
 }
 
 /**
- * The color theme: the same ones the bar's palette offers, here for a bar too
- * narrow to show it. A list rather than a row of segments — the names do not
- * fit side by side on a phone, and there is room for more of them.
+ * The color theme and the film behind the music: the same choices the bar's
+ * two icons offer, here for a bar too narrow to show them. Lists rather than
+ * rows of segments — the names do not fit side by side on a phone, and there
+ * is room for more of them.
  */
 function AppearanceSection() {
   const theme = useThemeStore((state) => state.theme)
   const setTheme = useThemeStore((state) => state.setTheme)
+  const backdrop = useBackdropStore((state) => state.backdrop)
+  const setBackdrop = useBackdropStore((state) => state.setBackdrop)
   return (
     <Section title="Appearance">
       <Field label="Color theme" htmlFor="color-theme">
@@ -123,6 +127,21 @@ function AppearanceSection() {
             if (isColorTheme(event.target.value)) setTheme(event.target.value)
           }}
           options={COLOR_THEMES.map((option) => ({ value: option.id, label: option.label }))}
+        />
+      </Field>
+      <Field label="Background video" htmlFor="backdrop">
+        <Select
+          id="backdrop"
+          size="sm"
+          className="min-w-[9rem]"
+          value={backdrop}
+          onChange={(event) => {
+            if (isBackdropChoice(event.target.value)) setBackdrop(event.target.value)
+          }}
+          options={[
+            { value: 'none', label: 'None' },
+            ...BACKDROPS.map((option) => ({ value: option.id, label: option.label })),
+          ]}
         />
       </Field>
     </Section>

@@ -114,6 +114,9 @@
   /* A switch that is on — the metronome ticking. */
   --c-bar-on: var(--p-info-300);
   --c-stage: #c6bff4;
+  /* How much of a background film shows over the stage: three parts film to
+     one of the stage's own color. */
+  --stage-backdrop-opacity: 0.75;
 
   /* "Now": the note on the staff and the key on the keyboard you are to play,
      one colour in both places so the eye can go from one to the other. 5.5:1
@@ -1492,10 +1495,14 @@
   background-color: var(--c-bar-hover);
 }
 .bar-icon-button[aria-pressed='true'],
-.bar-icon-button[aria-expanded='true'] {
+.bar-icon-button[aria-expanded='true'],
+.bar-icon-button--on {
   background-color: var(--c-bar-pressed);
 }
-.bar-icon-button[aria-pressed='true'] {
+/* Lit: a switch that is on, or a menu whose choice is something other than
+   nothing — the background film playing. */
+.bar-icon-button[aria-pressed='true'],
+.bar-icon-button--on {
   color: var(--c-bar-on);
 }
 .bar-icon-button:disabled {
@@ -2384,6 +2391,30 @@ button.area-card:hover .area-card__go {
   gap: 12px;
   padding: 20px clamp(12px, 2.5vw, 36px);
   background-color: var(--c-stage);
+  /* Its own stacking order, so the film can lie under everything on the stage
+     and still over the stage's color. */
+  isolation: isolate;
+}
+/* The film behind the music: over the stage's color and not quite hiding it, so
+   the theme still shows through, and under all that is written on it. */
+.stage__backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: var(--stage-backdrop-opacity);
+  pointer-events: none;
+}
+/* Over a film, ink that leaves the paper has nothing certain under it: a note
+   on ledger lines, a beam between the staves, a bar's number can land on a
+   charred log as easily as on a flame. Everything written takes a rim of the
+   paper's color, the way a subtitle is outlined — on the paper it is paper on
+   paper and not seen. */
+.stage[data-backdrop] :is(.staff, .staff-gutter) {
+  filter: drop-shadow(0 0 1px var(--c-paper)) drop-shadow(0 0 1px var(--c-paper))
+    drop-shadow(0 0 2px var(--c-paper));
 }
 .stage--message {
   align-items: center;
