@@ -1295,6 +1295,28 @@
   font-weight: 700;
   letter-spacing: -0.01em;
 }
+/* The song that is open, after the options button. It shrinks before anything
+   else on the bar does, and is cut short with an ellipsis when it has to. */
+.top-bar__now {
+  flex: 0 1 auto;
+  min-width: 0;
+  margin-left: 12px;
+  overflow: hidden;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--c-bar-fg);
+}
+/* "Playing", in italics: it is said about the name, and is not part of it. */
+.top-bar__now-verb,
+.top-bar__now-prompt {
+  font-weight: 500;
+  color: var(--c-bar-fg-muted);
+}
+.top-bar__now-verb {
+  font-style: italic;
+}
 .top-bar__divider {
   flex: none;
   width: 1px;

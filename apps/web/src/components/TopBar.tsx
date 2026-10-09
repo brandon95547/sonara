@@ -20,6 +20,7 @@ import { useLearningStore } from '@/state/learning-store'
 import { panelActions } from '@/state/panel-store'
 import { pageActions, usePageStore } from '@/state/page-store'
 import { useRecordingStore } from '@/state/recording-store'
+import { useCurrentSong } from '@/state/song-store'
 import { AREAS, COMING_NEXT } from '@/features/areas/areas'
 import { OptionsButton } from '@/components/OptionsDrawer'
 import { LastTakeButton, RecordButton } from '@/features/recording/RecordControls'
@@ -66,6 +67,7 @@ export function TopBar() {
       <div className="top-bar__row">
         <Brand keep={area === null} />
         {area && <OptionsButton />}
+        {area === 'songs' && <NowPlaying />}
 
         <span className="top-bar__spacer" />
 
@@ -114,6 +116,31 @@ function Brand({ keep }: { keep: boolean }) {
       <img className="top-bar__logo" src={logoUrl} alt="" title="Sonara" />
       <span className={cn('top-bar__name', !keep && 'bar-full')}>Sonara</span>
     </div>
+  )
+}
+
+/**
+ * Which song is open, in words, beside the button that changes it.
+ *
+ * The staff shows the notes and nothing on it says whose they are; the name
+ * was only in a tooltip and in the options panel. It takes the room the bar
+ * has to spare and no more: a long title is cut short rather than pushing a
+ * control along, and on a bar too narrow to have the room it is not shown.
+ */
+function NowPlaying() {
+  const song = useCurrentSong()
+  // With nothing open it says what to do instead, in the quieter voice: it is
+  // a prompt, not a name.
+  if (!song)
+    return (
+      <p className="top-bar__now bar-full">
+        <span className="top-bar__now-prompt">Choose a song</span>
+      </p>
+    )
+  return (
+    <p className="top-bar__now bar-full" title={song.title}>
+      <span className="top-bar__now-verb">Playing</span> {song.title}
+    </p>
   )
 }
 
