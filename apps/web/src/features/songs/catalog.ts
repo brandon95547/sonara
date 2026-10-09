@@ -91,13 +91,6 @@ export const SONG_CATALOG: readonly CatalogSong[] = [
     edition: 'Easy',
   },
   {
-    id: 'beethoven-fur-elise-beginner',
-    title: 'Für Elise',
-    composer: 'Ludwig van Beethoven',
-    category: 'reflective',
-    edition: 'Beginner',
-  },
-  {
     id: 'chopin-prelude-op-28-no-4',
     title: 'Prelude in E Minor, Op. 28 No. 4',
     composer: 'Frédéric Chopin',

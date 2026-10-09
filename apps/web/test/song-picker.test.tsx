@@ -151,7 +151,10 @@ describe('the song chooser', () => {
     fireEvent.click(shelf('Dreamy'))
     const search = within(dialog()).getByLabelText('Search songs')
     fireEvent.change(search, { target: { value: 'fur elise' } })
-    expect(rows()).toHaveLength(4)
+    // Every edition of it, however many the catalog holds, and nothing else.
+    const editions = SONG_CATALOG.filter((song) => song.title === 'Für Elise').length
+    expect(editions).toBeGreaterThan(1)
+    expect(rows()).toHaveLength(editions)
     for (const row of rows()) expect(row.textContent).toContain('Für Elise')
 
     fireEvent.change(search, { target: { value: 'no such piece' } })
