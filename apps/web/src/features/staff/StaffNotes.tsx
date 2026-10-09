@@ -134,6 +134,31 @@ export interface DrawnNote {
   readonly accidental?: Accidental | null
 }
 
+/**
+ * One voice's notes at a moment, on one staff: a chord with a stem of its own.
+ *
+ * A staff can carry two lines at once, a melody over held notes, and each is
+ * written as itself: its own length, and its stem pointing away from the other
+ * so the eye can follow either. One stem for everything on the staff, which is
+ * all this drew before, has to give the whole chord one length — and a crotchet
+ * of melody over a held minim came out as a minim.
+ */
+export interface VoicePart {
+  readonly staff: Staff
+  readonly notes: readonly DrawnNote[]
+  readonly value: WrittenValue
+  /**
+   * The way its stem must point: up for the upper voice, down for the lower.
+   * Absent where the staff has one voice and the notes decide.
+   */
+  readonly stem?: 'up' | 'down'
+  /** How far it stands to the right of the step, to clear the other voice's heads. */
+  readonly dx: number
+}
+
+/** How far the lower voice steps aside when its heads would land on the upper voice's. */
+export const VOICE_SHIFT = STEP * 1.35 * 2 + STEP * 0.5
+
 /** Which staff a note is written on: its hand's, where a hand is known. */
 export const staffOf = (note: DrawnNote): Staff => staffFor(note.note, note.hand)
 
@@ -162,6 +187,8 @@ function layout(
   fifths: number,
   /** The stem a beam has decided: its direction and where it ends. */
   stem?: StemOverride,
+  /** The way the stem must point, where the voice decides and no beam has. */
+  direction?: 'up' | 'down',
 ) {
   const placed = notes
     .map((note) => ({ ...note, placement: placementOf(note) }))
@@ -170,7 +197,11 @@ function layout(
 
   const staff = placed[0]!.placement.staff
   // Under a beam the group decides the direction, not this chord.
-  const up = stem ? stem.up : stemDirection(placed.map((entry) => entry.placement)) === 'up'
+  const up = stem
+    ? stem.up
+    : direction
+      ? direction === 'up'
+      : stemDirection(placed.map((entry) => entry.placement)) === 'up'
   const sounding = placed.some((entry) => entry.sounding)
 
   /*
@@ -454,6 +485,26 @@ export function chordExtent(
   return { left: -left, right, top, bottom }
 }
 
+/** How much room a step's voices need between them, each where it stands. */
+export function partsExtent(
+  parts: readonly VoicePart[],
+  fifths = 0,
+): { left: number; right: number; top: number; bottom: number } {
+  let left = 0
+  let right = 0
+  let top = 0
+  let bottom = 0
+  for (const part of parts) {
+    const box = layout(part.dx, part.notes, part.value, fifths, undefined, part.stem)
+    if (!box) continue
+    left = Math.min(left, box.left + part.dx)
+    right = Math.max(right, box.right + part.dx)
+    top = Math.min(top, box.top)
+    bottom = Math.max(bottom, box.bottom)
+  }
+  return { left: -left, right, top, bottom }
+}
+
 /** One staff's worth of a chord, drawn where `layout` says it goes. */
 function StaffGroup({
   x,
@@ -461,14 +512,16 @@ function StaffGroup({
   value,
   fifths,
   stem,
+  direction,
 }: {
   x: number
   notes: readonly DrawnNote[]
   value: WrittenValue
   fifths: number
   stem?: StemOverride
+  direction?: 'up' | 'down'
 }) {
-  const box = layout(x, notes, value, fifths, stem)
+  const box = layout(x, notes, value, fifths, stem, direction)
   if (!box) return null
   const { placed, staff, up, sounding } = box
 
@@ -641,6 +694,7 @@ export function Chord({
   value,
   fifths = 0,
   stems,
+  parts,
 }: {
   x: number
   notes: readonly DrawnNote[]
@@ -656,7 +710,34 @@ export function Chord({
   fifths?: number
   /** The stems a beam has decided, for the staves that have one. */
   stems?: StepStems
+  /**
+   * The step's voices, where a staff has more than one: each drawn as a chord
+   * of its own, with its own length and its stem pointing away from the other.
+   */
+  parts?: readonly VoicePart[]
 }) {
+  if (parts) {
+    // A beam belongs to the first voice on its staff, which is the one the
+    // beaming was worked out for.
+    const first = new Map<Staff, VoicePart>()
+    for (const part of parts) if (!first.has(part.staff)) first.set(part.staff, part)
+    return (
+      <>
+        {parts.map((part, index) => (
+          <StaffGroup
+            key={index}
+            x={x + part.dx}
+            notes={part.notes}
+            value={part.value}
+            fifths={fifths}
+            stem={first.get(part.staff) === part ? stems?.[part.staff] : undefined}
+            direction={part.stem}
+          />
+        ))}
+      </>
+    )
+  }
+
   const treble = notes.filter((note) => staffOf(note) === 'treble')
   const bass = notes.filter((note) => staffOf(note) === 'bass')
   const per = 'treble' in value ? value : { treble: value, bass: value }

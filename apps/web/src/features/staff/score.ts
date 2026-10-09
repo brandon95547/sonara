@@ -16,7 +16,15 @@ import {
   type WrittenValue,
 } from '@sonara/shared'
 import { HALF_HEIGHT, KEY_X, keyWidth, STEP, yOn } from './staff-frame'
-import { chordExtent, staffOf, type DrawnNote } from './StaffNotes'
+import {
+  chordExtent,
+  partsExtent,
+  placementOf,
+  staffOf,
+  VOICE_SHIFT,
+  type DrawnNote,
+  type VoicePart,
+} from './StaffNotes'
 import type { SongPart } from '@/state/song-store'
 
 /**
@@ -87,6 +95,12 @@ export interface Measured {
   readonly notes: readonly DrawnNote[]
   /** What this chord is written as, per staff — the hands keep their own rhythm. */
   readonly value: { readonly treble: WrittenValue; readonly bass: WrittenValue }
+  /**
+   * Its voices, where a staff carries more than one in this bar: each a chord
+   * of its own. Absent where every staff has a single voice, which is drawn as
+   * it always was.
+   */
+  readonly parts?: readonly VoicePart[]
   /** How far its ink reaches, so a page can make room for it. */
   readonly extent: { left: number; right: number; top: number; bottom: number }
   /** How far after the previous chord this one sits. Zero for the first. */
@@ -173,21 +187,47 @@ export function measureScore(
   const onStaff = (candidate: SongStep, staff: Staff) =>
     candidate.notes.some((note) => staffFor(note.note, note.hand) === staff)
 
-  const measured = steps.map((step, index): Measured => {
-    /*
-     * Which bar this chord falls in.
-     *
-     * Read off the bars the file wrote, which is the only way a pickup, a
-     * change of metre or a change of tempo lands where the score puts it.
-     * Dividing elapsed time by one bar length draws every bar line of a piece
-     * with a pickup two beats late, and every one after a rallentando further
-     * out than the last.
-     */
-    const bar = measures
+  /*
+   * Which bar a chord falls in.
+   *
+   * Read off the bars the file wrote, which is the only way a pickup, a change
+   * of metre or a change of tempo lands where the score puts it. Dividing
+   * elapsed time by one bar length draws every bar line of a piece with a
+   * pickup two beats late, and every one after a rallentando further out than
+   * the last.
+   */
+  const barOf = (step: SongStep) =>
+    measures
       ? measures[barIndexAt(measures, step.startMs)]!.number
       : measureMs > 0
         ? Math.floor(step.startMs / measureMs) + 1
         : 1
+
+  /*
+   * The voices each staff carries, bar by bar.
+   *
+   * A bar is the unit: where a staff has two voices anywhere in a bar, the
+   * upper has its stems up and the lower down for the whole of it, including
+   * the moments only one of them is sounding. Decided chord by chord instead,
+   * a line's stems would flip every time the other line rested.
+   */
+  const voicesIn = new Map<string, number[]>()
+  for (const step of steps) {
+    const bar = barOf(step)
+    for (const note of step.notes) {
+      if (note.voice === undefined) continue
+      const key = `${bar}:${staffFor(note.note, note.hand)}`
+      const seen = voicesIn.get(key) ?? []
+      if (!seen.includes(note.voice))
+        voicesIn.set(
+          key,
+          [...seen, note.voice].sort((a, b) => a - b),
+        )
+    }
+  }
+
+  const measured = steps.map((step, index): Measured => {
+    const bar = barOf(step)
     /** The first chord of a bar, which has that bar's line to make room for. */
     const opensBar = index > 0 && bar !== openBar
     /** Whether that line is a repeat sign: one closing the bar before, or opening this. */
@@ -241,24 +281,105 @@ export function measureScore(
      * that the reader's density setting suppresses spaces the whole score for
      * ink that is never laid down.
      */
-    const notes: DrawnNote[] = [...step.notes]
-      .sort((a, b) => a.note - b.note)
-      .map((note) => {
-        const drawn = {
-          note: note.note,
-          finger: !hints || hints.has(note) ? note.finger : undefined,
-          rolled: note.rolled,
-          spelling: note.spelling,
-          hand: note.hand,
-        }
-        const staff = staffOf(drawn)
-        return {
-          ...drawn,
-          accidental: memory[staff].printFor(staffPlacement(note.note, note.spelling, staff)),
-        }
-      })
+    const sorted = [...step.notes].sort((a, b) => a.note - b.note)
+    const notes: DrawnNote[] = sorted.map((note) => {
+      const drawn = {
+        note: note.note,
+        finger: !hints || hints.has(note) ? note.finger : undefined,
+        rolled: note.rolled,
+        spelling: note.spelling,
+        hand: note.hand,
+      }
+      const staff = staffOf(drawn)
+      return {
+        ...drawn,
+        accidental: memory[staff].printFor(staffPlacement(note.note, note.spelling, staff)),
+      }
+    })
 
-    const extent = chordExtent(notes, value, fifths)
+    /*
+     * The step's voices, where a staff has two in this bar.
+     *
+     * The upper voice's notes are one chord with its stem up, the lower's
+     * another with its stem down, and each is as long as its own notes are
+     * written. Where their heads would land on each other — a second apart, or
+     * the same line with different heads — the lower steps to the right.
+     */
+    const parts = ((): VoicePart[] | undefined => {
+      const voicesOn = (staff: Staff) => voicesIn.get(`${bar}:${staff}`) ?? []
+      if (voicesOn('treble').length < 2 && voicesOn('bass').length < 2) return undefined
+
+      const found: VoicePart[] = []
+      for (const staff of ['treble', 'bass'] as const) {
+        const voices = voicesOn(staff)
+        const here = sorted
+          .map((note, at) => ({ note, drawn: notes[at]! }))
+          .filter(({ drawn }) => staffOf(drawn) === staff)
+        if (here.length === 0) continue
+        if (voices.length < 2) {
+          found.push({ staff, notes: here.map(({ drawn }) => drawn), value: value[staff], dx: 0 })
+          continue
+        }
+
+        const lengthOf = (group: typeof here): WrittenValue => {
+          const stated = group
+            .map(({ note }) => note.written)
+            .filter((given) => given !== undefined)
+            .sort((a, b) => valueQuarters(b.value, b.dots) - valueQuarters(a.value, a.dots))[0]
+          return stated ? written(stated.value, stated.dots) : value[staff]
+        }
+        const isUpper = ({ note }: (typeof here)[number]) =>
+          voices.indexOf(note.voice ?? voices[0]!) <= 0
+        const upper = here.filter(isUpper)
+        const lower = here.filter((entry) => !isUpper(entry))
+        const upperValue = lengthOf(upper)
+        const lowerValue = lengthOf(lower)
+        const crowded =
+          upper.length > 0 &&
+          lower.length > 0 &&
+          upper.some(({ drawn: above }) =>
+            lower.some(({ drawn: below }) => {
+              const apart = Math.abs(placementOf(above).steps - placementOf(below).steps)
+              // A second apart always; the same line unless the two heads are
+              // the same head, which one notehead with two stems can be.
+              return (
+                apart === 1 ||
+                (apart === 0 &&
+                  (upperValue.filled !== lowerValue.filled ||
+                    upperValue.dotted !== lowerValue.dotted ||
+                    upperValue.stemmed !== lowerValue.stemmed))
+              )
+            }),
+          )
+        if (upper.length > 0)
+          found.push({
+            staff,
+            notes: upper.map(({ drawn }) => drawn),
+            value: upperValue,
+            stem: 'up',
+            dx: 0,
+          })
+        if (lower.length > 0)
+          found.push({
+            staff,
+            notes: lower.map(({ drawn }) => drawn),
+            value: lowerValue,
+            stem: 'down',
+            dx: crowded ? VOICE_SHIFT : 0,
+          })
+      }
+      return found
+    })()
+    // What each staff's first voice is written as: the one a beam is worked
+    // out for, and the one the rest of the page asks about.
+    const shown = parts
+      ? {
+          treble: parts.find((part) => part.staff === 'treble')?.value ?? value.treble,
+          bass: parts.find((part) => part.staff === 'bass')?.value ?? value.bass,
+        }
+      : value
+
+    const extent = parts ? partsExtent(parts, fifths) : chordExtent(notes, value, fifths)
     let gap = 0
     if (index > 0) {
       const elapsed = step.startMs - steps[index - 1]!.startMs
@@ -284,7 +405,8 @@ export function measureScore(
       step,
       index,
       notes,
-      value,
+      value: shown,
+      ...(parts ? { parts } : {}),
       extent,
       gap,
       bar,

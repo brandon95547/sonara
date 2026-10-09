@@ -95,16 +95,20 @@ export function beamsIn(placed: readonly Placed[]): {
     for (const [id, entries] of groups) {
       if (entries.length < 2) continue
       const chords = entries.map((entry) => {
-        const steps = entry.notes
-          .filter((note) => staffOf(note) === staff)
+        // Where the staff has two voices, the beam is its first voice's: the
+        // notes under it are that voice's, and so is the way its stems point.
+        const voice = entry.parts?.find((part) => part.staff === staff)
+        const steps = (voice ? voice.notes : entry.notes.filter((note) => staffOf(note) === staff))
           .map((note) => placementOf(note).steps)
           .sort((a, b) => a - b)
-        return { entry, steps }
+        return { entry, steps, stem: voice?.stem }
       })
-      const up =
-        stemDirection(
-          chords.flatMap(({ steps }) => steps.map((step) => ({ staff, steps: step }))),
-        ) === 'up'
+      const voiced = chords.find(({ stem }) => stem !== undefined)?.stem
+      const up = voiced
+        ? voiced === 'up'
+        : stemDirection(
+            chords.flatMap(({ steps }) => steps.map((step) => ({ staff, steps: step }))),
+          ) === 'up'
       const middle = MIDDLE_LINE[staff]
 
       const members: Member[] = chords.map(({ entry, steps }) => ({

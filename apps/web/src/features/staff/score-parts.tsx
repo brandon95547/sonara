@@ -262,6 +262,13 @@ export const Step = React.memo(function Step({
         value={placed.value}
         fifths={fifths}
         stems={stems}
+        parts={placed.parts?.map((part) => ({
+          ...part,
+          notes: part.notes.map((note) => ({
+            ...note,
+            sounding: sounding?.has(note.note) ?? false,
+          })),
+        }))}
       />
     </g>
   )
