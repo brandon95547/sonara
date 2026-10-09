@@ -114,9 +114,9 @@
   /* A switch that is on — the metronome ticking. */
   --c-bar-on: var(--p-info-300);
   --c-stage: #c6bff4;
-  /* How much of a background film shows over the stage: three parts film to
-     one of the stage's own color. */
-  --stage-backdrop-opacity: 0.75;
+  /* How much of a background film shows over the stage: one part film to three
+     of the stage's own color. */
+  --stage-backdrop-opacity: 0.25;
 
   /* "Now": the note on the staff and the key on the keyboard you are to play,
      one colour in both places so the eye can go from one to the other. 5.5:1
@@ -2395,8 +2395,8 @@ button.area-card:hover .area-card__go {
      and still over the stage's color. */
   isolation: isolate;
 }
-/* The film behind the music: over the stage's color and not quite hiding it, so
-   the theme still shows through, and under all that is written on it. */
+/* The film behind the music: a tint of movement over the stage's color, which
+   stays the stronger of the two, and under all that is written on it. */
 .stage__backdrop {
   position: absolute;
   inset: 0;

@@ -3,9 +3,8 @@ import { create } from 'zustand'
 /**
  * The moving picture behind the music, when there is one.
  *
- * A short film on a loop, laid over the stage a little short of full strength
- * so the stage's own color still comes through it — a fire in the room, not a
- * film to watch.
+ * A short film on a loop, laid faintly over the stage so the stage's own color
+ * stays the stronger of the two — a fire in the room, not a film to watch.
  * Off unless asked for, and the choice is kept like the color theme's, in this
  * browser.
  *
