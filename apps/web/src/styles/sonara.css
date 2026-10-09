@@ -113,7 +113,7 @@
   --c-bar-line: rgb(255 255 255 / 0.14);
   /* A switch that is on — the metronome ticking. */
   --c-bar-on: var(--p-info-300);
-  --c-stage: #b2aaec;
+  --c-stage: #c6bff4;
 
   /* "Now": the note on the staff and the key on the keyboard you are to play,
      one colour in both places so the eye can go from one to the other. 5.5:1
@@ -276,9 +276,9 @@
   --ds-danger-text: #e8bc78;
 }
 
-/* Mysterious: the violet's stage and washes turned to teal at the lightness
-   they had. White on the fill is 4.9:1; the accent text on its own subtle
-   fill is 5.3:1 at worst; the focus ring 4.5:1 at worst. */
+/* Mysterious: a teal, on the stage color asked for. White on the fill is
+   4.9:1; the accent text on its own subtle fill is 5.3:1 at worst; the focus
+   ring 4.5:1 at worst. */
 :root[data-color-theme='mysterious'] {
   --ds-accent: #0f7f78;
   --ds-accent-hover: #17998f;
@@ -289,7 +289,7 @@
   --ds-accent-text: #8fd8cf;
   --ds-focus-ring: #3bb9ae;
   --ds-layer-selected: rgb(31 168 157 / 0.16);
-  --c-stage: #7ec3bc;
+  --c-stage: #afdbd6;
   --c-wash-white: 20 144 136;
   --c-wash-black: 31 184 174;
   /* The upper tetrachord is a teal of its own, which here would be the lower
