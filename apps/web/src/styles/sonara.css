@@ -1553,8 +1553,9 @@
   opacity: 0.55;
   cursor: not-allowed;
 }
-/* Learn's Start and Stop: the icon alone, square, so the two states are the
-   same size and pressing one does not move the rest of the bar. */
+/* Learn's Start and Stop, and a song's Play and Pause: the icon alone, square,
+   so the two states are the same size and pressing one does not move the rest
+   of the bar. */
 .bar-start--icon {
   justify-content: center;
   width: 44px;

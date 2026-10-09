@@ -232,14 +232,16 @@ export function SongTransport() {
         >
           <SkipBack size={18} aria-hidden />
         </button>
+        {/* The icon alone, the square Learn's Start is: the two take turns in
+            this spot, and are the same button to the eye. */}
         <button
           type="button"
-          className="bar-start"
+          className="bar-start bar-start--icon"
+          aria-label={playing ? 'Pause' : 'Play'}
           title={playing ? 'Pause' : 'Play'}
           onClick={() => setPlaying(!playing)}
         >
           {playing ? <Pause size={18} aria-hidden /> : <Play size={18} aria-hidden />}
-          <span className="bar-start__label">{playing ? 'Pause' : 'Play'}</span>
         </button>
         <button
           type="button"
