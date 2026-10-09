@@ -13,6 +13,20 @@ export interface AudioEngine {
   noteOn(note: number, velocity: number): void
   noteOff(note: number): void
   /**
+   * Plays a whole note that is known in advance: it begins at `at`, a moment
+   * on the audio clock (`AudioContext.currentTime`, in seconds), and is let go
+   * `duration` seconds later.
+   *
+   * For a song playing itself. `noteOn` starts a note when it is called, which
+   * is what a key under a finger wants and is only as punctual as the caller.
+   * A note handed over here starts on its moment to the sample, whatever the
+   * page is busy with when that moment comes — and so does its release, which
+   * is why the whole note is given at once.
+   */
+  play(note: number, velocity: number, at: number, duration: number): void
+  /** Calls off every note `play` was given that has not begun, and lets go of those that have. */
+  stopPlayed(): void
+  /**
    * Panic. Releases every voice at once, with the shortest fade that does not
    * click — a hard cut is itself a click. Used on device change and unmount.
    *

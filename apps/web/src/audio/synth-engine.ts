@@ -73,6 +73,8 @@ export class SynthEngine implements AudioEngine {
   readonly #voicing: Instrument['voicing']
   readonly #noise: AudioBuffer
   readonly #voices = new Map<number, Voice>()
+  /** The notes `play` was given, until each has finished: so they can be called off. */
+  readonly #played = new Set<Voice>()
   #disposed = false
 
   constructor(context: AudioContext, destination: AudioNode, instrument: Instrument) {
@@ -102,8 +104,76 @@ export class SynthEngine implements AudioEngine {
     if (existing) this.#release(existing, RETRIGGER_RELEASE)
     if (this.#voices.size >= MAX_VOICES) this.#stealOldest()
 
+    this.#voices.set(note, this.#strike(note, velocity, this.#context.currentTime))
+  }
+
+  play(note: number, velocity: number, at: number, duration: number): void {
+    if (this.#disposed) return
     const context = this.#context
-    const now = context.currentTime
+    const start = Math.max(context.currentTime, at)
+    const voice = this.#strike(note, velocity, start)
+
+    // The release, written into the envelope now for the moment it is due. The
+    // voice's own gain holds one level until then — the decay is the
+    // partials' — so there is nothing to read back when the moment comes.
+    const letGo = start + Math.max(MIN_RAMP, duration)
+    const seconds = rampLength(this.#voicing.release)
+    voice.gain.gain.setValueAtTime(voice.gain.gain.value, letGo)
+    voice.gain.gain.exponentialRampToValueAtTime(GAIN_FLOOR, letGo + seconds)
+    voice.releaseAt = letGo + seconds
+
+    // Its sources are stopped once it is over, and not given a time to stop at
+    // now: a source can be told to stop only once, and that once has to be
+    // kept for calling the note off before it begins.
+    this.#played.add(voice)
+    globalThis.setTimeout(
+      () => {
+        if (!this.#played.delete(voice)) return
+        this.#silence(voice, 0)
+        voice.gain.disconnect()
+      },
+      (letGo + seconds + 0.1 - context.currentTime) * 1000,
+    )
+  }
+
+  stopPlayed(): void {
+    const now = this.#context.currentTime
+    for (const voice of this.#played) {
+      if (voice.startedAt > now) {
+        // Not begun: stopped before it starts, so it never does.
+        this.#silence(voice, 0)
+        voice.gain.disconnect()
+        continue
+      }
+      // Sounding: faded as a panic fades, from where its envelope is.
+      const current = audible(voice.gain.gain.value)
+      voice.gain.gain.cancelScheduledValues(now)
+      voice.gain.gain.setValueAtTime(current, now)
+      voice.gain.gain.exponentialRampToValueAtTime(GAIN_FLOOR, now + PANIC_RELEASE)
+      this.#silence(voice, now + PANIC_RELEASE + 0.02)
+      globalThis.setTimeout(() => voice.gain.disconnect(), (PANIC_RELEASE + 0.1) * 1000)
+    }
+    this.#played.clear()
+  }
+
+  /** Stops a voice's sources at a moment, whatever they were due to do. */
+  #silence(voice: Voice, at: number): void {
+    for (const source of voice.sources) {
+      try {
+        source.stop(at)
+      } catch {
+        // Already stopped.
+      }
+    }
+  }
+
+  /**
+   * Builds one note and starts it at `now`: its oscillators, their envelopes
+   * and the hammer. Everything about how a note sounds; nothing about who is
+   * holding it or when it ends.
+   */
+  #strike(note: number, velocity: number, now: number): Voice {
+    const context = this.#context
     const voicing = this.#voicing
     const level = velocityToGain(velocity)
     const normalised = velocity / 127
@@ -180,7 +250,7 @@ export class SynthEngine implements AudioEngine {
       sources.push(hammer)
     }
 
-    this.#voices.set(note, { note, startedAt: now, gain, sources, releaseAt: null })
+    return { note, startedAt: now, gain, sources, releaseAt: null }
   }
 
   noteOff(note: number): void {
@@ -189,6 +259,7 @@ export class SynthEngine implements AudioEngine {
   }
 
   allNotesOff(): number {
+    this.stopPlayed()
     for (const voice of this.#voices.values()) this.#release(voice, PANIC_RELEASE)
     this.#voices.clear()
     return PANIC_RELEASE * 1000

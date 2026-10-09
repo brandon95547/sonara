@@ -26,9 +26,18 @@ const LOAD_TIMEOUT_MS = 25_000
  */
 const RELEASE_MS = 100
 
+/** What the sampler knows the notes of a song playing itself by. */
+const PLAYED = 'played'
+
 type SmplrInstrument = {
-  start: (event: { note: number; velocity?: number }) => unknown
-  stop: (target?: number) => void
+  start: (event: {
+    note: number
+    velocity?: number
+    time?: number
+    duration?: number
+    stopId?: string
+  }) => unknown
+  stop: (target?: number | string) => void
   dispose: () => void
 }
 
@@ -123,6 +132,21 @@ export class SampledEngine implements AudioEngine {
     if (this.#disposed) return
     this.#sounding.delete(note)
     this.#player.stop(note)
+  }
+
+  play(note: number, velocity: number, at: number, duration: number): void {
+    if (this.#disposed) return
+    // The sampler keeps the note until its moment and lets it go by itself
+    // when its time is up. Named as a played note rather than by its pitch, so
+    // that letting go of a key held under a finger does not stop it, and
+    // calling the song off does not stop the key.
+    this.#player.start({ note, velocity, time: at, duration, stopId: PLAYED })
+  }
+
+  stopPlayed(): void {
+    if (this.#disposed) return
+    // One that has not begun is stopped before it starts and never does.
+    this.#player.stop(PLAYED)
   }
 
   allNotesOff(): number {

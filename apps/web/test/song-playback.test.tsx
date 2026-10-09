@@ -1,19 +1,30 @@
 import { act, cleanup, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildSong, type SongNote, type SongSection } from '@sonara/shared'
+import { useKeyboardStore } from '@/state/keyboard-store'
 import { useSongStore } from '@/state/song-store'
 
 /**
  * A song playing itself.
  *
- * What is pinned is when each note is struck and when it is let go, because
- * both were once wrong in ways nothing on screen showed. A note repeated the
- * moment the last one ended was released by the earlier note's timer and never
- * sounded, and every note was struck by the next look of a clock that looks
- * forty times a second, so no two were late by the same amount.
+ * What is pinned is when each note sounds and when it is let go, because both
+ * were once wrong in ways nothing on screen showed. A note repeated the moment
+ * the last one ended was released by the earlier note's timer and never
+ * sounded, and every note was struck by a timer on the page's own thread, so
+ * it waited for whatever the page was drawing.
+ *
+ * A note's sound is handed to the audio clock ahead of time, with how long
+ * from now it is to begin. So the moment a note sounds is the moment it was
+ * handed over plus that wait, and that is what `soundsAt` works out.
  */
 
-const audio = { noteOn: vi.fn(), noteOff: vi.fn() }
+/** The audio the song is played through: a clock that is running unless a case says it is not. */
+const audio = {
+  noteOn: vi.fn(),
+  noteOff: vi.fn(),
+  play: vi.fn((..._note: number[]) => true),
+  stopPlayed: vi.fn(),
+}
 vi.mock('@/audio/AudioProvider', () => ({ useAudio: () => audio }))
 
 const note = (pitch: number, startMs: number, durationMs: number): SongNote => ({
@@ -43,13 +54,17 @@ const play = async (notes: SongNote[], sections?: readonly SongSection[]) => {
   return performance.now()
 }
 
-/** When each call to a spy was made, in milliseconds after `since`. */
-const times = (spy: ReturnType<typeof vi.fn>, at: number[]) => spy.mock.calls.map((_, i) => at[i])
+/** When the note a `noteOn` call asks for begins: now, plus the wait it was given. */
+const soundsAt = (start: number, afterMs?: number) =>
+  Math.round(performance.now() - start + (afterMs ?? 0))
 
 beforeEach(() => {
   vi.useFakeTimers()
-  audio.noteOn.mockClear()
-  audio.noteOff.mockClear()
+  audio.noteOn.mockReset()
+  audio.noteOff.mockReset()
+  audio.stopPlayed.mockReset()
+  audio.play.mockReset()
+  audio.play.mockImplementation(() => true)
 })
 
 afterEach(() => {
@@ -59,24 +74,64 @@ afterEach(() => {
 })
 
 describe('a song playing itself', () => {
-  it('strikes each note when it is due, not on the next look of the clock', async () => {
-    const struck: number[] = []
-    const start = await play([note(60, 110, 100), note(62, 260, 100), note(64, 410, 100)])
-    audio.noteOn.mockImplementation(() => struck.push(performance.now() - start))
+  it('sounds each note when it is due, and lights its key then', async () => {
+    const sounded: number[] = []
+    const lit: number[] = []
+    audio.play.mockImplementation((_pitch: number, _velocity: number, afterMs: number) => {
+      sounded.push(soundsAt(start, afterMs))
+      return true
+    })
+    const start = performance.now()
+    await play([note(60, 110, 100), note(62, 260, 100), note(64, 410, 100)])
+    const stop = useKeyboardStore.subscribe((state, before) => {
+      if (state.lastNote !== before.lastNote) lit.push(Math.round(performance.now() - start))
+    })
 
     act(() => vi.advanceTimersByTime(600))
+    stop()
 
     // The clock looks every 25ms, so 110, 260 and 410 all fall between looks.
-    expect(times(audio.noteOn, struck)).toEqual([110, 260, 410])
+    expect(sounded).toEqual([110, 260, 410])
+    expect(lit).toEqual([110, 260, 410])
+    // And nothing was struck by hand: the audio clock had all three.
+    expect(audio.noteOn).not.toHaveBeenCalled()
+    expect(audio.noteOff).not.toHaveBeenCalled()
+  })
+
+  it('hands a note to the audio clock ahead of its moment, so a busy page cannot delay it', async () => {
+    const handedOver: number[][] = []
+    audio.play.mockImplementation((...given: number[]) => {
+      handedOver.push([Math.round(performance.now() - start), ...given])
+      return true
+    })
+    const start = performance.now()
+    await play([note(60, 200, 100)])
+
+    // Handed over whole as play begins, two hundred milliseconds early: the
+    // key, how hard, how long from now, and how long it lasts.
+    expect(handedOver).toEqual([[0, 60, 90, 200, 100]])
+  })
+
+  it('calls off a note it has promised when the song is stopped before its moment', async () => {
+    await play([note(60, 200, 100)])
+    expect(audio.play).toHaveBeenCalledTimes(1)
+    act(() => vi.advanceTimersByTime(100))
+    audio.stopPlayed.mockClear()
+    act(() => useSongStore.getState().setPlaying(false))
+    expect(audio.stopPlayed).toHaveBeenCalled()
   })
 
   it('does not let a repeated note go with the timer of the note before it', async () => {
+    // With no audio clock to hand the notes to — before the first key press —
+    // the song strikes and releases each one itself, and has to get the order
+    // right when the same key comes round again.
+    audio.play.mockImplementation(() => false)
     const events: string[] = []
+    const start = performance.now()
+    audio.noteOn.mockImplementation(() => events.push(`on ${soundsAt(start)}`))
+    audio.noteOff.mockImplementation(() => events.push(`off ${soundsAt(start)}`))
     // The same key twice, the second struck the moment the first is due to end.
-    const start = await play([note(60, 100, 200), note(60, 300, 200)])
-    const at = () => Math.round(performance.now() - start)
-    audio.noteOn.mockImplementation(() => events.push(`on ${at()}`))
-    audio.noteOff.mockImplementation(() => events.push(`off ${at()}`))
+    await play([note(60, 100, 200), note(60, 300, 200)])
 
     act(() => vi.advanceTimersByTime(700))
 
@@ -89,15 +144,17 @@ describe('a song playing itself', () => {
     const struck: string[] = []
     // Two notes on the page, played C D, C again, and that is all: a first
     // ending on D, stepped over the second time.
-    const start = await play(
+    const start = performance.now()
+    audio.play.mockImplementation((pitch: number, _velocity: number, afterMs: number) => {
+      struck.push(`${pitch} at ${soundsAt(start, afterMs)}`)
+      return true
+    })
+    await play(
       [note(60, 0, 100), note(62, 500, 100)],
       [
         { startMs: 0, fromMs: 0, toMs: 1000 },
         { startMs: 1000, fromMs: 0, toMs: 500 },
       ],
-    )
-    audio.noteOn.mockImplementation((pitch: number) =>
-      struck.push(`${pitch} at ${Math.round(performance.now() - start)}`),
     )
 
     act(() => vi.advanceTimersByTime(2000))
@@ -106,9 +163,11 @@ describe('a song playing itself', () => {
   })
 
   it('holds a key struck again while it is still down until the later note ends', async () => {
+    audio.play.mockImplementation(() => false)
     const released: number[] = []
-    const start = await play([note(60, 100, 400), note(60, 200, 400)])
-    audio.noteOff.mockImplementation(() => released.push(Math.round(performance.now() - start)))
+    const start = performance.now()
+    audio.noteOff.mockImplementation(() => released.push(soundsAt(start)))
+    await play([note(60, 100, 400), note(60, 200, 400)])
 
     act(() => vi.advanceTimersByTime(800))
 

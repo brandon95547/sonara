@@ -202,6 +202,68 @@ describe('SynthEngine', () => {
     expect(context.oscillators).toHaveLength(before)
   })
 
+  it('plays a whole note at the moment it is given, and lets it go when its time is up', () => {
+    const { context, engine } = build(noDetune)
+    context.currentTime = 10
+
+    // To begin a quarter of a second from now and last half a second.
+    engine.play(60, 100, 10.25, 0.5)
+
+    for (const oscillator of context.oscillators) expect(oscillator.started).toBe(10.25)
+    // Its release is in the envelope already: held until 10.75, then faded over
+    // the voicing's half second. Nothing has to happen on time for it to end.
+    const envelope = context.gains.find((gain) =>
+      gain.gain.calls.some(
+        (call) => call.method === 'exponentialRampToValueAtTime' && call.args[1] === 11.25,
+      ),
+    )!
+    expect(envelope.gain.calls.map((call) => [call.method, call.args[1]])).toEqual([
+      ['setValueAtTime', 10.75],
+      ['exponentialRampToValueAtTime', 11.25],
+    ])
+    // And its sources are stopped once it is over.
+    vi.advanceTimersByTime(2000)
+    for (const oscillator of context.oscillators) expect(oscillator.stopped).not.toBeNull()
+  })
+
+  it('never starts a note it was given and then told to call off', () => {
+    const { context, engine } = build(noDetune)
+    context.currentTime = 10
+    engine.play(60, 100, 10.25, 0.5)
+
+    engine.stopPlayed()
+
+    // Stopped before it starts, so it never sounds: not faded, which would
+    // still be heard when its moment came.
+    for (const oscillator of context.oscillators) expect(oscillator.stopped).toBe(0)
+  })
+
+  it('lets go of a played note that is sounding when the song is called off', () => {
+    const { context, engine } = build(noDetune)
+    context.currentTime = 10
+    engine.play(60, 100, 10, 4)
+    context.currentTime = 11
+
+    engine.stopPlayed()
+
+    for (const oscillator of context.oscillators) {
+      expect(oscillator.stopped).toBeGreaterThan(11)
+      expect(oscillator.stopped).toBeLessThan(11.2)
+    }
+  })
+
+  it('keeps a played note apart from a key held under a finger', () => {
+    const { context, engine } = build(noDetune)
+    engine.noteOn(60, 100)
+    const held = [...context.oscillators]
+    engine.play(60, 100, 0.1, 0.5)
+
+    // Letting go of the key does not touch the song's note, and calling the
+    // song off does not touch the key.
+    engine.stopPlayed()
+    for (const oscillator of held) expect(oscillator.stopped).toBeNull()
+  })
+
   it('applies the catalogue gain trim to its own output, not to the master', () => {
     const quiet: Instrument = { ...noDetune, gainDb: -6 }
     const { context, destination } = build(quiet)

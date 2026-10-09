@@ -29,15 +29,25 @@ const TICK_MS = 25
 /**
  * How far past the clock each look reaches, in real milliseconds.
  *
- * A note is not struck by the look that finds it. It is given a timer of its
- * own for the moment it is due, so it lands on that moment rather than on the
- * next look after it. Struck by the look, every note was up to a tick late and
- * no two were late by the same amount: a run of sixteenths at a hundred and
- * fifty milliseconds came out with gaps anywhere from a hundred and twenty-five
- * to a hundred and seventy-five. Two looks' worth, so a look that is itself
- * late still finds the notes in time.
+ * A note is not struck by the look that finds it. Its sound is handed to the
+ * audio clock there and then, to begin at the moment it is due, and a timer of
+ * its own lights its key at that moment.
+ *
+ * The sound is on the audio clock because nothing else keeps time. Everything
+ * here runs on the page's one thread, which is also what redraws the staff —
+ * a few dozen milliseconds each time a chord changes, and a quarter of a
+ * second when the page of music turns. A note struck by a timer waits for
+ * that to finish. Measured, a third of the notes of a quick passage began
+ * thirty to sixty-five milliseconds late: nothing at ninety beats a minute,
+ * and most of the gap between two sixteenths at two hundred, which is why a
+ * song played evenly when slow and stumbled when fast, and hung for a moment
+ * at each page turn. A note the audio clock already holds starts on time
+ * whatever the page is doing.
+ *
+ * Long enough to outlast the longest of those stalls; short enough that a
+ * change of tempo is heard at once.
  */
-const LOOKAHEAD_MS = TICK_MS * 2
+const LOOKAHEAD_MS = 300
 
 export function useSongPlayback(song: Song | null) {
   const audio = useAudio()
@@ -73,6 +83,9 @@ export function useSongPlayback(song: Song | null) {
   const silence = React.useCallback(() => {
     for (const timer of timers.current) window.clearTimeout(timer)
     timers.current.clear()
+    // The notes the audio clock is holding: those not begun never sound, and
+    // the rest are let go. Then the keys, and anything struck by hand.
+    audioRef.current.stopPlayed()
     for (const note of sounding.current.keys()) {
       audioRef.current.noteOff(note)
       keyboardActions.noteOff(note)
@@ -88,8 +101,10 @@ export function useSongPlayback(song: Song | null) {
 
     // Where the playhead was when this run began, and the wall clock it began
     // at. Every position below is derived from those two and the tempo scale.
-    const originSong = useSongStore.getState().positionMs
-    const originWall = performance.now()
+    let originSong = useSongStore.getState().positionMs
+    let originWall = performance.now()
+    /** The tempo scale the two origins above were taken at. */
+    let originScale = live.current.tempoScale
     let cursor = originSong
     let lastBeat = -1
 
@@ -105,8 +120,23 @@ export function useSongPlayback(song: Song | null) {
       timers.current.add(timer)
     }
 
-    const strike = (note: SongNote, scale: number) => {
-      const velocity = Math.min(127, Math.max(1, Math.round(note.velocity)))
+    const velocityOf = (note: SongNote) => Math.min(127, Math.max(1, Math.round(note.velocity)))
+
+    /**
+     * Hands a note to the audio clock whole: when it begins, and how long it
+     * lasts. False where there is no clock to hand it to — before the first
+     * key press — and the strike below then sounds it itself.
+     */
+    const promise = (note: SongNote, delayMs: number, scale: number): boolean =>
+      note.role !== 'percussion' &&
+      audioRef.current.play(note.note, velocityOf(note), delayMs, note.durationMs / scale)
+
+    /**
+     * A note's moment: its key goes down, and comes up when its time is over.
+     * Its sound too, where the audio clock was not given it.
+     */
+    const strike = (note: SongNote, scale: number, promisedSound: boolean) => {
+      const velocity = velocityOf(note)
 
       // A drum is not a note. On the percussion channel the number names an
       // instrument, so it goes to the kit and never near the piano or the
@@ -116,13 +146,15 @@ export function useSongPlayback(song: Song | null) {
         return
       }
 
-      // Struck again while it is still down: let go first, so the instrument
-      // hears a new note rather than more of the old one.
-      if (sounding.current.has(note.note)) audioRef.current.noteOff(note.note)
       const strikeId = ++strikes.current
+      if (!promisedSound) {
+        // Struck again while it is still down: let go first, so the
+        // instrument hears a new note rather than more of the old one.
+        if (sounding.current.has(note.note)) audioRef.current.noteOff(note.note)
+        audioRef.current.noteOn(note.note, velocity)
+      }
       sounding.current.set(note.note, strikeId)
 
-      audioRef.current.noteOn(note.note, velocity)
       // Only the part being learned lights up. Bass and strings sound so the
       // piece makes sense, but they are not notes to put fingers on, and
       // lighting them would say they were.
@@ -134,7 +166,8 @@ export function useSongPlayback(song: Song | null) {
         // Struck again since: that strike holds the key now, and lets it go.
         if (sounding.current.get(note.note) !== strikeId) return
         sounding.current.delete(note.note)
-        audioRef.current.noteOff(note.note)
+        // A note the audio clock holds is let go by the clock, on time.
+        if (!promisedSound) audioRef.current.noteOff(note.note)
         keyboardActions.noteOff(note.note)
       })
     }
@@ -143,7 +176,17 @@ export function useSongPlayback(song: Song | null) {
       const { song: current, part: hands, tempoScale: scale, metronome: click } = live.current
       if (!current) return
 
-      const at = originSong + (performance.now() - originWall) * scale
+      // A change of tempo starts the count again from where the song has got
+      // to. Counted from the beginning at the new tempo, the playhead would
+      // jump to where the song would have been had it always gone that fast —
+      // forward into a burst of notes, or back into a silence.
+      const wall = performance.now()
+      if (scale !== originScale) {
+        originSong += (wall - originWall) * originScale
+        originWall = wall
+        originScale = scale
+      }
+      const at = originSong + (wall - originWall) * scale
 
       if (at >= playDuration(current)) {
         silence()
@@ -155,8 +198,11 @@ export function useSongPlayback(song: Song | null) {
       // Everything due before the look after next, each on its own timer.
       const horizon = Math.max(cursor, at + LOOKAHEAD_MS * scale)
       for (const window of scoreWindows(current, cursor, horizon))
-        for (const note of notesBetween(current, window.fromMs, window.toMs, hands))
-          after((note.startMs + window.offsetMs - at) / scale, () => strike(note, scale))
+        for (const note of notesBetween(current, window.fromMs, window.toMs, hands)) {
+          const delayMs = Math.max(0, (note.startMs + window.offsetMs - at) / scale)
+          const promisedSound = promise(note, delayMs, scale)
+          after(delayMs, () => strike(note, scale, promisedSound))
+        }
 
       if (click) {
         const beat = Math.floor(at / (60000 / current.bpm))

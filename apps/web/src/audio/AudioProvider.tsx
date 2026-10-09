@@ -43,6 +43,18 @@ interface AudioApi {
   loadInstrument: (instrument: Instrument) => void
   noteOn: (note: number, velocity: number) => void
   noteOff: (note: number) => void
+  /**
+   * Plays a whole note that is known in advance — a song playing itself. It
+   * begins `afterMs` from now and lasts `durationMs`, kept by the audio clock
+   * rather than by the page, so it is on time however busy the page is.
+   *
+   * False where there is no clock to keep it: before the first key press a
+   * browser has not started one, and a moment on a stopped clock never comes.
+   * The caller then plays the note itself, when it is due.
+   */
+  play: (note: number, velocity: number, afterMs: number, durationMs: number) => boolean
+  /** Calls off the notes `play` was given: those not begun never sound, the rest are let go. */
+  stopPlayed: () => void
   setSustain: (down: boolean) => void
   panic: () => void
 }
@@ -221,6 +233,28 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     void contextRef.current?.resume()
   }, [])
 
+  const play = React.useCallback(
+    (note: number, velocity: number, afterMs: number, durationMs: number) => {
+      const context = contextRef.current
+      const engine = engineRef.current
+      if (!context || !engine || context.state !== 'running') return false
+      // Counted from the audio clock's own "now". The context can also say
+      // which of its moments went out at which moment of the page's clock, and
+      // counting from that pair was tried: it wandered by thirty milliseconds
+      // in the first seconds after the clock starts, where this holds to six.
+      engine.play(
+        note,
+        velocity,
+        context.currentTime + Math.max(0, afterMs) / 1000,
+        durationMs / 1000,
+      )
+      return true
+    },
+    [],
+  )
+
+  const stopPlayed = React.useCallback(() => engineRef.current?.stopPlayed(), [])
+
   const noteOff = React.useCallback((note: number) => {
     heldRef.current.delete(note)
     if (pedalRef.current) {
@@ -289,8 +323,30 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
   )
 
   const value = React.useMemo<AudioApi>(
-    () => ({ status, volume, setVolume, loadInstrument, noteOn, noteOff, setSustain, panic }),
-    [status, volume, setVolume, loadInstrument, noteOn, noteOff, setSustain, panic],
+    () => ({
+      status,
+      volume,
+      setVolume,
+      loadInstrument,
+      noteOn,
+      noteOff,
+      play,
+      stopPlayed,
+      setSustain,
+      panic,
+    }),
+    [
+      status,
+      volume,
+      setVolume,
+      loadInstrument,
+      noteOn,
+      noteOff,
+      play,
+      stopPlayed,
+      setSustain,
+      panic,
+    ],
   )
 
   return <AudioContextValue.Provider value={value}>{children}</AudioContextValue.Provider>
