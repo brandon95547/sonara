@@ -64,10 +64,10 @@ export function SongOptions() {
               size="sm"
               startIcon={<ListMusic />}
               className="shrink-0"
-              // The library is a panel of its own, and takes this one's place.
+              // The chooser is a dialog of its own, and takes this panel's place.
               onClick={() => panelActions.open('library')}
             >
-              My songs
+              Choose a song
             </Button>
           </div>
         </Field>

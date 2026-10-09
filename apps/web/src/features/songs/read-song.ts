@@ -22,10 +22,14 @@ export type ImportFailure = 'pdf' | 'empty' | 'unknown'
 export type ImportResult = { song: Song } | { failure: ImportFailure; name: string }
 
 export async function readSong(file: File): Promise<ImportResult> {
-  const fallbackTitle = file.name.replace(/\.[^.]+$/, '')
-  const bytes = new Uint8Array(await file.arrayBuffer())
+  return readSongBytes(new Uint8Array(await file.arrayBuffer()), file.name)
+}
+
+/** The same, for a score that did not come through a file input: the built-in songs. */
+export function readSongBytes(bytes: Uint8Array, name: string): ImportResult {
+  const fallbackTitle = name.replace(/\.[^.]+$/, '')
   const starts = (...magic: number[]) => magic.every((byte, index) => bytes[index] === byte)
-  const fail = (failure: ImportFailure): ImportResult => ({ failure, name: file.name })
+  const fail = (failure: ImportFailure): ImportResult => ({ failure, name })
   // Fingering the file did not carry. A score that has it keeps it; anything
   // else gets what can be worked out, marked as worked out.
   const done = (song: Song | null) => (song ? { song: fingerSong(song) } : fail('empty'))
@@ -39,7 +43,7 @@ export async function readSong(file: File): Promise<ImportResult> {
   if (isZip(bytes)) {
     // .mscz and .mxl are both zips. Which one it is depends on what is inside,
     // so the extension only decides which to try first.
-    const preferMuseScore = /\.mscz$/i.test(file.name)
+    const preferMuseScore = /\.mscz$/i.test(name)
     const readers = preferMuseScore
       ? ([readMscz, readMxl] as const)
       : ([readMxl, readMscz] as const)

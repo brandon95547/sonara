@@ -31,7 +31,7 @@ export interface Area {
 const DETAILS: Record<LearningTopic, { icon: LucideIcon; description: string }> = {
   songs: {
     icon: Music,
-    description: 'Bring in a MIDI or MusicXML file and learn it a hand at a time.',
+    description: 'Pick a piece or bring your own, and learn it a hand at a time.',
   },
   scales: {
     icon: ChartNoAxesColumnIncreasing,

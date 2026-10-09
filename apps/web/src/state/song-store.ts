@@ -2,8 +2,8 @@ import { create } from 'zustand'
 import { gridMeasures, type Hand, type Song } from '@sonara/shared'
 
 /**
- * The songs a player has imported, and how they are practising the one that is
- * open.
+ * The songs a player has imported, the built-in ones they have opened, and how
+ * they are practising the one that is open.
  *
  * The library persists; the playback settings do not survive a reload on
  * purpose. A loop set on bars 12-16 and a tempo of 50% are things you set up to
@@ -35,6 +35,14 @@ export type StaffView = 'sheet' | 'flow'
 
 interface SongState {
   library: Song[]
+  /**
+   * The built-in songs opened this session.
+   *
+   * In memory only. They come with the app, so storing one would be keeping a
+   * second copy of something a reload fetches again, in a store with room for
+   * a handful of songs that is there for the ones the player brought.
+   */
+  builtIn: Song[]
   currentId: string | null
   playing: boolean
   /** Where the playhead is, in song milliseconds. */
@@ -85,6 +93,8 @@ interface SongState {
 
   add: (song: Song) => void
   open: (id: string) => void
+  /** Opens a built-in song, keeping it for the rest of the session. */
+  openBuiltIn: (song: Song) => void
   remove: (id: string) => void
   setPlaying: (playing: boolean) => void
   seek: (positionMs: number) => void
@@ -223,6 +233,7 @@ function loadView(): StaffView {
 
 export const useSongStore = create<SongState>((set) => ({
   library: typeof window === 'undefined' ? [] : load(),
+  builtIn: [],
   currentId: null,
   playing: false,
   positionMs: 0,
@@ -247,6 +258,17 @@ export const useSongStore = create<SongState>((set) => ({
     }),
 
   open: (currentId) => set({ currentId, positionMs: 0, playing: false, ...IDLE }),
+
+  openBuiltIn: (song) =>
+    set((state) => ({
+      builtIn: state.builtIn.some((held) => held.id === song.id)
+        ? state.builtIn
+        : [...state.builtIn, song],
+      currentId: song.id,
+      positionMs: 0,
+      playing: false,
+      ...IDLE,
+    })),
 
   remove: (id) =>
     set((state) => {
@@ -307,7 +329,12 @@ export const useSongStore = create<SongState>((set) => ({
     ),
 }))
 
-/** The open song, or null. */
+/** The open song, or null: one the player imported, or one that came with the app. */
 export function useCurrentSong(): Song | null {
-  return useSongStore((state) => state.library.find((song) => song.id === state.currentId) ?? null)
+  return useSongStore(
+    (state) =>
+      state.library.find((song) => song.id === state.currentId) ??
+      state.builtIn.find((song) => song.id === state.currentId) ??
+      null,
+  )
 }

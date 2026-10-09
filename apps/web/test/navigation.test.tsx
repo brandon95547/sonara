@@ -2,6 +2,7 @@ import { cleanup, render, renderHook, screen, waitFor } from '@testing-library/r
 import { afterEach, describe, expect, it } from 'vitest'
 import { pageActions, usePageStore, usePageSync } from '@/state/page-store'
 import { useLearningStore } from '@/state/learning-store'
+import { usePanelStore } from '@/state/panel-store'
 import { useSongStore } from '@/state/song-store'
 import { RunMeter } from '@/features/learning/RunMeter'
 
@@ -16,6 +17,7 @@ import { RunMeter } from '@/features/learning/RunMeter'
 afterEach(() => {
   cleanup()
   globalThis.location.hash = ''
+  usePanelStore.getState().close()
 })
 
 describe('moving between the dashboard and the areas', () => {
@@ -44,6 +46,35 @@ describe('moving between the dashboard and the areas', () => {
     pageActions.openDashboard()
     await waitFor(() => expect(usePageStore.getState().page).toBe('dashboard'))
     expect(useSongStore.getState().playing).toBe(false)
+  })
+
+  it('opens Songs on its chooser, and puts the chooser away on the way out', async () => {
+    renderHook(() => usePageSync())
+
+    pageActions.openArea('songs')
+    await waitFor(() => expect(usePanelStore.getState().panel).toBe('library'))
+
+    // Left open, it would be a dialog about songs over another area's staff.
+    pageActions.openArea('scales')
+    await waitFor(() => expect(useLearningStore.getState().topic).toBe('scales'))
+    expect(usePanelStore.getState().panel).toBeNull()
+
+    pageActions.openArea('songs')
+    await waitFor(() => expect(usePanelStore.getState().panel).toBe('library'))
+    pageActions.openDashboard()
+    await waitFor(() => expect(usePageStore.getState().page).toBe('dashboard'))
+    expect(usePanelStore.getState().panel).toBeNull()
+  })
+
+  it('opens the chooser again each time Songs is entered, with a song already open or not', async () => {
+    renderHook(() => usePageSync())
+    pageActions.openArea('songs')
+    await waitFor(() => expect(usePanelStore.getState().panel).toBe('library'))
+    usePanelStore.getState().close()
+
+    // Asking for the area you are in is still arriving at it.
+    pageActions.openArea('songs')
+    await waitFor(() => expect(usePanelStore.getState().panel).toBe('library'))
   })
 
   it('treats an address that names no area as the dashboard', async () => {

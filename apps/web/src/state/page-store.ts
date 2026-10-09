@@ -2,6 +2,7 @@ import * as React from 'react'
 import { create } from 'zustand'
 import { findProgressionType, type ProgressionType } from '@sonara/shared'
 import { AVAILABLE_TOPICS, useLearningStore, type LearningTopic } from './learning-store'
+import { panelActions, usePanelStore } from './panel-store'
 import { useSongStore } from './song-store'
 
 /**
@@ -40,11 +41,21 @@ function placeIn(hash: string): Place | null {
   return { area, progression: area === 'progressions' ? findProgressionType(type) : null }
 }
 
+/** The song chooser belongs to Songs, and leaving the area puts it away. */
+function shutSongChooser() {
+  if (usePanelStore.getState().panel === 'library') panelActions.close()
+}
+
 /** Puts the learning store where an address says to be. */
 function enter(place: Place) {
   const learning = useLearningStore.getState()
   if (place.progression) learning.setProgressionType(place.progression)
   if (learning.topic !== place.area) learning.setTopic(place.area)
+  // Songs opens on its chooser, every time it is entered: the area is about
+  // one song, and arriving is when you say which. A song already open is
+  // marked in the list and is still there when the chooser is closed.
+  if (place.area === 'songs') panelActions.open('library')
+  else shutSongChooser()
 }
 
 // Read before the first render, so a reload on an area does not flash the
@@ -63,6 +74,7 @@ function apply(hash: string) {
     // engine unmounts but the song still says it is playing, and it would set
     // off again by itself the moment the player came back.
     if (useSongStore.getState().playing) useSongStore.getState().setPlaying(false)
+    shutSongChooser()
     usePageStore.setState({ page: 'dashboard' })
     return
   }

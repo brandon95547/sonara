@@ -13,6 +13,9 @@ import { create } from 'zustand'
  * value all the same, so that opening Settings from the bar puts them away
  * rather than opening over them.
  *
+ * `library` is the song chooser, which is a dialog in the middle of the screen
+ * rather than a sheet from the edge, and is a panel in every other respect.
+ *
  * A store rather than state in the shell, because the buttons that open these
  * are scattered: the bar, its overflow menu, a card inside another panel.
  */

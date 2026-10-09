@@ -13,7 +13,7 @@ import { SessionDrawer } from '@/components/SessionDrawer'
 import { KeyboardDock } from '@/features/keyboard/KeyboardDock'
 import { DeviceSettingsDrawer } from '@/features/devices/DeviceSettingsDrawer'
 import { RecordingOverlay, RecordingReview } from '@/features/recording/RecordControls'
-import { SongLibrary } from '@/features/songs/SongLibrary'
+import { SongPicker } from '@/features/songs/SongPicker'
 import { SongEngine } from '@/features/songs/SongControls'
 import { KeyboardRangeSync, ScaleEngine } from '@/features/learning/ScaleControls'
 import { ScaleTheoryDialog } from '@/features/learning/ScaleTheoryDialog'
@@ -169,7 +169,7 @@ function Shell() {
       )}
       <FundamentalsDrawer open={panel === 'fundamentals'} onClose={closePanel} />
       <DeviceSettingsDrawer open={panel === 'devices'} onClose={closePanel} />
-      <SongLibrary open={panel === 'library'} onClose={closePanel} />
+      <SongPicker open={panel === 'library'} onClose={closePanel} />
       <RecordingOverlay />
       <RecordingReview />
     </div>

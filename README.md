@@ -62,6 +62,10 @@ touchscreen or a USB MIDI keyboard, and watch every note land on the keys.
 
 ### Songs
 
+- **Sixty-eight pieces come with it**, from Bach to Joplin, in a chooser that
+  Songs opens on: listed by style — Baroque, Classical, Romantic,
+  Impressionist, Ragtime, Traditional & Holiday, Contemporary — and searchable
+  by title or composer. Your own songs are in the same chooser.
 - **Import MusicXML (`.musicxml`, `.xml`), Compressed MusicXML (`.mxl`),
   MuseScore (`.mscz`) and MIDI (`.mid`, `.midi`)** — normalized into one score
   model on the way in, so playback, the keyboard, the staff and Learn never know
@@ -75,7 +79,7 @@ touchscreen or a USB MIDI keyboard, and watch every note land on the keys.
   synthesized kit rather than onto the piano, and accompaniment parts sound
   without lighting keys you are not being asked to play.
 - **Explore and Learn for songs**, with part selection, tempo, a metronome and a
-  progress bar over the staff. The library persists between sessions.
+  progress bar over the staff. Imported songs persist between sessions.
 
 ### Recording
 
@@ -368,6 +372,21 @@ is why both are kept as fixtures.
 A staff is only a hand when one `<Part>` owns two of them. Two single-staff
 parts are two instruments, and reading the lower one as a left hand puts a
 melody where no left hand plays — and, worse, claims the score said so.
+
+With one exception, in MusicXML: two one-staff parts that are both keyboards,
+the first in the treble clef and the second in the bass, are one piano written
+a staff to a hand, and are read as its right and left. And where several parts
+are called a piano, the one on two staves is the piano; a one-staff part beside
+it is a line of ornaments, heard and not asked for.
+
+The songs that come with the app are scores in `apps/web/public/songs`, listed
+in `features/songs/catalog.ts` with a title, a composer and a style each. They
+are read through `read-song.ts` like any other file, one at a time as they are
+chosen, and held in memory rather than in storage: they come back with the app,
+and the stored library is for what the player brought. `song-catalog.test.ts`
+reads every one of them, so a score that loses a hand on import fails there
+rather than in front of a player. The scores are from the
+[MuseTrainer library](https://github.com/musetrainer/library).
 
 Where the file names no hands at all, which is most MIDI files, they are worked
 out from the music rather than from each note's pitch. A chord is decided as a

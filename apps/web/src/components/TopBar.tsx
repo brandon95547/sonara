@@ -36,6 +36,7 @@ import {
   SongTempoControl,
   SongTransport,
 } from '@/features/songs/SongControls'
+import { showMySongs } from '@/features/songs/SongPicker'
 
 /**
  * How you are practising, in one row across the top.
@@ -198,7 +199,12 @@ function Utilities({ area }: { area: string | null }) {
       id: 'import',
       label: 'Import a song…',
       icon: <Upload size={16} />,
-      onSelect: () => panelActions.open('library'),
+      // Importing is done in the song chooser, which Songs opens on: so this
+      // goes there, turned to the player's own songs.
+      onSelect: () => {
+        showMySongs()
+        pageActions.openArea('songs')
+      },
     },
   ]
 
