@@ -61,10 +61,13 @@ touchscreen or a USB MIDI keyboard, and watch every note land on the keys.
 
 ### Songs
 
-- **Sixty-eight pieces come with it**, from Bach to Joplin, in a chooser that
-  Songs opens on: listed by style — Baroque, Classical, Romantic,
-  Impressionist, Ragtime, Traditional & Holiday, Contemporary — and searchable
-  by title or composer. Your own songs are in the same chooser.
+- **Sixty-six pieces come with it**, from Bach to Joplin, in a chooser that
+  Songs opens on: listed by mood — Peaceful & Calm, Reflective, Romantic,
+  Joyful & Uplifting, Dramatic & Powerful, Mysterious & Dark, Dreamy &
+  Atmospheric, Playful & Energetic — and searchable by title or composer. A
+  piece can be moved to another mood from the chooser ("Edit categories"), and
+  the move is kept by the server for everyone. Your own songs are in the same
+  chooser.
 - **Import MusicXML (`.musicxml`, `.xml`), Compressed MusicXML (`.mxl`),
   MuseScore (`.mscz`) and MIDI (`.mid`, `.midi`)** — normalized into one score
   model on the way in, so playback, the keyboard, the staff and Learn never know
@@ -404,7 +407,9 @@ drawn is attached to a chord or a bar, so both views lay it out the same way
 and only the stretch near the window is ever in the page.
 
 The songs that come with the app are scores in `apps/web/public/songs`, listed
-in `features/songs/catalog.ts` with a title, a composer and a style each. They
+in `features/songs/catalog.ts` with a title, a composer and a mood each (the
+moods are `SONG_CATEGORIES` in the shared contract; a song moved to another is
+a row in the API's `song_categories` table, and only the moves are stored). They
 are read through `read-song.ts` like any other file, one at a time as they are
 chosen, and held in memory rather than in storage: they come back with the app,
 and the stored library is for what the player brought. `song-catalog.test.ts`

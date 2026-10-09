@@ -17,6 +17,7 @@ import { dbPlugin } from './plugins/db.js'
 import { healthRoutes } from './routes/health.js'
 import { instrumentRoutes } from './routes/instruments.js'
 import { deviceRoutes } from './routes/devices.js'
+import { songRoutes } from './routes/songs.js'
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -146,13 +147,14 @@ export async function buildApp(config: Config): Promise<FastifyInstance> {
         title: 'Sonara API',
         version: config.version,
         description:
-          'Backend for Sonara — the piano catalog, and the MIDI device profile and configuration store.',
+          'Backend for Sonara — the piano catalog, the MIDI device profile and configuration store, and the categories of the built-in songs.',
       },
       servers: [{ url: API_PREFIX }],
       tags: [
         { name: 'system', description: 'Health and diagnostics' },
         { name: 'instruments', description: 'The playable piano catalog' },
         { name: 'devices', description: 'MIDI keyboard detection and configuration' },
+        { name: 'songs', description: 'The categories of the built-in songs' },
       ],
     },
     transform: jsonSchemaTransform,
@@ -165,6 +167,7 @@ export async function buildApp(config: Config): Promise<FastifyInstance> {
       await api.register(healthRoutes)
       await api.register(instrumentRoutes)
       await api.register(deviceRoutes)
+      await api.register(songRoutes)
     },
     { prefix: API_PREFIX },
   )

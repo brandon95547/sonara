@@ -5,9 +5,11 @@ import {
   collectionSchema,
   deviceSchema,
   instrumentSchema,
+  songCategoryChoiceSchema,
   type Device,
   type DeviceIdentity,
   type Instrument,
+  type SongCategory,
   type UpdateDeviceConfigInput,
 } from '@sonara/shared'
 
@@ -193,6 +195,16 @@ export const api = {
 
   forgetDevice: (id: string) =>
     request(`/devices/${encodeURIComponent(id)}`, z.null(), { method: 'DELETE' }),
+
+  /** The built-in songs that have been moved off the shelf they came on, and where to. */
+  listSongCategories: (signal?: AbortSignal) =>
+    request('/songs/categories', collectionSchema(songCategoryChoiceSchema), { signal }),
+
+  setSongCategory: (songId: string, category: SongCategory) =>
+    request(`/songs/${encodeURIComponent(songId)}/category`, songCategoryChoiceSchema, {
+      method: 'PUT',
+      body: JSON.stringify({ category }),
+    }),
 }
 
 export type { Device, Instrument }

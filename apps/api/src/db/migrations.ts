@@ -63,6 +63,21 @@ export const MIGRATIONS: readonly Migration[] = [
       CREATE INDEX devices_last_seen_idx ON devices (last_seen_at DESC);
     `,
   },
+  {
+    version: 2,
+    name: 'song_categories',
+    up: /* sql */ `
+      -- The built-in songs that have been moved to another shelf of the song
+      -- chooser, and where to. Only the moves: a song with no row is on the
+      -- shelf the app's catalog gives it. The songs are the app's, so there is
+      -- no table of them here to point at.
+      CREATE TABLE song_categories (
+        song_id     TEXT PRIMARY KEY,
+        category    TEXT NOT NULL,
+        updated_at  TEXT NOT NULL
+      );
+    `,
+  },
 ]
 
 /** Applies every migration newer than the file's current `user_version`. */

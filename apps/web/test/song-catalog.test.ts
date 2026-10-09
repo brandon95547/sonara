@@ -1,7 +1,8 @@
 import { readFileSync, readdirSync } from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { SONG_CATALOG, SONG_STYLES, catalogSongTitle } from '@/features/songs/catalog'
+import { SONG_CATEGORIES } from '@sonara/shared'
+import { SONG_CATALOG, catalogSongTitle } from '@/features/songs/catalog'
 import { readSongBytes } from '@/features/songs/read-song'
 
 /**
@@ -26,13 +27,13 @@ describe('the built-in songs', () => {
     expect(readdirSync(SCORES).sort()).toEqual(listed)
   })
 
-  it('puts every song in a style the chooser lists, and leaves no style empty', () => {
-    const styles = SONG_STYLES.map((style) => style.id)
-    for (const entry of SONG_CATALOG) expect(styles, entry.id).toContain(entry.style)
-    for (const style of styles) {
+  it('puts every song in a category the chooser lists, and leaves no category empty', () => {
+    const categories: readonly string[] = SONG_CATEGORIES.map((category) => category.id)
+    for (const entry of SONG_CATALOG) expect(categories, entry.id).toContain(entry.category)
+    for (const category of categories) {
       expect(
-        SONG_CATALOG.some((entry) => entry.style === style),
-        style,
+        SONG_CATALOG.some((entry) => entry.category === category),
+        category,
       ).toBe(true)
     }
   })

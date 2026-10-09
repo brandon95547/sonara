@@ -1,24 +1,24 @@
 import * as React from 'react'
 import { create } from 'zustand'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Loader2, Search, Trash2, Upload } from 'lucide-react'
-import type { Song } from '@sonara/shared'
+import {
+  SONG_CATEGORIES,
+  type Song,
+  type SongCategory,
+  type SongCategoryChoice,
+} from '@sonara/shared'
+import { api } from '@/lib/api'
 import { cn } from '@/lib/cn'
 import { Button, IconButton } from '@/ui/Button'
-import { controlShell } from '@/ui/Controls'
+import { controlShell, Select } from '@/ui/Controls'
 import { Dialog } from '@/ui/Dialog'
 import { useSongStore } from '@/state/song-store'
-import {
-  SONG_CATALOG,
-  SONG_STYLES,
-  catalogSongId,
-  loadCatalogSong,
-  type CatalogSong,
-  type SongStyle,
-} from './catalog'
+import { SONG_CATALOG, catalogSongId, loadCatalogSong, type CatalogSong } from './catalog'
 import { readSong, type ImportFailure, type ImportResult } from './read-song'
 
 /**
- * Choosing a song: the ones that come with Sonara, by style, and the player's
+ * Choosing a song: the ones that come with Sonara, by mood, and the player's
  * own, with the way to import more.
  *
  * A dialog, and the first thing the Songs area shows, because the area has
@@ -27,14 +27,23 @@ import { readSong, type ImportFailure, type ImportResult } from './read-song'
  * the person looking for something to play, and two places to look would be a
  * fact about where the files are kept.
  *
+ * The shelves are moods, and which shelf a piece belongs on is an opinion. The
+ * catalog has one for every piece; "Edit categories" turns each row into a
+ * choice of shelf, and a move is kept by the server, so it is made once for
+ * everyone rather than in one browser.
+ *
  * The import is deliberately format-sniffing rather than extension-trusting.
  * A `.mid` that is really XML, or a `.xml` that is really a MIDI file, are both
  * things that happen when files come out of other programs, and the first four
  * bytes settle it in a way a filename never can.
  */
 
-/** What the list is showing: everything, one style, or the player's own. */
-type Shelf = 'all' | SongStyle | 'mine'
+/** What the list is showing: everything, one mood, or the player's own. */
+type Shelf = 'all' | SongCategory | 'mine'
+
+/** The key the moved songs are kept under in the query cache. */
+const MOVED = ['song-categories'] as const
+type Moves = { items: SongCategoryChoice[] }
 
 // Outside the component, so the menu's Import can turn to the player's own
 // songs before the chooser is on screen.
@@ -75,6 +84,49 @@ export function SongPicker({ open, onClose }: { open: boolean; onClose: () => vo
   const [failed, setFailed] = React.useState<CatalogSong | null>(null)
   const [importError, setImportError] = React.useState<ImportResult | null>(null)
   const request = React.useRef<AbortController | null>(null)
+  /** Whether the rows are choices of shelf rather than songs to open. */
+  const [editing, setEditing] = React.useState(false)
+  const [moveFailed, setMoveFailed] = React.useState<CatalogSong | null>(null)
+
+  /*
+   * Where each song has been moved to, over where the catalog puts it.
+   *
+   * Asked of the server, which keeps the moves. Without an answer — no server,
+   * or nothing moved — every song is on the shelf it came on, and the chooser
+   * is as usable as it was.
+   */
+  const queryClient = useQueryClient()
+  const moved = useQuery({
+    queryKey: MOVED,
+    queryFn: ({ signal }) => api.listSongCategories(signal),
+    staleTime: Infinity,
+    enabled: open,
+  })
+  const shelfOf = React.useMemo(() => {
+    const moves = new Map(moved.data?.items.map((move) => [move.songId, move.category]))
+    return (entry: CatalogSong): SongCategory => moves.get(entry.id) ?? entry.category
+  }, [moved.data])
+  const move = useMutation({
+    mutationFn: ({ entry, category }: { entry: CatalogSong; category: SongCategory }) =>
+      api.setSongCategory(entry.id, category),
+    // On the new shelf at once, and back where it was if the server refuses.
+    onMutate: async ({ entry, category }) => {
+      setMoveFailed(null)
+      await queryClient.cancelQueries({ queryKey: MOVED })
+      const before = queryClient.getQueryData<Moves>(MOVED)
+      queryClient.setQueryData<Moves>(MOVED, {
+        items: [
+          ...(before?.items ?? []).filter((item) => item.songId !== entry.id),
+          { songId: entry.id, category },
+        ],
+      })
+      return { before }
+    },
+    onError: (_error, { entry }, context) => {
+      queryClient.setQueryData(MOVED, context?.before)
+      setMoveFailed(entry)
+    },
+  })
 
   // Shut, it forgets what was typed and what went wrong: the next time it
   // opens is another errand. The shelf is kept, since that is where they were.
@@ -85,6 +137,8 @@ export function SongPicker({ open, onClose }: { open: boolean; onClose: () => vo
     setLoading(null)
     setFailed(null)
     setImportError(null)
+    setEditing(false)
+    setMoveFailed(null)
   }, [open])
 
   const chooseBuiltIn = async (entry: CatalogSong) => {
@@ -139,14 +193,16 @@ export function SongPicker({ open, onClose }: { open: boolean; onClose: () => vo
   const searching = sought.length > 0
   // A search looks everywhere: someone typing a name is not thinking about
   // which shelf it is on.
-  const styles =
-    searching || shelf === 'all' ? SONG_STYLES : SONG_STYLES.filter((style) => style.id === shelf)
-  const sections = styles
-    .map((style) => ({
-      style,
+  const categories =
+    searching || shelf === 'all'
+      ? SONG_CATEGORIES
+      : SONG_CATEGORIES.filter((category) => category.id === shelf)
+  const sections = categories
+    .map((category) => ({
+      category,
       songs: SONG_CATALOG.filter(
         (entry) =>
-          entry.style === style.id &&
+          shelfOf(entry) === category.id &&
           (!searching ||
             fold(`${entry.title} ${entry.composer} ${entry.edition ?? ''}`).includes(sought)),
       ),
@@ -162,10 +218,10 @@ export function SongPicker({ open, onClose }: { open: boolean; onClose: () => vo
 
   const shelves: readonly { id: Shelf; label: string; count: number }[] = [
     { id: 'all', label: 'All songs', count: SONG_CATALOG.length + library.length },
-    ...SONG_STYLES.map((style) => ({
-      id: style.id,
-      label: style.label,
-      count: SONG_CATALOG.filter((entry) => entry.style === style.id).length,
+    ...SONG_CATEGORIES.map((category) => ({
+      id: category.id,
+      label: category.label,
+      count: SONG_CATALOG.filter((entry) => shelfOf(entry) === category.id).length,
     })),
     { id: 'mine', label: 'My songs', count: library.length },
   ]
@@ -184,7 +240,18 @@ export function SongPicker({ open, onClose }: { open: boolean; onClose: () => vo
           <p className="text-caption text-[var(--ds-fg-muted)]">
             MusicXML · MuseScore · MIDI. Imported songs stay on this device.
           </p>
-          <ImportButton onFiles={onFiles} />
+          <div className="flex items-center gap-2.5 coarse:gap-3">
+            {/* The rows become choices of category, and back again. */}
+            <Button
+              size="sm"
+              variant={editing ? 'tonal' : 'text'}
+              aria-pressed={editing}
+              onClick={() => setEditing((on) => !on)}
+            >
+              {editing ? 'Done' : 'Edit categories'}
+            </Button>
+            <ImportButton onFiles={onFiles} />
+          </div>
         </div>
       }
     >
@@ -259,6 +326,18 @@ export function SongPicker({ open, onClose }: { open: boolean; onClose: () => vo
             />
           )}
           {importError && 'failure' in importError && <ImportError result={importError} />}
+          {moveFailed && (
+            <Notice
+              title={`Could not move ${moveFailed.title}`}
+              detail="The server did not take the change, so the song is back where it was. Check that the Sonara API is running and move it again."
+            />
+          )}
+          {editing && (
+            <p className="text-body-sm text-[var(--ds-fg-muted)]">
+              Choose a category for any song. A move is saved as it is made, for everyone who uses
+              this Sonara.
+            </p>
+          )}
 
           {nothing && (
             <p className="text-body-sm text-[var(--ds-fg-muted)]">
@@ -295,22 +374,15 @@ export function SongPicker({ open, onClose }: { open: boolean; onClose: () => vo
           )}
 
           {shelf !== 'mine' || searching
-            ? sections.map(({ style, songs }) => (
-                <Shelved key={style.id} title={style.label}>
-                  <ul className="grid grid-cols-1 gap-2 lg:grid-cols-2">
-                    {songs.map((entry) => (
-                      <li key={entry.id}>
-                        <button
-                          type="button"
-                          aria-busy={loading === entry.id || undefined}
-                          aria-current={catalogSongId(entry) === currentId ? 'true' : undefined}
-                          onClick={() => void chooseBuiltIn(entry)}
-                          className={cn(
-                            row,
-                            focusRing,
-                            catalogSongId(entry) === currentId ? rowCurrent : rowIdle,
-                          )}
-                        >
+            ? sections.map(({ category, songs }) => (
+                <Shelved key={category.id} title={category.label}>
+                  {/* One to a line while they are being moved: beside a choice
+                      of category, half a line is too short to tell four
+                      editions of one piece apart. */}
+                  <ul className={cn('grid grid-cols-1 gap-2', !editing && 'lg:grid-cols-2')}>
+                    {songs.map((entry) =>
+                      editing ? (
+                        <li key={entry.id} className={cn(row, rowIdle)}>
                           <span className="flex min-w-0 flex-1 flex-col">
                             <span className="truncate text-ui text-[var(--ds-fg)]">
                               {entry.title}
@@ -320,18 +392,59 @@ export function SongPicker({ open, onClose }: { open: boolean; onClose: () => vo
                               {entry.edition && ` · ${entry.edition}`}
                             </span>
                           </span>
-                          {loading === entry.id ? (
-                            <Loader2
-                              size={16}
-                              className="shrink-0 animate-spin text-[var(--ds-fg-muted)]"
-                              aria-label="Loading"
+                          <div className="w-44 shrink-0">
+                            <Select
+                              size="sm"
+                              aria-label={`Category for ${entry.title}${entry.edition ? `, ${entry.edition}` : ''}`}
+                              value={shelfOf(entry)}
+                              onChange={(event) =>
+                                move.mutate({
+                                  entry,
+                                  category: event.target.value as SongCategory,
+                                })
+                              }
+                              options={SONG_CATEGORIES.map((option) => ({
+                                value: option.id,
+                                label: option.label,
+                              }))}
                             />
-                          ) : (
-                            catalogSongId(entry) === currentId && <OpenMark />
-                          )}
-                        </button>
-                      </li>
-                    ))}
+                          </div>
+                        </li>
+                      ) : (
+                        <li key={entry.id}>
+                          <button
+                            type="button"
+                            aria-busy={loading === entry.id || undefined}
+                            aria-current={catalogSongId(entry) === currentId ? 'true' : undefined}
+                            onClick={() => void chooseBuiltIn(entry)}
+                            className={cn(
+                              row,
+                              focusRing,
+                              catalogSongId(entry) === currentId ? rowCurrent : rowIdle,
+                            )}
+                          >
+                            <span className="flex min-w-0 flex-1 flex-col">
+                              <span className="truncate text-ui text-[var(--ds-fg)]">
+                                {entry.title}
+                              </span>
+                              <span className="truncate text-caption text-[var(--ds-fg-muted)]">
+                                {entry.composer}
+                                {entry.edition && ` · ${entry.edition}`}
+                              </span>
+                            </span>
+                            {loading === entry.id ? (
+                              <Loader2
+                                size={16}
+                                className="shrink-0 animate-spin text-[var(--ds-fg-muted)]"
+                                aria-label="Loading"
+                              />
+                            ) : (
+                              catalogSongId(entry) === currentId && <OpenMark />
+                            )}
+                          </button>
+                        </li>
+                      ),
+                    )}
                   </ul>
                 </Shelved>
               ))

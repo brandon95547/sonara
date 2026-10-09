@@ -2,7 +2,9 @@ import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { SONG_CATALOG, SONG_STYLES } from '@/features/songs/catalog'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { SONG_CATEGORIES } from '@sonara/shared'
+import { SONG_CATALOG } from '@/features/songs/catalog'
 import { SongPicker, showMySongs } from '@/features/songs/SongPicker'
 import { useSongStore } from '@/state/song-store'
 
@@ -26,9 +28,21 @@ globalThis.matchMedia ??= ((query: string) => ({
 const score = (id: string) =>
   new Uint8Array(readFileSync(path.join(import.meta.dirname, '..', 'public', 'songs', `${id}.mxl`)))
 
-/** Answers a request for a built-in score from the folder the app serves. */
-const serveScores = () =>
-  vi.fn(async (url: string) => {
+/**
+ * Answers what the chooser asks for: a built-in score, from the folder the app
+ * serves, and the server's list of songs that have been moved, which it also
+ * takes moves into.
+ */
+const serveScores = (moves: { songId: string; category: string }[] = []) =>
+  vi.fn(async (url: string, init?: { method?: string; body?: string }) => {
+    const json = (body: unknown) => ({ ok: true, status: 200, json: async () => body })
+    const moving = /songs\/([a-z0-9-]+)\/category$/.exec(url)
+    if (moving) {
+      const move = { songId: moving[1]!, category: JSON.parse(init!.body!).category as string }
+      moves.push(move)
+      return json(move)
+    }
+    if (url.endsWith('/songs/categories')) return json({ items: [...moves] })
     const bytes = score(/songs\/(.+)\.mxl$/.exec(url)![1]!)
     return {
       ok: true,
@@ -37,6 +51,20 @@ const serveScores = () =>
         bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength),
     }
   })
+
+/** The scores a fetch stub was asked for, leaving out what was asked of the server. */
+const scoresAsked = (fetched: ReturnType<typeof serveScores>) =>
+  fetched.mock.calls.map((call) => String(call[0])).filter((url) => url.endsWith('.mxl'))
+
+/** The chooser as the app mounts it: inside the thing that asks the server. */
+const show = (onClose: () => void = () => {}) =>
+  render(
+    <QueryClientProvider
+      client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+    >
+      <SongPicker open onClose={onClose} />
+    </QueryClientProvider>,
+  )
 
 // Found by where they are rather than by role: working out the accessible name
 // of every row to find one of them takes jsdom a second a query.
@@ -50,9 +78,10 @@ const song = (title: string) => starting('li button', title)
 const rows = () => [...dialog().querySelectorAll('li')]
 
 beforeEach(() => {
+  vi.stubGlobal('fetch', serveScores())
   useSongStore.setState({ library: [], builtIn: [], currentId: null })
   // The chooser keeps the shelf it was left on; each case starts on the first.
-  render(<SongPicker open onClose={() => {}} />)
+  show()
   fireEvent.click(shelf('All songs'))
   cleanup()
 })
@@ -63,29 +92,63 @@ afterEach(() => {
 })
 
 describe('the song chooser', () => {
-  it('lists every built-in song under its style', () => {
-    render(<SongPicker open onClose={() => {}} />)
+  it('lists every built-in song under its mood', () => {
+    show()
     expect(screen.getByRole('dialog', { name: 'Choose a song' })).toBe(dialog())
     expect(rows()).toHaveLength(SONG_CATALOG.length)
     expect([...dialog().querySelectorAll('h3')].map((heading) => heading.textContent)).toEqual(
-      SONG_STYLES.map((style) => style.label),
+      SONG_CATEGORIES.map((category) => category.label),
     )
   })
 
-  it('shows one style at a time when its shelf is chosen', () => {
-    render(<SongPicker open onClose={() => {}} />)
-    fireEvent.click(shelf('Ragtime'))
-    expect(shelf('Ragtime').getAttribute('aria-pressed')).toBe('true')
+  it('shows one mood at a time when its shelf is chosen', () => {
+    show()
+    fireEvent.click(shelf('Dreamy'))
+    expect(shelf('Dreamy').getAttribute('aria-pressed')).toBe('true')
     expect(rows().map((row) => row.textContent)).toEqual([
-      'The EntertainerScott Joplin',
-      'The EntertainerScott Joplin · Version 2',
-      'Maple Leaf RagScott Joplin',
+      'Clair de LuneClaude Debussy',
+      'Clair de LuneClaude Debussy · Version 2',
+      'Arabesque No. 1 in E MajorClaude Debussy',
+      'Gymnopédie No. 1Erik Satie',
+      'Gymnopédie No. 1Erik Satie · Version 2',
     ])
   })
 
+  it('moves a song to another category, and tells the server', async () => {
+    const moves: { songId: string; category: string }[] = []
+    vi.stubGlobal('fetch', serveScores(moves))
+    show()
+    fireEvent.click(shelf('Dreamy'))
+    fireEvent.click(starting('footer button', 'Edit categories'))
+
+    // Each row is now a choice of category rather than a song to open.
+    fireEvent.change(within(dialog()).getByLabelText('Category for Arabesque No. 1 in E Major'), {
+      target: { value: 'peaceful' },
+    })
+
+    await waitFor(() =>
+      expect(moves).toEqual([{ songId: 'debussy-arabesque-no-1', category: 'peaceful' }]),
+    )
+    // Gone from this shelf, and on the other.
+    expect(rows().map((row) => row.textContent)).not.toContain(expect.stringContaining('Arabesque'))
+    expect(rows()).toHaveLength(4)
+    fireEvent.click(starting('footer button', 'Done'))
+    fireEvent.click(shelf('Peaceful'))
+    expect(rows().some((row) => row.textContent?.startsWith('Arabesque No. 1'))).toBe(true)
+  })
+
+  it('shelves a song where the server says it was moved to', async () => {
+    vi.stubGlobal('fetch', serveScores([{ songId: 'joplin-maple-leaf-rag', category: 'dreamy' }]))
+    show()
+    fireEvent.click(shelf('Dreamy'))
+    await waitFor(() =>
+      expect(rows().some((row) => row.textContent?.startsWith('Maple Leaf Rag'))).toBe(true),
+    )
+  })
+
   it('searches every shelf at once, without minding accents', () => {
-    render(<SongPicker open onClose={() => {}} />)
-    fireEvent.click(shelf('Ragtime'))
+    show()
+    fireEvent.click(shelf('Dreamy'))
     const search = within(dialog()).getByLabelText('Search songs')
     fireEvent.change(search, { target: { value: 'fur elise' } })
     expect(rows()).toHaveLength(4)
@@ -100,12 +163,14 @@ describe('the song chooser', () => {
     const fetched = serveScores()
     vi.stubGlobal('fetch', fetched)
     const onClose = vi.fn()
-    render(<SongPicker open onClose={onClose} />)
+    show(onClose)
 
     fireEvent.click(song('Maple Leaf Rag'))
     await waitFor(() => expect(onClose).toHaveBeenCalled())
 
-    expect(String(fetched.mock.calls[0]![0])).toMatch(/songs\/joplin-maple-leaf-rag\.mxl$/)
+    expect(scoresAsked(fetched)).toEqual([
+      expect.stringMatching(/songs\/joplin-maple-leaf-rag\.mxl$/),
+    ])
     const state = useSongStore.getState()
     expect(state.currentId).toBe('catalog:joplin-maple-leaf-rag')
     expect(state.builtIn.map((song) => song.title)).toEqual(['Maple Leaf Rag'])
@@ -117,7 +182,7 @@ describe('the song chooser', () => {
     const fetched = serveScores()
     vi.stubGlobal('fetch', fetched)
     const onClose = vi.fn()
-    render(<SongPicker open onClose={onClose} />)
+    show(onClose)
     const maple = () => song('Maple Leaf Rag')
 
     fireEvent.click(maple())
@@ -127,13 +192,13 @@ describe('the song chooser', () => {
 
     fireEvent.click(maple())
     expect(onClose).toHaveBeenCalledTimes(2)
-    expect(fetched).toHaveBeenCalledTimes(1)
+    expect(scoresAsked(fetched)).toHaveLength(1)
   })
 
   it('opens a quick song at ninety, and a slow one at its own tempo', async () => {
     vi.stubGlobal('fetch', serveScores())
     const onClose = vi.fn()
-    render(<SongPicker open onClose={onClose} />)
+    show(onClose)
 
     // Maple Leaf Rag is written at a hundred.
     fireEvent.click(song('Maple Leaf Rag'))
@@ -152,10 +217,14 @@ describe('the song chooser', () => {
   it('says so when a score does not arrive, and stays open', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn(async () => ({ ok: false, status: 404 })),
+      vi.fn(async (url: string) =>
+        url.endsWith('/songs/categories')
+          ? { ok: true, status: 200, json: async () => ({ items: [] }) }
+          : { ok: false, status: 404 },
+      ),
     )
     const onClose = vi.fn()
-    render(<SongPicker open onClose={onClose} />)
+    show(onClose)
 
     fireEvent.click(song('Swan Lake'))
     const alert = await screen.findByRole('alert')
@@ -166,7 +235,7 @@ describe('the song chooser', () => {
 
   it('turns to the player’s own songs when asked, which is where importing is', () => {
     showMySongs()
-    render(<SongPicker open onClose={() => {}} />)
+    show()
     expect(shelf('My songs').getAttribute('aria-pressed')).toBe('true')
     expect(dialog().textContent).toContain('Nothing imported yet.')
     expect(starting('footer button', 'Import a song')).toBeTruthy()
