@@ -104,7 +104,7 @@ export function ScaleTheoryDialog({ open, onClose }: { open: boolean; onClose: (
             <p className="text-body-sm text-[var(--ds-fg-secondary)]">
               Those two four-note groups are called <strong>tetrachords</strong>. They are the same
               shape — {spellSteps(halves.steps)} — joined by a {stepWord(halves.join)} step. So the
-              scale is one shape learned twice, not seven steps memorised once.
+              scale is one shape learned twice, not seven steps memorized once.
             </p>
             <p className="text-body-sm text-[var(--ds-fg-muted)]">
               The upper group is also the lower group of the next scale a fifth up, which is how the

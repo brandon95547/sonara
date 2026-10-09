@@ -10,7 +10,7 @@ export const instrumentRoutes: FastifyPluginAsyncZod = async (app) => {
     {
       schema: {
         tags: ['instruments'],
-        summary: 'The playable piano catalogue',
+        summary: 'The playable piano catalog',
         response: {
           200: collectionSchema(instrumentSchema).extend({
             defaultInstrumentId: z.string(),

@@ -146,12 +146,12 @@ export async function buildApp(config: Config): Promise<FastifyInstance> {
         title: 'Sonara API',
         version: config.version,
         description:
-          'Backend for Sonara — the piano catalogue, and the MIDI device profile and configuration store.',
+          'Backend for Sonara — the piano catalog, and the MIDI device profile and configuration store.',
       },
       servers: [{ url: API_PREFIX }],
       tags: [
         { name: 'system', description: 'Health and diagnostics' },
-        { name: 'instruments', description: 'The playable piano catalogue' },
+        { name: 'instruments', description: 'The playable piano catalog' },
         { name: 'devices', description: 'MIDI keyboard detection and configuration' },
       ],
     },

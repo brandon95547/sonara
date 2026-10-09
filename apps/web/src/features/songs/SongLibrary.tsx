@@ -66,9 +66,9 @@ export function SongLibrary({ open, onClose }: { open: boolean; onClose: () => v
         {library.length === 0 ? (
           <p className="text-body-sm text-[var(--ds-fg-muted)]">
             Nothing imported yet. A MusicXML or MuseScore file is the one to bring if you have a
-            choice: those carry the staves, the dynamics, the pedalling and the fingering. MIDI
-            keeps a performance exactly as played, and carries none of those — the format has
-            nowhere to put them.
+            choice: those carry the staves, the dynamics, the pedaling and the fingering. MIDI keeps
+            a performance exactly as played, and carries none of those — the format has nowhere to
+            put them.
           </p>
         ) : (
           library.map((song) => (
@@ -135,7 +135,7 @@ function ImportError({ result }: { result: Extract<ImportResult, { failure: Impo
     },
     empty: {
       title: 'Nothing playable in this file',
-      detail: 'The format was recognised, but there were no notes in it.',
+      detail: 'The format was recognized, but there were no notes in it.',
     },
     unknown: {
       title: 'Not a file we could read',

@@ -179,7 +179,7 @@ function Shell() {
 /** What is actually making the sound right now. */
 function CatalogueError({ error, onRetry }: { error: unknown; onRetry: () => void }) {
   const message =
-    error instanceof ApiClientError ? error.message : 'The piano catalogue could not be loaded.'
+    error instanceof ApiClientError ? error.message : 'The piano catalog could not be loaded.'
 
   return (
     <div className="flex flex-col items-start gap-3 rounded-[var(--radius-xl)] border border-[var(--ds-danger-border)] bg-[var(--ds-danger-subtle)] p-5">

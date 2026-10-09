@@ -155,7 +155,7 @@ export const INSTRUMENTS: readonly Instrument[] = [
   {
     id: 'sonara-studio',
     name: 'Sonara Studio',
-    description: 'Synthesised in the browser. No download, works offline, plays instantly.',
+    description: 'Synthesized in the browser. No download, works offline, plays instantly.',
     family: 'acoustic',
     character: ['clean', 'instant'],
     engine: { kind: 'synth' },

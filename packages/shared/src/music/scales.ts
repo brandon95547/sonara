@@ -91,7 +91,7 @@ export const SCALE_TYPES: readonly ScaleType[] = [
     family: 'minor',
     signatureDegree: 6,
     description:
-      'The plain minor. Same notes as its relative major, started three semitones lower.',
+      'The plain minor. Same notes as its relative major, started three half steps lower.',
   },
   {
     id: 'harmonic-minor',
@@ -165,7 +165,7 @@ export const SCALE_TYPES: readonly ScaleType[] = [
     degrees: ['1', '2', '3', '5', '6'],
     family: 'pentatonic',
     signatureDegree: 1,
-    description: 'Major with the two semitone steps removed. Nothing in it can clash.',
+    description: 'Major with the two half steps removed. Nothing in it can clash.',
   },
   {
     id: 'minor-pentatonic',
@@ -197,7 +197,7 @@ export const SCALE_TYPES: readonly ScaleType[] = [
     family: 'other',
     // E chromatic's ♯2 is an F𝄪 by the letter rule; it is written G.
     respellDoubles: true,
-    description: 'Every key in order. A technique exercise more than a colour.',
+    description: 'Every key in order. A technique exercise more than a color.',
   },
   {
     id: 'whole-tone',

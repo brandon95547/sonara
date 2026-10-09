@@ -36,7 +36,7 @@ export function Dashboard() {
           <h1 id="dashboard-title" className="dashboard__title">
             Dashboard
           </h1>
-          <p className="dashboard__lede">Pick an area to practise.</p>
+          <p className="dashboard__lede">Pick an area to practice.</p>
           {/* For someone who does not yet know which: the ground the areas
               stand on, in the order it is learned. */}
           <button

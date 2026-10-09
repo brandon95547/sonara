@@ -215,7 +215,7 @@ function DeviceForm({
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-h4 text-[var(--ds-fg)]">{device.name}</span>
           <Chip tone={device.profileId ? 'success' : 'neutral'}>
-            {device.profileId ? 'Recognised' : 'Detected from name'}
+            {device.profileId ? 'Recognized' : 'Detected from name'}
           </Chip>
         </div>
         <p className="text-caption text-[var(--ds-fg-muted)]">
@@ -317,7 +317,7 @@ function DeviceForm({
 
       <Switch
         label="Sustain pedal"
-        description="Honour CC 64 from this keyboard."
+        description="Honor CC 64 from this keyboard."
         checked={config.sustainEnabled}
         onChange={(checked) => onPatch({ sustainEnabled: checked })}
       />

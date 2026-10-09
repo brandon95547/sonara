@@ -10,7 +10,7 @@ touchscreen or a USB MIDI keyboard, and watch every note land on the keys.
 
 ### The instrument
 
-- **A virtual keyboard on centre stage**, responsive from 320px to a 4K monitor.
+- **A virtual keyboard on center stage**, responsive from 320px to a 4K monitor.
   It is sized in the sizes keyboards are sold in — 25, 32, 37, 49, 61, 76, 88 —
   defaulting to **61 key**, and each one keeps the range that size really has
   (a 32 starts on F, a 76 on E). Auto narrows when the screen cannot show 61 at
@@ -19,7 +19,7 @@ touchscreen or a USB MIDI keyboard, and watch every note land on the keys.
   one they own. The view follows what you play, so a note off-screen still
   shows up.
 - **Seven pianos** — a sampled concert grand, an upright, a honky-tonk, a Rhodes,
-  a Wurlitzer, and a fully synthesised one that needs no network at all.
+  a Wurlitzer, and a fully synthesized one that needs no network at all.
 - **USB MIDI in**, with per-keyboard detection and configuration: transpose,
   octave shift, velocity curve, channel filter and sustain pedal, saved against
   the keyboard and restored the next time it is plugged in.
@@ -63,7 +63,7 @@ touchscreen or a USB MIDI keyboard, and watch every note land on the keys.
 ### Songs
 
 - **Import MusicXML (`.musicxml`, `.xml`), Compressed MusicXML (`.mxl`),
-  MuseScore (`.mscz`) and MIDI (`.mid`, `.midi`)** — normalised into one score
+  MuseScore (`.mscz`) and MIDI (`.mid`, `.midi`)** — normalized into one score
   model on the way in, so playback, the keyboard, the staff and Learn never know
   which format a song came from. Formats are identified by their first bytes,
   not their extension.
@@ -72,7 +72,7 @@ touchscreen or a USB MIDI keyboard, and watch every note land on the keys.
   says so rather than quietly filling gaps.
 - **Fingering is worked out for files that have none** — see below.
 - **Drums are played as drums.** A MIDI file's percussion channel is routed to a
-  synthesised kit rather than onto the piano, and accompaniment parts sound
+  synthesized kit rather than onto the piano, and accompaniment parts sound
   without lighting keys you are not being asked to play.
 - **Explore and Learn for songs**, with part selection, tempo, a metronome and a
   progress bar over the staff. The library persists between sessions.
@@ -104,7 +104,7 @@ for it — and plenty of scores are published unfingered. Sonara works it out.
   comment. A chord whose _inner_ notes are out of reach is two hands, and gets
   nothing.
 - **You can always tell which you are looking at.** Worked-out fingering is
-  labelled _Suggested_; fingering an editor wrote is labelled _Fingered score_.
+  labeled _Suggested_; fingering an editor wrote is labeled _Fingered score_.
 
 Imported through the real path, a MIDI C major scale up and back down comes out
 `1 2 3 1 2 3 4 5 · 4 3 2 1 3 2 1` — the fingering a method book prints, from a
@@ -197,7 +197,7 @@ the page shows what went wrong with a Try again once the retry is spent.
 A silent app and a working one are identical in the DOM — the key lights up
 either way, and every unit test passes either way. `npm run verify:audio`
 (with `npm run dev` already running) drives real Chrome over the DevTools
-Protocol, taps every connection into the audio destination with an analyser,
+Protocol, taps every connection into the audio destination with an analyzer,
 clicks middle C and reads the RMS.
 
 It deliberately does **not** relax Chrome's autoplay policy. Browsers refuse to
@@ -210,11 +210,11 @@ itself, rather than being quietly silent.
 ## Layout
 
 ```
-packages/shared   the domain: MIDI decoding, note maths, scales and
+packages/shared   the domain: MIDI decoding, note math, scales and
                   fingering, the score model and its importers' output,
                   velocity curves, device profiles, and the zod schemas the
                   API and the app both validate against
-apps/api          Fastify + SQLite. The piano catalogue, the controller
+apps/api          Fastify + SQLite. The piano catalog, the controller
                   profile database, and per-device configuration
 apps/web          React + Vite + Tailwind v4. The keyboard, the audio
                   engines, and the Web MIDI integration
@@ -238,7 +238,7 @@ Sonara's own additions live in `sonara.css`, in the component tier. The
 keyboard is the one deliberate exception to reasoning from the elevation ramp:
 a piano key is a depiction of a physical object, and a "white key" assigned
 `--ds-surface-raised` because that is where it sits in the hierarchy is a piano
-nobody recognises. The reasoning is written next to the values.
+nobody recognizes. The reasoning is written next to the values.
 
 ### Audio
 
@@ -246,7 +246,7 @@ Two engines behind one interface.
 
 `SynthEngine` is additive synthesis in the browser — a bank of decaying sine
 partials through a velocity-tracking low-pass, plus a noise transient for the
-hammer. No network, no licence, always available.
+hammer. No network, no license, always available.
 
 `SampledEngine` wraps [smplr](https://github.com/danigb/smplr) and streams real
 piano samples from a CDN.
@@ -255,12 +255,12 @@ Selecting a sampled piano does **both**: the built-in engine is built
 immediately from that instrument's own voicing so the keyboard is playable on
 the very next keystroke, and the samples are swapped in underneath when they
 arrive. If they never arrive — an offline laptop, a captive portal, a blocked
-CDN — nothing swaps, the UI says so, and the piano still plays. Every catalogue
+CDN — nothing swaps, the UI says so, and the piano still plays. Every catalog
 entry carries a voicing for exactly this reason.
 
 The sustain pedal is held by the provider rather than by either engine: it is a
 property of the performance, not of the instrument, so every engine gets
-identical pedal behaviour and an engine swap mid-pedal cannot strand a note.
+identical pedal behavior and an engine swap mid-pedal cannot strand a note.
 
 ### The learning system
 
@@ -301,7 +301,7 @@ played and how hard. It does not report which finger played it, and Sonara does
 not pretend otherwise — the cards say so.
 
 Two sources answer two different questions, and which one applies decides what
-the answer is labelled.
+the answer is labeled.
 
 _A fingering system_ answers for the scales its source prints. There is one,
 **Traditional / Orthodox**, chosen under Settings ▸ Fingering, and it is a
@@ -348,8 +348,8 @@ keys" is a preference, "the hand has five fingers" is anatomy, and enforcing the
 first absolutely while letting the second slide produces fingerings that ask the
 little finger for three rising notes in a row.
 
-Anything worked out is labelled _Suggested_, and anything a system supplied is
-labelled with the system's name, because those are different claims.
+Anything worked out is labeled _Suggested_, and anything a system supplied is
+labeled with the system's name, because those are different claims.
 
 ### Songs
 

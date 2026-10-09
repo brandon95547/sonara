@@ -33,7 +33,7 @@ export function KeyCircle({
       {here && (
         <Prose>
           {name(here.position)} is written with {here.signature.toLowerCase()}
-          {here.accidentals.length > 0 ? ` (${here.accidentals.join(' ')})` : ''}. Its neighbours,{' '}
+          {here.accidentals.length > 0 ? ` (${here.accidentals.join(' ')})` : ''}. Its neighbors,{' '}
           {name(here.position - 1)} and {name(here.position + 1)},{' '}
           {selected?.mode === 'minor'
             ? 'are a fifth below it and a fifth above — its nearest relations'

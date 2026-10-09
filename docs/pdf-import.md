@@ -37,7 +37,7 @@ middle one is oemer:
 
 ```
 score.pdf
-  → pdftoppm -r 300 -png        rasterise, one PNG per page   [poppler]
+  → pdftoppm -r 300 -png        rasterize, one PNG per page   [poppler]
   → oemer page-N.png            per page → MusicXML           [oemer]
   → merge parts across pages    ours
   → importMusicXml()            already built, already tested
@@ -62,7 +62,7 @@ inventing a second style:
 # Sonara — developer tasks
 #
 # SYSTEM DEPENDENCIES (not installable by pip):
-#   poppler-utils — rasterises a PDF into the PNGs oemer reads.
+#   poppler-utils — rasterizes a PDF into the PNGs oemer reads.
 #     Debian/Ubuntu:  apt install -y poppler-utils
 #     RHEL/CentOS:    dnf install -y poppler-utils
 #     macOS:          brew install poppler
@@ -116,7 +116,7 @@ and cleanup of the temporary PNGs, which are large and numerous.
 
 ## Client
 
-The import drawer already recognises a PDF and explains why it cannot read it.
+The import drawer already recognizes a PDF and explains why it cannot read it.
 That branch becomes: upload, show progress per page, then hand the returned
 MusicXML to `importMusicXml()` — which is built, tested, and now reads fingering
 and key signatures.
@@ -132,7 +132,7 @@ scores come out usable; anything scanned, handwritten, or dense comes out
 needing correction. **Fingering is among the first things lost**, so the very
 thing that makes MusicXML worth preferring is the thing PDF import is worst at.
 
-The output should therefore be labelled as recognised rather than read — the
+The output should therefore be labeled as recognized rather than read — the
 same distinction the app already draws between a standard fingering and a
 suggested one, and between a declared key and an estimated one.
 
