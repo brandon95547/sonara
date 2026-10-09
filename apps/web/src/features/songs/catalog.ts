@@ -332,13 +332,6 @@ export const SONG_CATALOG: readonly CatalogSong[] = [
     category: 'dreamy',
   },
   {
-    id: 'satie-gymnopedie-no-1-2',
-    title: 'Gymnopédie No. 1',
-    composer: 'Erik Satie',
-    category: 'dreamy',
-    edition: 'Version 2',
-  },
-  {
     id: 'joplin-the-entertainer',
     title: 'The Entertainer',
     composer: 'Scott Joplin',

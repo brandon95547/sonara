@@ -105,13 +105,16 @@ describe('the song chooser', () => {
     show()
     fireEvent.click(shelf('Dreamy'))
     expect(shelf('Dreamy').getAttribute('aria-pressed')).toBe('true')
-    expect(rows().map((row) => row.textContent)).toEqual([
-      'Clair de LuneClaude Debussy',
-      'Clair de LuneClaude Debussy · Version 2',
-      'Arabesque No. 1 in E MajorClaude Debussy',
-      'Gymnopédie No. 1Erik Satie',
-      'Gymnopédie No. 1Erik Satie · Version 2',
-    ])
+    // The catalog's own Dreamy songs, in its order, and no other mood's.
+    const dreamy = SONG_CATALOG.filter((song) => song.category === 'dreamy')
+    expect(dreamy.length).toBeGreaterThan(1)
+    expect(dreamy.length).toBeLessThan(SONG_CATALOG.length)
+    expect(rows().map((row) => row.textContent)).toEqual(
+      dreamy.map(
+        (song) => `${song.title}${song.composer}${song.edition ? ` · ${song.edition}` : ''}`,
+      ),
+    )
+    expect(rows()[0]?.textContent).toBe('Clair de LuneClaude Debussy')
   })
 
   it('moves a song to another category, and tells the server', async () => {
@@ -129,9 +132,11 @@ describe('the song chooser', () => {
     await waitFor(() =>
       expect(moves).toEqual([{ songId: 'debussy-arabesque-no-1', category: 'peaceful' }]),
     )
-    // Gone from this shelf, and on the other.
+    // Gone from this shelf, and on the other: the shelf is one song shorter.
     expect(rows().map((row) => row.textContent)).not.toContain(expect.stringContaining('Arabesque'))
-    expect(rows()).toHaveLength(4)
+    expect(rows()).toHaveLength(
+      SONG_CATALOG.filter((song) => song.category === 'dreamy').length - 1,
+    )
     fireEvent.click(starting('footer button', 'Done'))
     fireEvent.click(shelf('Peaceful'))
     expect(rows().some((row) => row.textContent?.startsWith('Arabesque No. 1'))).toBe(true)
