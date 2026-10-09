@@ -73,6 +73,9 @@ touchscreen or a USB MIDI keyboard, and watch every note land on the keys.
 - **It tells you what the file did not carry.** Notes, rhythm, hands, dynamics,
   pedal and fingering are each recorded as present or absent, and the library
   says so rather than quietly filling gaps.
+- **Repeats are played as written.** A repeat sign sends the song back, a first
+  ending is taken the first time and stepped over the second, and the page
+  shows the signs and the brackets rather than the passage written out twice.
 - **Fingering is worked out for files that have none** — see below.
 - **Drums are played as drums.** A MIDI file's percussion channel is routed to a
   synthesized kit rather than onto the piano, and accompaniment parts sound
@@ -377,6 +380,16 @@ the first in the treble clef and the second in the bass, are one piano written
 a staff to a hand, and are read as its right and left. And where several parts
 are called a piano, the one on two staves is the piano; a one-staff part beside
 it is a line of ornaments, heard and not asked for.
+
+A song keeps what is written apart from how it is played. Its notes and bars
+are the score, once, in score time; `sections` is the order the bars are played
+in where a repeat or an ending makes that something other than once through
+(`songs/performance.ts`, which also turns one clock into the other). Playback,
+the playhead and Learn all go through it, so a repeated passage is the same
+notes on the page the second time, and the staff draws repeat signs and ending
+brackets instead of growing a bar for every bar repeated. MusicXML's repeats
+and endings are read; D.C., D.S. and codas are not yet, and neither are a
+MuseScore file's repeats.
 
 The songs that come with the app are scores in `apps/web/public/songs`, listed
 in `features/songs/catalog.ts` with a title, a composer and a style each. They

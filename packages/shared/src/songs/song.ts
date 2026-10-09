@@ -17,6 +17,7 @@ import { withInferredHands } from './hand-assignment.js'
 import type { PartRole } from './general-midi.js'
 import { estimateKey, type DetectedKey } from './key-of.js'
 import { gridMeasures, quartersPerBar, type SongMeasure } from './meter.js'
+import type { SongSection } from './performance.js'
 export type { Hand }
 
 /**
@@ -198,6 +199,15 @@ export interface Song {
   readonly chords: readonly ChordSymbol[]
   /** What the source gave us, so the UI can say what it did not. */
   readonly provides: SongProvides
+  /**
+   * The order the score is played in, where that is not once through: its
+   * repeats and endings, unrolled into stretches of the page.
+   *
+   * Everything above is the score as written, in score time. See
+   * `performance.ts` for why the two are kept apart and how to get from one to
+   * the other.
+   */
+  readonly sections?: readonly SongSection[]
 }
 
 export function songDuration(notes: readonly SongNote[]): number {
@@ -261,6 +271,7 @@ export function buildSong(input: {
   rhythmFromScore?: boolean
   /** The bars as the file laid them out. Without them, one tempo and one metre. */
   measures?: readonly SongMeasure[]
+  sections?: readonly SongSection[]
   /** Chord symbols the file printed. */
   chords?: readonly ChordSymbol[]
 }): Song {

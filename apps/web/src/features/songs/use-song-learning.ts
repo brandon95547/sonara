@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { songSteps, type Song, type SongStep } from '@sonara/shared'
+import { playedSteps, songSteps, type Song, type SongStep } from '@sonara/shared'
 import { useLearningStore, type KeyAnnotation } from '@/state/learning-store'
 import { useKeyboardStore } from '@/state/keyboard-store'
 import { useSongStore } from '@/state/song-store'
@@ -37,19 +37,30 @@ export function useSongLearning(song: Song | null) {
     [song, mode, part],
   )
 
-  React.useEffect(() => setStepCount(steps.length), [steps, setStepCount])
+  /*
+   * The steps in the order they are played, which is what Learn walks through.
+   *
+   * Where the score has a repeat, the same written step comes round again and
+   * is asked for again: `stepIndex` counts along this list, not along the page.
+   */
+  const played = React.useMemo<SongStep[]>(
+    () => (song ? playedSteps(song, steps).map((index) => steps[index]!) : []),
+    [song, steps],
+  )
+
+  React.useEffect(() => setStepCount(played.length), [played, setStepCount])
 
   // Flatten the step to what the hand card needs, so it can live anywhere.
   // Every note of it, low to high: a chord is a hand shape, and one finger out
   // of three is not one.
   React.useEffect(() => {
-    const notes = [...(steps[stepIndex]?.notes ?? [])].sort((a, b) => a.note - b.note)
+    const notes = [...(played[stepIndex]?.notes ?? [])].sort((a, b) => a.note - b.note)
     setCurrent(
       notes.flatMap((note) =>
         note.finger === undefined ? [] : [{ finger: note.finger, hand: note.hand }],
       ),
     )
-  }, [steps, stepIndex, setCurrent])
+  }, [played, stepIndex, setCurrent])
 
   // What the keyboard shows. Rebuilt only when the step moves, not per frame.
   React.useEffect(() => {
@@ -59,7 +70,7 @@ export function useSongLearning(song: Song | null) {
     }
 
     const annotations: Record<number, KeyAnnotation> = {}
-    steps.forEach((step, index) => {
+    played.forEach((step, index) => {
       const ahead = index - stepIndex
       // Behind you the shape of the piece stays lit, without a marking: a
       // keyboard that empties out behind the player takes away the map.
@@ -89,7 +100,7 @@ export function useSongLearning(song: Song | null) {
     for (const note of wrongNotes) annotations[note] = { role: 'wrong' }
 
     setSongAnnotations(annotations)
-  }, [song, mode, steps, stepIndex, wrongNotes, setSongAnnotations])
+  }, [song, mode, played, stepIndex, wrongNotes, setSongAnnotations])
 
   /**
    * Advancing.
@@ -106,7 +117,7 @@ export function useSongLearning(song: Song | null) {
    * step instead, in whatever order the player rolls it.
    */
   React.useEffect(() => {
-    if (!learning || mode !== 'learn' || steps.length === 0) {
+    if (!learning || mode !== 'learn' || played.length === 0) {
       setWrongNotes([])
       return
     }
@@ -125,7 +136,7 @@ export function useSongLearning(song: Song | null) {
 
     return useKeyboardStore.subscribe((state) => {
       const current = useSongStore.getState().stepIndex
-      const step = steps[current]
+      const step = played[current]
       if (!step) return
       if (current !== onStep) {
         onStep = current
@@ -151,16 +162,16 @@ export function useSongLearning(song: Song | null) {
         wrong = new Set()
         reached = new Set()
         setWrongNotes([])
-        if (current + 1 >= steps.length) resetLearning()
+        if (current + 1 >= played.length) resetLearning()
         else advance(1)
       }
     })
-  }, [learning, mode, steps, advance, resetLearning, setWrongNotes])
+  }, [learning, mode, played, advance, resetLearning, setWrongNotes])
 
   return {
     steps,
     stepIndex,
     /** Null until Learn has something to be on. */
-    current: mode === 'learn' ? (steps[stepIndex] ?? null) : null,
+    current: mode === 'learn' ? (played[stepIndex] ?? null) : null,
   }
 }

@@ -2,7 +2,7 @@ import * as React from 'react'
 import { KEY_X, STEP, yOn } from './staff-frame'
 import { Chord, KeySignature, TimeSignature } from './StaffNotes'
 import { useKeyboardStore } from '@/state/keyboard-store'
-import { timeX, type Measured, type Placed } from './score'
+import { timeX, VOLTA_Y, type BarLine, type Measured, type Placed, type Volta } from './score'
 import type { BeamShape, StepStems } from './beams'
 
 /**
@@ -54,18 +54,96 @@ export function BarLines({
   lines,
   numbered = true,
 }: {
-  lines: readonly { x: number; bar: number }[]
+  lines: readonly BarLine[]
   numbered?: boolean
 }) {
   return (
     <>
-      {lines.map(({ x, bar }) => (
+      {lines.map(({ x, bar, closes, opens }) => (
         <g key={x}>
-          <line x1={x} y1={SYSTEM_TOP} x2={x} y2={SYSTEM_BOTTOM} className="staff__bar" />
+          {closes || opens ? (
+            <RepeatSign x={x} closes={closes} opens={opens} />
+          ) : (
+            <line x1={x} y1={SYSTEM_TOP} x2={x} y2={SYSTEM_BOTTOM} className="staff__bar" />
+          )}
           {/* Numbered, so a player can say where they are out loud. */}
           {numbered && (
             <text x={x + STEP * 1.4} y={yOn(14, 'treble')} className="staff__bar-number">
               {bar}
+            </text>
+          )}
+        </g>
+      ))}
+    </>
+  )
+}
+
+/** The thick line of a repeat sign or a final bar line, in units. */
+const THICK = STEP * 0.9
+/** How far the thin line of a repeat sign stands from its thick one. */
+const THIN_GAP = STEP * 0.7
+/** How far its dots stand from the thin line. */
+const DOT_GAP = STEP * 1.1
+
+/** The two dots of a repeat sign on each staff: in the spaces either side of the middle line. */
+function RepeatDots({ x }: { x: number }) {
+  return (
+    <>
+      {[yOn(7, 'treble'), yOn(5, 'treble'), yOn(-5, 'bass'), yOn(-7, 'bass')].map((y) => (
+        <circle key={y} cx={x} cy={y} r={STEP * 0.42} className="staff__dot" />
+      ))}
+    </>
+  )
+}
+
+/**
+ * A repeat sign, centred on `x`.
+ *
+ * A thick line with a thin one beside it and two dots on each staff, the dots
+ * on the side of the music to be played again: before the line where a repeat
+ * ends, after it where one begins, and both where one ends as the next begins.
+ */
+export function RepeatSign({ x, closes, opens }: { x: number; closes?: boolean; opens?: boolean }) {
+  const thin = (at: number) => (
+    <line x1={at} y1={SYSTEM_TOP} x2={at} y2={SYSTEM_BOTTOM} className="staff__system-line" />
+  )
+  const left = x - THICK / 2
+  return (
+    <>
+      <rect
+        x={left}
+        y={SYSTEM_TOP}
+        width={THICK}
+        height={SYSTEM_BOTTOM - SYSTEM_TOP}
+        className="staff__final-bar"
+      />
+      {closes && thin(left - THIN_GAP)}
+      {closes && <RepeatDots x={left - THIN_GAP - DOT_GAP} />}
+      {opens && thin(left + THICK + THIN_GAP)}
+      {opens && <RepeatDots x={left + THICK + THIN_GAP + DOT_GAP} />}
+    </>
+  )
+}
+
+/** The ending brackets over a system, each with its number where it begins. */
+export function Voltas({ voltas }: { voltas: readonly Volta[] }) {
+  const hook = STEP * 2
+  return (
+    <>
+      {voltas.map(({ from, to, label, closed }) => (
+        <g key={from} className="staff__volta">
+          <path
+            d={
+              (label
+                ? `M ${from + STEP} ${VOLTA_Y + hook} V ${VOLTA_Y} `
+                : `M ${from} ${VOLTA_Y} `) +
+              `H ${to - STEP}` +
+              (closed ? ` V ${VOLTA_Y + hook}` : '')
+            }
+          />
+          {label && (
+            <text x={from + STEP * 2} y={VOLTA_Y + hook} className="staff__volta-number">
+              {label}
             </text>
           )}
         </g>
@@ -81,23 +159,32 @@ export function BarLines({
  * line and a thick one — which is how a page says the piece is over rather
  * than continued overleaf.
  */
-export function SystemEnd({ x, final = false }: { x: number; final?: boolean }) {
+export function SystemEnd({
+  x,
+  final = false,
+  repeat = false,
+}: {
+  x: number
+  final?: boolean
+  /** A repeat ends here: the line is a repeat sign, whether or not it is the last. */
+  repeat?: boolean
+}) {
+  if (repeat) return <RepeatSign x={x - THICK / 2} closes />
   if (!final)
     return <line x1={x} y1={SYSTEM_TOP} x2={x} y2={SYSTEM_BOTTOM} className="staff__system-line" />
-  const thick = STEP * 0.9
   return (
     <>
       <line
-        x1={x - thick - STEP * 0.7}
+        x1={x - THICK - THIN_GAP}
         y1={SYSTEM_TOP}
-        x2={x - thick - STEP * 0.7}
+        x2={x - THICK - THIN_GAP}
         y2={SYSTEM_BOTTOM}
         className="staff__system-line"
       />
       <rect
-        x={x - thick}
+        x={x - THICK}
         y={SYSTEM_TOP}
-        width={thick}
+        width={THICK}
         height={SYSTEM_BOTTOM - SYSTEM_TOP}
         className="staff__final-bar"
       />

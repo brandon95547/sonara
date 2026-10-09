@@ -1,6 +1,14 @@
 import * as React from 'react'
 import { useElementSize } from '@/lib/hooks'
-import { HALF_HEIGHT, PAPER_MARGIN, PaperCards, STAFF_START, StaffFrame, yOn } from './staff-frame'
+import {
+  HALF_HEIGHT,
+  PAPER_MARGIN,
+  PaperCards,
+  STAFF_START,
+  StaffFrame,
+  STEP,
+  yOn,
+} from './staff-frame'
 import {
   BarLines,
   Beams,
@@ -9,9 +17,11 @@ import {
   phaseOf,
   Playhead,
   PLAYHEAD_SHOWN,
+  RepeatSign,
   Signatures,
   Step,
   SystemEnd,
+  Voltas,
   watchedIn,
   type Phase,
   type Role,
@@ -23,6 +33,8 @@ import {
   frameOf,
   headerEnd,
   place,
+  voltasIn,
+  type BarMarks,
   type Measured,
   type Placed,
 } from './score'
@@ -79,6 +91,7 @@ const PLAIN_SYSTEM = HALF_HEIGHT * 2
 
 export function SheetView({
   measured,
+  marks,
   here,
   fifths,
   beats,
@@ -87,6 +100,8 @@ export function SheetView({
   label,
 }: {
   measured: readonly Measured[]
+  /** The bars with a repeat sign or an ending bracket, where the music has any. */
+  marks?: BarMarks
   here: number
   fifths: number
   beats: number
@@ -114,7 +129,7 @@ export function SheetView({
     let y = spacing / 2
     return breakIntoSystems(measured, fifths, pageWidth).map((system) => {
       const slice = measured.slice(system.from, system.to)
-      const frame = frameOf(slice)
+      const frame = frameOf(slice, marks)
       const placed = place(slice, headerEnd(fifths, system.from === 0), system.stretch)
       const height = frame.bottom - frame.top
       const top = y
@@ -129,7 +144,7 @@ export function SheetView({
         origin: top - frame.top,
       }
     })
-  }, [measured, fifths, pageWidth, spacing])
+  }, [measured, marks, fifths, pageWidth, spacing])
 
   // Across the whole page rather than a line at a time: the chords near the
   // playhead run over a line break, and a pitch written either side of one is
@@ -193,6 +208,7 @@ export function SheetView({
               key={system.from}
               system={system}
               phase={phaseOf(roleFor, system.from, system.to)}
+              marks={marks}
               pageWidth={pageWidth}
               fifths={fifths}
               beats={beats}
@@ -218,6 +234,7 @@ interface RowProps {
     readonly beaming: ReturnType<typeof beamsIn>
   }
   phase: Phase
+  marks?: BarMarks
   pageWidth: number
   fifths: number
   beats: number
@@ -239,6 +256,7 @@ interface RowProps {
 const SystemRow = React.memo(
   function SystemRow({
     system,
+    marks,
     pageWidth,
     fifths,
     beats,
@@ -248,13 +266,25 @@ const SystemRow = React.memo(
     watched,
     here,
   }: RowProps) {
+    const lines = barLinesIn(system.placed, marks)
+    const first = system.placed[0]
+    const end = pageWidth - PAPER_MARGIN
+    // Where the first bar's own marks go: just in front of its first ink.
+    const opening = first ? first.x - first.extent.left - STEP * 3 : 0
     return (
       <g transform={`translate(0 ${system.origin})`}>
         <PaperCards width={pageWidth} />
         <StaffFrame width={pageWidth} />
         {/* Every line of music closes on a bar line, and the last on the final
-            one. Each after the first says which bar it starts on. */}
-        <SystemEnd x={pageWidth - PAPER_MARGIN} final={final} />
+            one — or on a repeat sign, where the bar it ends on leads back.
+            Each after the first says which bar it starts on. */}
+        <SystemEnd
+          x={end}
+          final={final}
+          repeat={marks?.get(system.placed.at(-1)?.bar ?? -1)?.repeat?.times !== undefined}
+        />
+        {first && marks?.get(first.bar)?.repeat?.start && <RepeatSign x={opening} opens />}
+        <Voltas voltas={voltasIn(system.placed, lines, marks, opening, end)} />
         {system.from > 0 && (
           <text x={STAFF_START} y={yOn(14, 'treble')} className="staff__bar-number">
             {system.placed[0]?.bar}
@@ -268,7 +298,7 @@ const SystemRow = React.memo(
           beatType={beatType}
           withTime={system.from === 0}
         />
-        <BarLines lines={barLinesIn(system.placed)} />
+        <BarLines lines={lines} />
         {PLAYHEAD_SHOWN && here >= system.from && here < system.to && (
           <Playhead x={system.placed[here - system.from]!.x} />
         )}
@@ -289,6 +319,7 @@ const SystemRow = React.memo(
   },
   (before, after) =>
     before.system === after.system &&
+    before.marks === after.marks &&
     before.phase === after.phase &&
     before.pageWidth === after.pageWidth &&
     before.fifths === after.fifths &&

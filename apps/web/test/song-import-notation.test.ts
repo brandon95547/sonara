@@ -536,3 +536,75 @@ describe('a piano written as more than one part', () => {
     ])
   })
 })
+
+/**
+ * Repeat signs and ending brackets, which say what order the bars are played
+ * in. The notes stay as written, once; the song carries the order beside them.
+ */
+describe('a score with repeats', () => {
+  const bar = (number: number, note: string, barlines = '') =>
+    `<measure number="${number}">${number === 1 ? '<attributes><divisions>1</divisions><time><beats>4</beats><beat-type>4</beat-type></time></attributes>' : ''}${barlines}${xnote(note, 4, 4)}</measure>`
+  const ending = (number: number, type: string) => `<ending number="${number}" type="${type}"/>`
+  const back = '<repeat direction="backward"/>'
+  const score = (measures: string) =>
+    importMusicXml(xml(`<part id="P1">${measures}</part>`, scorePart('P1', 'Piano')), 'repeats')!
+
+  it('keeps the notes as written and says what order they are played in', () => {
+    const song = score(
+      bar(1, 'C') +
+        bar(
+          2,
+          'D',
+          `<barline location="left">${ending(1, 'start')}</barline><barline location="right">${ending(1, 'stop')}${back}</barline>`,
+        ) +
+        bar(
+          3,
+          'E',
+          `<barline location="left">${ending(2, 'start')}</barline><barline location="right">${ending(2, 'discontinue')}</barline>`,
+        ) +
+        bar(4, 'F'),
+    )
+    // Four notes on the page, not six.
+    expect(song.notes.map((note) => note.note)).toEqual([60, 62, 64, 65])
+    expect(song.measures.map((measure) => [measure.repeat, measure.ending])).toEqual([
+      [undefined, undefined],
+      [{ times: 2 }, [1]],
+      [undefined, [2]],
+      [undefined, undefined],
+    ])
+    // Bars 1-2, bar 1 again, then 3-4. At 100 to the minute a bar is 2.4s.
+    expect(song.sections).toEqual([
+      { startMs: 0, fromMs: 0, toMs: 4800 },
+      { startMs: 4800, fromMs: 0, toMs: 2400 },
+      { startMs: 7200, fromMs: 4800, toMs: 9600 },
+    ])
+  })
+
+  it('reads a last ending the file never closed as its own bar and no more', () => {
+    // Bar 3 opens a second ending and nothing closes it. Taken as running on,
+    // bars 4 and 5 would be under it too, and skipped the first time through
+    // the repeat they belong to.
+    const song = score(
+      bar(1, 'C') +
+        bar(
+          2,
+          'D',
+          `<barline location="left">${ending(1, 'start')}</barline><barline location="right">${ending(1, 'stop')}${back}</barline>`,
+        ) +
+        bar(3, 'E', `<barline location="left">${ending(2, 'start')}</barline>`) +
+        bar(4, 'F', '<barline location="left"><repeat direction="forward"/></barline>') +
+        bar(5, 'G', `<barline location="right">${back}</barline>`),
+    )
+    expect(song.measures.map((measure) => measure.ending)).toEqual([
+      undefined,
+      [1],
+      [2],
+      undefined,
+      undefined,
+    ])
+  })
+
+  it('carries no order at all for a score played once through', () => {
+    expect(score(bar(1, 'C') + bar(2, 'D')).sections ?? []).toEqual([])
+  })
+})

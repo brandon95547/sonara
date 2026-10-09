@@ -1,6 +1,6 @@
 import { act, cleanup, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { buildSong, type SongNote } from '@sonara/shared'
+import { buildSong, type SongNote, type SongSection } from '@sonara/shared'
 import { useSongStore } from '@/state/song-store'
 
 /**
@@ -25,7 +25,7 @@ const note = (pitch: number, startMs: number, durationMs: number): SongNote => (
   role: 'keyboard',
 })
 
-const play = async (notes: SongNote[]) => {
+const play = async (notes: SongNote[], sections?: readonly SongSection[]) => {
   const song = buildSong({
     id: 'played',
     title: 'Played',
@@ -34,6 +34,7 @@ const play = async (notes: SongNote[]) => {
     notes,
     source: 'midi',
     handsInferred: false,
+    ...(sections ? { sections } : {}),
   })
   const { useSongPlayback } = await import('@/features/songs/use-song-playback')
   useSongStore.setState({ library: [song], currentId: song.id, positionMs: 0, tempoScale: 1 })
@@ -82,6 +83,26 @@ describe('a song playing itself', () => {
     // Struck, struck again — let go first so the instrument hears a new note —
     // and released once, by the second strike, when the second note ends.
     expect(events).toEqual(['on 100', 'off 300', 'on 300', 'off 500'])
+  })
+
+  it('plays a repeated passage again from the same notes, and the first note of each stretch', async () => {
+    const struck: string[] = []
+    // Two notes on the page, played C D, C again, and that is all: a first
+    // ending on D, stepped over the second time.
+    const start = await play(
+      [note(60, 0, 100), note(62, 500, 100)],
+      [
+        { startMs: 0, fromMs: 0, toMs: 1000 },
+        { startMs: 1000, fromMs: 0, toMs: 500 },
+      ],
+    )
+    audio.noteOn.mockImplementation((pitch: number) =>
+      struck.push(`${pitch} at ${Math.round(performance.now() - start)}`),
+    )
+
+    act(() => vi.advanceTimersByTime(2000))
+
+    expect(struck).toEqual(['60 at 0', '62 at 500', '60 at 1000'])
   })
 
   it('holds a key struck again while it is still down until the later note ends', async () => {

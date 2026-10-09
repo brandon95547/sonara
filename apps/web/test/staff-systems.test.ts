@@ -3,6 +3,7 @@ import { buildSong, songSteps, type SongNote } from '@sonara/shared'
 import { useSongStore } from '@/state/song-store'
 import {
   barLinesIn,
+  voltasIn,
   breakIntoSystems,
   headerEnd,
   measureScore,
@@ -158,6 +159,31 @@ describe('breaking a score into systems', () => {
       .map((line) => line.x)
     expect(xs[1]! - xs[0]!).toBeGreaterThan(1)
     expect(xs[2]! - xs[1]!).toBeCloseTo(xs[1]! - xs[0]!, 5)
+  })
+
+  it('draws a repeat sign where a repeat ends or begins, and a bracket over each ending', () => {
+    const placed = place(measured, headerEnd(0, true))
+    // Bar 2 is a first ending that leads back; bar 3 is the second.
+    const marks = new Map([
+      [2, { repeat: { times: 2 }, ending: [1] }],
+      [3, { ending: [2] }],
+      [5, { repeat: { start: true } }],
+    ])
+    const lines = barLinesIn(placed, marks)
+    const at = (bar: number) => lines.find((line) => line.bar === bar)!
+    expect(at(2)).toMatchObject({ bar: 2 })
+    expect(at(2).closes ?? at(2).opens).toBeUndefined()
+    expect(at(3).closes).toBe(true)
+    expect(at(5).opens).toBe(true)
+
+    const voltas = voltasIn(placed, lines, marks, 0, 9999)
+    expect(voltas.map((volta) => [volta.label, volta.closed])).toEqual([
+      ['1.', true],
+      ['2.', false],
+    ])
+    // Each runs from its own bar line to the next.
+    expect(voltas[0]).toMatchObject({ from: at(2).x, to: at(3).x })
+    expect(voltas[1]).toMatchObject({ from: at(3).x, to: at(4).x })
   })
 
   it('numbers the bars the same however the lines fall', () => {

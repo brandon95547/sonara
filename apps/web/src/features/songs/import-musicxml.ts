@@ -3,6 +3,8 @@ import {
   inferHand,
   modeForFifths,
   numberMeasures,
+  playOrder,
+  sectionsFor,
   spellingName,
   tonicForFifths,
   valueQuarters,
@@ -198,6 +200,39 @@ function choosePiano(
   return only(keyboards[0]!.id)
 }
 
+/**
+ * The repeat signs and ending brackets on one bar.
+ *
+ * They live on its bar lines: a repeat that begins or ends there, and a
+ * bracket that opens or closes. A bracket can run over several bars, so a bar
+ * only says where one starts and stops, and the reader keeps count between.
+ */
+function readBarlines(measure: string) {
+  let start = false
+  let times: number | undefined
+  let endingStart: number[] | undefined
+  let endingStop = false
+  for (const [, barline = ''] of measure.matchAll(/<barline\b[^>]*>([\s\S]*?)<\/barline>/g)) {
+    const repeat = /<repeat\b([^>]*)/.exec(barline)?.[1]
+    if (repeat !== undefined) {
+      if (/direction="forward"/.test(repeat)) start = true
+      // A plain end sign means twice through; a number on it means that many.
+      if (/direction="backward"/.test(repeat))
+        times = Math.max(2, Number(/times="(\d+)"/.exec(repeat)?.[1] ?? 2) || 2)
+    }
+    const ending = /<ending\b([^>]*)/.exec(barline)?.[1]
+    if (ending !== undefined) {
+      const numbers = (/number="([^"]*)"/.exec(ending)?.[1] ?? '')
+        .split(/[^0-9]+/)
+        .filter(Boolean)
+        .map(Number)
+      if (/type="start"/.test(ending) && numbers.length > 0) endingStart = numbers
+      if (/type="(stop|discontinue)"/.test(ending)) endingStop = true
+    }
+  }
+  return { start, times, endingStart, endingStop }
+}
+
 interface Parsed extends SongNote {
   readonly startQ: number
   readonly durationQ: number
@@ -235,6 +270,16 @@ export function importMusicXml(text: string, fallbackTitle: string): Song | null
   const tempos: { atQ: number; bpm: number }[] = []
   /** Each bar's length and metre, longest of any part that has it. */
   const bars: { durationQ: number; beats: number; beatType: number }[] = []
+  /** The repeat signs and ending brackets on each bar, from whichever part wrote them. */
+  const signs: {
+    start?: boolean
+    times?: number
+    /** An ending bracket opens on this bar, for these passes… */
+    opens?: number[]
+    /** …and one closes on it. */
+    closes?: boolean
+    ending?: readonly number[]
+  }[] = []
   const notes: Parsed[] = []
   const pedalsQ: { fromQ: number; toQ: number }[] = []
   const chordsQ: { startQ: number; text: string }[] = []
@@ -260,6 +305,13 @@ export function importMusicXml(text: string, fallbackTitle: string): Song | null
 
     const measures = [...part.body.matchAll(/<measure\b[^>]*>([\s\S]*?)<\/measure>/g)]
     for (const [index, [, body = '']] of measures.entries()) {
+      const barlines = readBarlines(body)
+      const sign = (signs[index] ??= {})
+      if (barlines.start) sign.start = true
+      if (barlines.times) sign.times = barlines.times
+      if (barlines.endingStart) sign.opens = barlines.endingStart
+      if (barlines.endingStop) sign.closes = true
+
       let cursor = 0
       let previousStart = 0
       let longest = 0
@@ -492,9 +544,32 @@ export function importMusicXml(text: string, fallbackTitle: string): Song | null
   const toMs = clock(tempos)
 
   const measureList: Omit<SongMeasure, 'number'>[] = []
+  /*
+   * Which bars each ending bracket covers.
+   *
+   * From the bar it opens on to the bar it closes on. A last ending is often
+   * left open in the file — the bracket on the page trails off rather than
+   * closing — and has to be read as its own bar and no more: taken as running
+   * on, it put the whole of the next passage under a second ending, and that
+   * passage was skipped the first time it came round.
+   */
+  for (const [index, sign] of signs.entries()) {
+    if (!sign?.opens) continue
+    let close = index
+    for (let at = index; at < signs.length; at++) {
+      if (at > index && (signs[at]?.opens || signs[at]?.start)) break
+      if (signs[at]?.closes) {
+        close = at
+        break
+      }
+    }
+    for (let at = index; at <= close; at++) (signs[at] ??= {}).ending = sign.opens
+  }
+
   let atQ = 0
-  for (const bar of bars) {
+  for (const [index, bar] of bars.entries()) {
     const durationQ = bar.durationQ > 0 ? bar.durationQ : (bar.beats * 4) / bar.beatType
+    const sign = signs[index]
     measureList.push({
       startMs: toMs(atQ),
       durationMs: toMs(atQ + durationQ) - toMs(atQ),
@@ -503,6 +578,15 @@ export function importMusicXml(text: string, fallbackTitle: string): Song | null
       beats: bar.beats,
       beatType: bar.beatType,
       quarterMs: 60000 / bpmAt(tempos, atQ),
+      ...(sign?.start || sign?.times
+        ? {
+            repeat: {
+              ...(sign.start ? { start: true } : {}),
+              ...(sign.times ? { times: sign.times } : {}),
+            },
+          }
+        : {}),
+      ...(sign?.ending ? { ending: sign.ending } : {}),
     })
     atQ += durationQ
   }
@@ -554,6 +638,13 @@ export function importMusicXml(text: string, fallbackTitle: string): Song | null
     pedal,
     chords,
     measures: numberMeasures(measureList),
+    // The order the bars are played in, where a repeat or an ending makes that
+    // something other than once through. The notes above stay as written.
+    sections: sectionsFor(
+      measureList,
+      playOrder(measureList),
+      Math.max(0, ...timed.map((note) => note.startMs + note.durationMs)),
+    ),
     rhythmFromScore: true,
   })
 }

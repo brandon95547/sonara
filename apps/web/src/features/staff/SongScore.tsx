@@ -1,7 +1,13 @@
 import * as React from 'react'
-import { fingeringHints, type SongNote, type SongStep } from '@sonara/shared'
+import {
+  fingeringHints,
+  playedSteps,
+  scoreMsAt,
+  type SongNote,
+  type SongStep,
+} from '@sonara/shared'
 import { useSongStore, useCurrentSong } from '@/state/song-store'
-import { useMeasuredScore } from './score'
+import { barMarksOf, useMeasuredScore } from './score'
 import { FlowView } from './FlowView'
 import { SheetView } from './SheetView'
 import type { Role } from './score-parts'
@@ -90,11 +96,18 @@ export const SongScore = React.memo(function SongScore() {
    * A song played with its staff showing came out late and uneven by a third
    * of a second, and in time with it hidden.
    */
+  // The steps in the order they are played. With a repeat in the score that is
+  // not the order they are written in: Learn counts along this, and the page
+  // marks the written step it has come to.
+  const order = React.useMemo(() => (song ? playedSteps(song, steps) : []), [song, steps])
   const here = useSongStore(
     React.useCallback(
       (state: { mode: string; stepIndex: number; positionMs: number }) =>
-        state.mode === 'learn' ? state.stepIndex : stepAt(steps, state.positionMs),
-      [steps],
+        state.mode === 'learn'
+          ? (order[state.stepIndex] ?? -1)
+          : // The playhead is in the performance's time; the steps are on the page.
+            stepAt(steps, song ? scoreMsAt(song, state.positionMs) : state.positionMs),
+      [steps, order, song],
     ),
   )
 
@@ -108,8 +121,12 @@ export const SongScore = React.memo(function SongScore() {
     [here],
   )
 
+  // The bars that carry a repeat sign or stand under an ending bracket.
+  const marks = React.useMemo(() => barMarksOf(song?.measures), [song])
+
   const shared = {
     measured,
+    marks,
     here,
     fifths: song?.key?.fifths ?? 0,
     beats: song?.timeSignature?.beats ?? 4,

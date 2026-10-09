@@ -12,6 +12,8 @@
  * bar, skipping forward a bar, the metronome — asks the list.
  */
 
+import type { MeasureRepeat } from './performance.js'
+
 export interface SongMeasure {
   /** Where the bar begins, in milliseconds from the start of the piece. */
   readonly startMs: number
@@ -33,6 +35,13 @@ export interface SongMeasure {
    * edition do: the first *full* bar is bar 1.
    */
   readonly number: number
+  /** The repeat signs on this bar, where it has any. */
+  readonly repeat?: MeasureRepeat
+  /**
+   * The passes this bar is played on, where it is under an ending bracket:
+   * `[1]` for a first ending, `[2]` for a second.
+   */
+  readonly ending?: readonly number[]
 }
 
 /** Crotchets in one bar of a signature: a bar of 6/8 is three of them. */

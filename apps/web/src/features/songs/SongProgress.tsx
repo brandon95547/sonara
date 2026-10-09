@@ -1,3 +1,4 @@
+import { barIndexAt, playDuration, scoreMsAt } from '@sonara/shared'
 import { useCurrentSong, useSongStore } from '@/state/song-store'
 import { RunMeter } from '@/features/learning/RunMeter'
 
@@ -21,8 +22,15 @@ export function SongProgress() {
   if (!song) return null
 
   const learning = mode === 'learn'
-  const fraction = song.durationMs > 0 ? positionMs / song.durationMs : 0
-  const bar = Math.min(song.measureCount, Math.floor(positionMs / song.measureMs) + 1)
+  // The slider runs over the performance, repeats and all, so it only ever
+  // moves forward. The bar is the one on the page: the number printed over the
+  // music being played, which goes back when a repeat does.
+  const total = playDuration(song)
+  const fraction = total > 0 ? positionMs / total : 0
+  const bar =
+    song.measures[barIndexAt(song.measures, scoreMsAt(song, positionMs))]?.number ??
+    Math.min(song.measureCount, Math.floor(positionMs / song.measureMs) + 1)
+  const lastBar = song.measures.at(-1)?.number ?? song.measureCount
 
   // Learn cannot be scrubbed — it advances by playing — so it gets the same
   // meter a scale run does rather than a slider that will not move.
@@ -43,7 +51,7 @@ export function SongProgress() {
         value={Math.round(Math.min(1, Math.max(0, fraction)) * 1000)}
         aria-label="Position in the song"
         aria-valuetext={`Bar ${bar}`}
-        onChange={(event) => seek((Number(event.target.value) / 1000) * song.durationMs)}
+        onChange={(event) => seek((Number(event.target.value) / 1000) * total)}
         style={
           {
             '--slider-from': '0%',
@@ -52,7 +60,7 @@ export function SongProgress() {
         }
       />
       <span className="song-progress__label" data-tabular>
-        Bar {bar} / {song.measureCount}
+        Bar {bar} / {lastBar}
       </span>
     </div>
   )

@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { useElementSize } from '@/lib/hooks'
-import { GUTTER, STAFF_BANDS, STAFF_START, StaffGutter, StaffLines } from './staff-frame'
+import { GUTTER, STAFF_BANDS, STAFF_START, StaffGutter, StaffLines, STEP } from './staff-frame'
 import {
   BarLines,
   Beams,
@@ -9,15 +9,27 @@ import {
   phaseOf,
   Playhead,
   PLAYHEAD_SHOWN,
+  RepeatSign,
   Signatures,
   Step,
   SystemEnd,
+  Voltas,
   watchedIn,
   type Phase,
   type Role,
   type Watched,
 } from './score-parts'
-import { barLinesIn, endOf, frameOf, headerEnd, place, type Measured, type Placed } from './score'
+import {
+  barLinesIn,
+  endOf,
+  frameOf,
+  headerEnd,
+  place,
+  voltasIn,
+  type BarMarks,
+  type Measured,
+  type Placed,
+} from './score'
 import { beamsIn, type StepStems } from './beams'
 
 /**
@@ -47,6 +59,7 @@ import { beamsIn, type StepStems } from './beams'
 
 export function FlowView({
   measured,
+  marks,
   here,
   fifths,
   beats,
@@ -59,6 +72,8 @@ export function FlowView({
   position = here,
 }: {
   measured: readonly Measured[]
+  /** The bars with a repeat sign or an ending bracket, where the music has any. */
+  marks?: BarMarks
   here: number
   fifths: number
   beats: number
@@ -96,7 +111,7 @@ export function FlowView({
     () => place(measured, headerEnd(fifths, withTime)),
     [measured, fifths, withTime],
   )
-  const frame = React.useMemo(() => frameOf(measured), [measured])
+  const frame = React.useMemo(() => frameOf(measured, marks), [measured, marks])
   const height = frame.bottom - frame.top
   // Where the beams run, and the stems they have decided. Once per layout:
   // the stems are handed to memoised chords and must stay the same objects.
@@ -163,7 +178,18 @@ export function FlowView({
     }
     return groups
   }, [shown])
-  const barLines = React.useMemo(() => barLinesIn(placed), [placed])
+  const barLines = React.useMemo(() => barLinesIn(placed, marks), [placed, marks])
+  // Where the first bar's own marks go: just in front of its first ink.
+  const opening = placed[0] ? placed[0].x - placed[0].extent.left - STEP * 3 : 0
+  const voltas = React.useMemo(
+    () => voltasIn(placed, barLines, marks, opening, endOf(placed)),
+    [placed, barLines, marks, opening],
+  )
+  const shownVoltas = React.useMemo(
+    () =>
+      span ? voltas.filter((volta) => volta.to >= span.from && volta.from <= span.to) : voltas,
+    [voltas, span],
+  )
   const shownBars = React.useMemo(
     () => (span ? barLines.filter((line) => line.x >= span.from && line.x <= span.to) : barLines),
     [barLines, span],
@@ -244,7 +270,17 @@ export function FlowView({
           <StaffLines from={GUTTER} to={totalWidth} />
           <Signatures fifths={fifths} beats={beats} beatType={beatType} withTime={withTime} />
           <BarLines lines={shownBars} numbered={numbered} />
-          {placed.length > 0 && <SystemEnd x={endOf(placed)} final />}
+          {placed.length > 0 && (
+            <SystemEnd
+              x={endOf(placed)}
+              final
+              repeat={marks?.get(placed.at(-1)!.bar)?.repeat?.times !== undefined}
+            />
+          )}
+          {placed[0] && marks?.get(placed[0].bar)?.repeat?.start && (
+            <RepeatSign x={opening} opens />
+          )}
+          <Voltas voltas={shownVoltas} />
           {PLAYHEAD_SHOWN && placed[here] && <Playhead x={placed[here]!.x} />}
           <Beams beams={shownBeams} roleFor={roleFor} />
           {runs.map((run) => (

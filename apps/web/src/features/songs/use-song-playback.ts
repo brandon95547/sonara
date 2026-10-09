@@ -1,5 +1,5 @@
 import * as React from 'react'
-import type { Song, SongNote } from '@sonara/shared'
+import { playDuration, scoreWindows, type Song, type SongNote } from '@sonara/shared'
 import { useAudio } from '@/audio/AudioProvider'
 import { hitDrum } from '@/audio/drum-kit'
 import { keyboardActions } from '@/state/keyboard-store'
@@ -12,6 +12,11 @@ import { click as playClick } from '@/audio/click'
  * Scheduled on a timer against a wall clock rather than queued up front: the
  * tempo, the part and the loop can all change mid-phrase, and a queue built at
  * the start would have to be torn down and rebuilt on every one of them.
+ *
+ * The clock here is the performance's, not the page's. A song's notes are in
+ * score time, written once; where the score has a repeat, the same notes come
+ * round again, and `scoreWindows` says which stretch of the page each stretch
+ * of the performance plays.
  *
  * Slowing down does not change pitch, and there is nothing to implement for
  * that — the tempo scale only stretches the gaps between notes. Nothing is
@@ -134,13 +139,13 @@ export function useSongPlayback(song: Song | null) {
       })
     }
 
-    const timer = window.setInterval(() => {
+    const look = () => {
       const { song: current, part: hands, tempoScale: scale, metronome: click } = live.current
       if (!current) return
 
       const at = originSong + (performance.now() - originWall) * scale
 
-      if (at >= current.durationMs) {
+      if (at >= playDuration(current)) {
         silence()
         setPlaying(false)
         seek(0)
@@ -149,8 +154,9 @@ export function useSongPlayback(song: Song | null) {
 
       // Everything due before the look after next, each on its own timer.
       const horizon = Math.max(cursor, at + LOOKAHEAD_MS * scale)
-      for (const note of notesBetween(current, cursor, horizon, hands))
-        after((note.startMs - at) / scale, () => strike(note, scale))
+      for (const window of scoreWindows(current, cursor, horizon))
+        for (const note of notesBetween(current, window.fromMs, window.toMs, hands))
+          after((note.startMs + window.offsetMs - at) / scale, () => strike(note, scale))
 
       if (click) {
         const beat = Math.floor(at / (60000 / current.bpm))
@@ -162,7 +168,11 @@ export function useSongPlayback(song: Song | null) {
 
       cursor = horizon
       seek(at)
-    }, TICK_MS)
+    }
+    // Once now, so the note the song starts on is not kept waiting for the
+    // first tick, and then on every tick after.
+    look()
+    const timer = window.setInterval(look, TICK_MS)
 
     return () => {
       window.clearInterval(timer)
@@ -177,7 +187,11 @@ export function useSongPlayback(song: Song | null) {
 }
 
 /**
- * Notes beginning in (from, to], for the hands currently selected.
+ * Notes beginning from `from` up to but not including `to`, in score time, for
+ * the hands currently selected.
+ *
+ * Closed at the front, so the note a stretch opens on is in it: the first note
+ * of the piece, and the first of a passage come back to by a repeat.
  *
  * The hand filter applies to the keyboard part only. Practising the left hand
  * of a song does not mean silencing its drummer.
@@ -185,8 +199,8 @@ export function useSongPlayback(song: Song | null) {
 function notesBetween(song: Song, from: number, to: number, part: SongPart): SongNote[] {
   return song.notes.filter(
     (note) =>
-      note.startMs > from &&
-      note.startMs <= to &&
+      note.startMs >= from &&
+      note.startMs < to &&
       (part === 'both' || note.role !== 'keyboard' || note.hand === part),
   )
 }

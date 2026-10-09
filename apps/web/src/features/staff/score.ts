@@ -9,6 +9,7 @@ import {
   written,
   writtenValue,
   type Song,
+  type SongMeasure,
   type SongNote,
   type SongStep,
   type Staff,
@@ -52,6 +53,19 @@ const PAGE_MIN_GAP = 26
 export const AIR = STEP * 3
 /** The extra two chords keep when a bar line stands between them. */
 const BAR_ROOM = STEP * 2
+/** And the extra again when that line is a repeat sign, which has dots and a thick line to fit. */
+const REPEAT_ROOM = STEP * 3
+
+/** The repeat signs and ending bracket of a bar, by the number the page prints for it. */
+export type BarMarks = ReadonlyMap<number, Pick<SongMeasure, 'repeat' | 'ending'>>
+
+/** The marked bars of a score: the few that carry a repeat sign or stand under a bracket. */
+export function barMarksOf(measures: readonly SongMeasure[] | undefined): BarMarks {
+  const marks = new Map<number, Pick<SongMeasure, 'repeat' | 'ending'>>()
+  for (const measure of measures ?? [])
+    if (measure.repeat || measure.ending) marks.set(measure.number, measure)
+  return marks
+}
 /** How far a bar number's ink rises above its own baseline, measured. */
 const BAR_NUMBER_INK = 11
 
@@ -154,6 +168,7 @@ export function measureScore(
   }
   let openBar = Number.NaN
   let previous = 0
+  const marks = barMarksOf(measures)
 
   const onStaff = (candidate: SongStep, staff: Staff) =>
     candidate.notes.some((note) => staffFor(note.note, note.hand) === staff)
@@ -175,6 +190,10 @@ export function measureScore(
         : 1
     /** The first chord of a bar, which has that bar's line to make room for. */
     const opensBar = index > 0 && bar !== openBar
+    /** Whether that line is a repeat sign: one closing the bar before, or opening this. */
+    const repeats =
+      opensBar &&
+      (marks.get(bar)?.repeat?.start === true || marks.get(bar - 1)?.repeat?.times !== undefined)
     if (bar !== openBar) {
       memory.treble.startBar()
       memory.bass.startBar()
@@ -247,7 +266,7 @@ export function measureScore(
       gap = Math.max(
         song?.minGap ?? MIN_GAP,
         rhythmic,
-        previous + extent.left + AIR + (opensBar ? BAR_ROOM : 0),
+        previous + extent.left + AIR + (opensBar ? BAR_ROOM : 0) + (repeats ? REPEAT_ROOM : 0),
       )
     }
     previous = extent.right
@@ -477,8 +496,16 @@ export function headerEnd(fifths: number, withTime: boolean): number {
  * open up room underneath it: growing both ways would shrink the staff twice
  * as much as the music asks for, and the extra would be blank paper.
  */
-export function frameOf(measured: readonly Measured[]): { top: number; bottom: number } {
+export function frameOf(
+  measured: readonly Measured[],
+  /** The marked bars, where the run may have an ending bracket over it. */
+  marks?: BarMarks,
+): { top: number; bottom: number } {
   let top = Math.min(-HALF_HEIGHT, yOn(14, 'treble') - BAR_NUMBER_INK)
+  // A bracket over an ending stands above the bar numbers, and its number
+  // above that.
+  if (marks?.size && measured.some((entry) => marks.get(entry.bar)?.ending))
+    top = Math.min(top, VOLTA_Y - STEP * 1.5)
   let bottom = HALF_HEIGHT
   for (const { extent } of measured) {
     top = Math.min(top, extent.top)
@@ -527,8 +554,8 @@ const MAX_EMPTY_BARS = 16
  * page that skips the quiet ones gives the wrong number. Those lines share the
  * room between the two chords evenly.
  */
-export function barLinesIn(placed: readonly Placed[]): { x: number; bar: number }[] {
-  const lines: { x: number; bar: number }[] = []
+export function barLinesIn(placed: readonly Placed[], marks?: BarMarks): BarLine[] {
+  const lines: BarLine[] = []
   for (let i = 1; i < placed.length; i++) {
     const before = placed[i - 1]!
     const after = placed[i]!
@@ -536,13 +563,75 @@ export function barLinesIn(placed: readonly Placed[]): { x: number; bar: number 
     const earliest = before.x + before.extent.right + BAR_TRAIL
     const last = Math.max(earliest, after.x - after.extent.left - BAR_LEAD)
     const count = Math.min(MAX_EMPTY_BARS, Math.max(1, after.bar - before.bar))
-    for (let n = 1; n <= count; n++)
+    for (let n = 1; n <= count; n++) {
+      const bar = after.bar - (count - n)
       lines.push({
         x: earliest + ((last - earliest) * n) / count,
-        bar: after.bar - (count - n),
+        bar,
+        ...(marks?.get(bar - 1)?.repeat?.times !== undefined ? { closes: true } : {}),
+        ...(marks?.get(bar)?.repeat?.start ? { opens: true } : {}),
       })
+    }
   }
   return lines
+}
+
+/** A bar line: where it stands, the bar it opens, and whether it is a repeat sign. */
+export interface BarLine {
+  readonly x: number
+  readonly bar: number
+  /** A repeat ends on it: dots before it, facing back. */
+  readonly closes?: boolean
+  /** A repeat begins on it: dots after it, facing on. */
+  readonly opens?: boolean
+}
+
+/** How high an ending bracket runs, above the bar numbers. */
+export const VOLTA_Y = yOn(19, 'treble')
+
+/** One bar's stretch of an ending bracket. */
+export interface Volta {
+  readonly from: number
+  readonly to: number
+  /** Its number — "1." — where the bracket begins on this bar. */
+  readonly label?: string
+  /** The bracket comes down at the end of this bar: the ending leads back. */
+  readonly closed: boolean
+}
+
+/**
+ * The ending brackets over a run of chords.
+ *
+ * A bracket runs over the bars played only some of the times through: "1."
+ * over the bar that leads back, "2." over the bar that leads on. Bar by bar,
+ * from one bar line to the next, with the run's own ends standing in for the
+ * lines it does not have.
+ */
+export function voltasIn(
+  placed: readonly Placed[],
+  lines: readonly BarLine[],
+  marks: BarMarks | undefined,
+  startX: number,
+  endX: number,
+): Volta[] {
+  if (!marks?.size || placed.length === 0) return []
+  const voltas: Volta[] = []
+  const first = placed[0]!.bar
+  const last = Math.max(placed.at(-1)!.bar, lines.at(-1)?.bar ?? first)
+  for (let bar = first; bar <= last; bar++) {
+    const ending = marks.get(bar)?.ending
+    if (!ending) continue
+    const before = marks.get(bar - 1)?.ending
+    const after = marks.get(bar + 1)?.ending
+    const same = (other: readonly number[] | undefined) => other?.join() === ending.join()
+    voltas.push({
+      from: bar === first ? startX : (lines.find((line) => line.bar === bar)?.x ?? startX),
+      to: lines.find((line) => line.bar === bar + 1)?.x ?? endX,
+      ...(same(before) ? {} : { label: `${ending.join(', ')}.` }),
+      closed: !same(after) && marks.get(bar)?.repeat?.times !== undefined,
+    })
+  }
+  return voltas
 }
 
 /** Where the music of a run ends, for the line that closes it. */

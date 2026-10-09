@@ -778,9 +778,21 @@
   text-anchor: start;
 }
 
-/* The thick half of the final bar line. */
+/* The thick half of the final bar line, and of a repeat sign. */
 .staff__final-bar {
   fill: var(--c-ink);
+}
+/* The bracket over an ending, and the number that says which time through. */
+.staff__volta path {
+  fill: none;
+  stroke: var(--c-ink);
+  stroke-width: 1.1;
+  vector-effect: non-scaling-stroke;
+}
+.staff__volta-number {
+  fill: var(--c-ink);
+  font-size: 11px;
+  font-weight: 700;
 }
 
 /* The brace and clefs belong with the notation, not with the lines: they are
