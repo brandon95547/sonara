@@ -280,27 +280,6 @@
   --ds-danger-text: #e8bc78;
 }
 
-/* Mysterious: a teal, on the stage color asked for. White on the fill is
-   4.9:1; the accent text on its own subtle fill is 5.3:1 at worst; the focus
-   ring 4.5:1 at worst. */
-:root[data-color-theme='mysterious'] {
-  --ds-accent: #0f7f78;
-  --ds-accent-hover: #17998f;
-  --ds-accent-active: #0a625c;
-  --ds-accent-subtle: rgb(31 168 157 / 0.18);
-  --ds-accent-subtle-hover: rgb(31 168 157 / 0.26);
-  --ds-accent-border: rgb(31 168 157 / 0.42);
-  --ds-accent-text: #8fd8cf;
-  --ds-focus-ring: #3bb9ae;
-  --ds-layer-selected: rgb(31 168 157 / 0.16);
-  --c-stage: #afdbd6;
-  --c-wash-white: 20 144 136;
-  --c-wash-black: 31 184 174;
-  /* The upper tetrachord is a teal of its own, which here would be the lower
-     one's color again. It takes the violet instead: two halves, two hues. */
-  --c-wash-upper: 150 149 240;
-}
-
 /* Dark Concert: the one theme where the paper is not white. The stage, the
    staff's paper, its lines and its ink, the keys and the lit blue are the
    colors asked for, as given; the rest is derived from them.
