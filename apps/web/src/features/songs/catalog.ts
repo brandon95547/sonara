@@ -104,24 +104,10 @@ export const SONG_CATALOG: readonly CatalogSong[] = [
     category: 'reflective',
   },
   {
-    id: 'chopin-prelude-op-28-no-4-2',
-    title: 'Prelude in E Minor, Op. 28 No. 4',
-    composer: 'Frédéric Chopin',
-    category: 'reflective',
-    edition: 'Version 2',
-  },
-  {
     id: 'chopin-nocturne-no-20',
     title: 'Nocturne No. 20 in C-sharp Minor',
     composer: 'Frédéric Chopin',
     category: 'reflective',
-  },
-  {
-    id: 'chopin-nocturne-no-20-2',
-    title: 'Nocturne No. 20 in C-sharp Minor',
-    composer: 'Frédéric Chopin',
-    category: 'reflective',
-    edition: 'Version 2',
   },
   {
     id: 'chopin-waltz-in-a-minor',
