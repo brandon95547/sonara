@@ -191,14 +191,13 @@
   /* --- The dashboard -------------------------------------------------------
      Matched to its mock (reference.png) rather than taken from the ramp — the
      same exception the keys are: the page is a photograph of a room, and its
-     cards are dark glass over photographs. Values sampled from the mock. */
+     cards are plain dark panels over it. Values sampled from the mock. */
   --c-dash-ink: #ffffff;
   --c-dash-body: #d0cdc9;
   --c-dash-quiet: #aeafaf;
   --c-dash-room: #111214; /* under the photograph, while it loads */
   --c-dash-shade: 8 8 10; /* channels: the room's darkening */
-  --c-dash-card-rgb: 14 15 17; /* channels: the card and its scrim */
-  --c-dash-card: rgb(var(--c-dash-card-rgb));
+  --c-dash-card: #0e0f11;
   --c-dash-card-edge: rgb(255 255 255 / 0.13);
   --c-dash-tile: #0b0b0d; /* the icon tile, before its accent is mixed in */
   --c-dash-locked-ring: rgb(255 255 255 / 0.28);
@@ -215,17 +214,6 @@
     rgb(var(--c-dash-shade) / 0.72),
     rgb(var(--c-dash-shade) / 0.2) 70%
   );
-  /* Near-solid under the words on the left, clear over the photograph on the
-     right, and darkened along the bottom under the footer. */
-  --dash-card-scrim:
-    linear-gradient(
-      90deg,
-      rgb(var(--c-dash-card-rgb) / 0.97) 0%,
-      rgb(var(--c-dash-card-rgb) / 0.9) 40%,
-      rgb(var(--c-dash-card-rgb) / 0.5) 70%,
-      rgb(var(--c-dash-card-rgb) / 0.3) 100%
-    ),
-    linear-gradient(0deg, rgb(var(--c-dash-card-rgb) / 0.75), transparent 45%);
   --shadow-dash-card: 0 22px 44px -22px rgb(0 0 0 / 0.85);
   --shadow-dash-card-hover: 0 28px 52px -22px rgb(0 0 0 / 0.9);
   --shadow-dash-title: 0 2px 16px rgb(0 0 0 / 0.6);
@@ -1945,11 +1933,10 @@
 
 /* ---- The dashboard ------------------------------------------------------
    Drawn to the mock (reference.png, 2026-09-30), at the Bible's standard card
-   size and centred. The practice room behind it all; each area a dark card
-   with its photograph on the right, fading out under the words on the left; a
-   serif for the names, and each area in its own accent — the icon, the rule
-   under the name, the ring round the arrow. It scrolls, the one page that
-   may: there are no keys along the bottom to keep in view. */
+   size and centred. The practice room behind it all; each area a plain dark
+   card; a serif for the names, and each area in its own accent — the icon,
+   the rule under the name, the ring round the arrow. It scrolls, the one page
+   that may: there are no keys along the bottom to keep in view. */
 .dashboard {
   flex: 1 1 auto;
   min-height: 0;
@@ -2037,40 +2024,31 @@
   gap: 16px;
 }
 
-/* Each area's accent and photograph. */
+/* Each area's accent. */
 .area-card[data-area='songs'] {
   --accent: var(--c-area-songs);
-  --card-image: url('../assets/dashboard/songs.webp');
 }
 .area-card[data-area='scales'] {
   --accent: var(--c-area-scales);
-  --card-image: url('../assets/dashboard/scales.webp');
 }
 .area-card[data-area='chords'] {
   --accent: var(--c-area-chords);
-  --card-image: url('../assets/dashboard/chords.webp');
 }
 .area-card[data-area='arpeggios'] {
   --accent: var(--c-area-arpeggios);
-  --card-image: url('../assets/dashboard/arpeggios.webp');
 }
 .area-card[data-area='progressions'] {
   --accent: var(--c-area-progressions);
-  --card-image: url('../assets/dashboard/progressions.webp');
 }
 .area-card[data-area='exercises'] {
   --accent: var(--c-area-exercises);
-  --card-image: url('../assets/dashboard/exercises.webp');
 }
 
 .area-card {
-  position: relative;
-  isolation: isolate;
   display: flex;
   width: 100%;
   flex-direction: column;
   align-items: flex-start;
-  overflow: hidden;
   /* The Bible's default card: 20px against a 16px radius. */
   padding: 20px;
   border: 1px solid var(--c-dash-card-edge);
@@ -2084,31 +2062,10 @@
     transform 200ms var(--ease-standard),
     box-shadow 200ms var(--ease-standard);
 }
-/* The photograph, on the right. */
-.area-card::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: -2;
-  background: var(--card-image) right center / cover no-repeat;
-  transition: transform 500ms var(--ease-standard);
-}
-/* Faded out under the words: near-solid on the left where they are, clear on
-   the right, and darkened along the bottom under the footer. */
-.area-card::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  background: var(--dash-card-scrim);
-}
 button.area-card:hover {
   border-color: color-mix(in srgb, var(--accent) 45%, transparent);
   box-shadow: var(--shadow-dash-card-hover);
   transform: translateY(-3px);
-}
-button.area-card:hover::before {
-  transform: scale(1.04);
 }
 button.area-card:active {
   transform: translateY(0);

@@ -11,9 +11,8 @@ import { AREAS, COMING_NEXT, type Area } from './areas'
  *
  * Drawn to the dashboard mock (reference.png, 2026-09-30) at the Bible's
  * standard card size, centred: the practice room behind everything, and each
- * area a dark card with its own photograph on the right, fading out under the
- * words on the left, in its own accent. The
- * photographs and the accents live in the stylesheet, keyed on `data-area`.
+ * area a plain dark card in its own accent. The accents live in the
+ * stylesheet, keyed on `data-area`.
  *
  * The areas that are open say what is waiting in them, so the dashboard is
  * also how you get back to where you were; the ones that are not yet say so,
