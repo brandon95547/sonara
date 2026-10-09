@@ -11,7 +11,6 @@ import { RunMeter } from '@/features/learning/RunMeter'
 import { EXERCISE_NOUNS } from '@/features/learning/ScaleControls'
 import { useLearningStore } from '@/state/learning-store'
 import { useCurrentSong, useSongStore } from '@/state/song-store'
-import { useBackdropStore } from '@/state/backdrop-store'
 import { useViewStore } from '@/state/view-store'
 import { StageBackdrop } from './StageBackdrop'
 
@@ -29,16 +28,11 @@ export function Stage() {
   const song = useCurrentSong()
   const showStaff = useViewStore((state) => state.showStaff)
   const staffView = useSongStore((state) => state.staffView)
-  const backdrop = useBackdropStore((state) => state.backdrop)
   const scoreOpen = topic === 'songs' && song !== null
   const sheet = scoreOpen && staffView === 'sheet'
 
   return (
-    <main
-      className="stage"
-      aria-label="Staff"
-      data-backdrop={backdrop === 'none' ? undefined : backdrop}
-    >
+    <main className="stage" aria-label="Staff">
       <StageBackdrop />
       {topic === 'songs' && <SongProgress />}
 

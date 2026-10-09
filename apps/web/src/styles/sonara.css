@@ -2407,15 +2407,6 @@ button.area-card:hover .area-card__go {
   opacity: var(--stage-backdrop-opacity);
   pointer-events: none;
 }
-/* Over a film, ink that leaves the paper has nothing certain under it: a note
-   on ledger lines, a beam between the staves, a bar's number can land on a
-   charred log as easily as on a flame. Everything written takes a rim of the
-   paper's color, the way a subtitle is outlined — on the paper it is paper on
-   paper and not seen. */
-.stage[data-backdrop] :is(.staff, .staff-gutter) {
-  filter: drop-shadow(0 0 1px var(--c-paper)) drop-shadow(0 0 1px var(--c-paper))
-    drop-shadow(0 0 2px var(--c-paper));
-}
 .stage--message {
   align-items: center;
 }
