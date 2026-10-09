@@ -245,50 +245,35 @@
    a theme's own hue would land on one of those, it is the meaning's color
    that moves aside, in that theme only. */
 
-/* Powerful: the stage and the fill are the two colors asked for, as given.
-   Everything else is derived from the fill.
+/* Powerful: the stage and the fill are the two colors asked for, as given —
+   a sage stage under red keys and buttons. Everything else is derived from
+   the fill. Its labels are white, as asked: 4.5:1 on the fill.
 
-   The fill is lighter than the violet, and white on it measures 4.2:1. Its
-   labels are the near-black the Bible puts on its own orange instead: 4.6:1
-   on the fill and 6.0:1 on its hover.
-
-   It is also the orange a wrong note was — #cd6133 beside #bf623d, the same
-   key twice. So here a wrong note is a rose, a red still but well clear of
-   the terracotta, and the whole danger family goes with it so the misses
-   counted on the bar are the color of the keys that were missed. */
+   A red that is lit cannot also be the color of a wrong note, and the orange
+   a wrong note is elsewhere sits right beside it — #cd6133 against #c65151.
+   So here a wrong note is a dark gold, the amber of a caution, and the whole
+   danger family goes with it so the misses counted on the bar are the color
+   of the keys that were missed. White on the key is 4.6:1. */
 :root[data-color-theme='powerful'] {
-  --ds-accent: #bf623d;
-  --ds-accent-hover: #d47a57;
-  --ds-accent-active: #9d5133;
-  --ds-accent-fg: #101010;
-  --ds-accent-subtle: rgb(204 110 73 / 0.18);
-  --ds-accent-subtle-hover: rgb(204 110 73 / 0.26);
-  --ds-accent-border: rgb(204 110 73 / 0.42);
-  --ds-accent-text: #eeac93;
-  --ds-focus-ring: #da7b55;
-  --ds-layer-selected: rgb(204 110 73 / 0.16);
-  --c-stage: #ffdec0;
-  --c-wash-white: 200 106 69;
-  --c-wash-black: 230 137 100;
-  /* The note name on a held key, for the same reason as the labels above. */
-  --c-key-label-pressed: #101010;
+  --ds-accent: #c65151;
+  --ds-accent-hover: #da6b69;
+  --ds-accent-active: #a14444;
+  --ds-accent-subtle: rgb(212 93 92 / 0.18);
+  --ds-accent-subtle-hover: rgb(212 93 92 / 0.26);
+  --ds-accent-border: rgb(212 93 92 / 0.42);
+  --ds-accent-text: #f0a8a4;
+  --ds-focus-ring: #dd7572;
+  --ds-layer-selected: rgb(212 93 92 / 0.16);
+  --c-stage: #cbddcb;
+  --c-wash-white: 207 89 89;
+  --c-wash-black: 232 131 128;
 
-  --ds-danger: #f85581;
-  --ds-danger-hover: #fd7b97;
-  --ds-danger-active: #c52c5c;
-  --ds-danger-subtle: rgb(248 85 129 / 0.14);
-  --ds-danger-border: rgb(248 85 129 / 0.36);
-  --ds-danger-text: #f6a3b1;
-}
-/* A finger number takes the label color of the key under it. Two keys here
-   are not the terracotta: the one to play is blue in every theme, and a black
-   key held outside Learn is the fill's dark step. White on both, 5.5:1 and
-   5.7:1. */
-:root[data-color-theme='powerful'] .key-badge[data-role='target']:not([data-active='true']),
-:root[data-color-theme='powerful']
-  .keybed:not([data-mode='learn'])
-  .key-badge[data-black='true'][data-active='true'] {
-  color: #ffffff;
+  --ds-danger: #d7970c;
+  --ds-danger-hover: #ebaa2d;
+  --ds-danger-active: #8f640b;
+  --ds-danger-subtle: rgb(215 151 12 / 0.14);
+  --ds-danger-border: rgb(215 151 12 / 0.36);
+  --ds-danger-text: #e8bc78;
 }
 
 /* Mysterious: the violet's stage and washes turned to teal at the lightness

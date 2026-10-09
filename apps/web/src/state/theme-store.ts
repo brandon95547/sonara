@@ -16,7 +16,7 @@ import { create } from 'zustand'
  */
 export const COLOR_THEMES = [
   { id: 'peaceful', label: 'Peaceful', swatch: '#6867c9' },
-  { id: 'powerful', label: 'Powerful', swatch: '#bf623d' },
+  { id: 'powerful', label: 'Powerful', swatch: '#c65151' },
   { id: 'mysterious', label: 'Mysterious', swatch: '#0f7f78' },
 ] as const
 
