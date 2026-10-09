@@ -202,13 +202,17 @@
   --c-dash-tile: #0b0b0d; /* the icon tile, before its accent is mixed in */
   --c-dash-locked-ring: rgb(255 255 255 / 0.28);
   --c-dash-locked-arrow: rgb(255 255 255 / 0.7);
+  /* The photograph turned down by a flat 30% of black: an even dim over the
+     whole picture, not a gradient. A background layer has to be an image,
+     hence the one-colour gradient. */
+  --dash-room-dim: linear-gradient(rgb(0 0 0 / 0.3), rgb(0 0 0 / 0.3));
   --dash-room-fade: linear-gradient(
     180deg,
     rgb(var(--c-dash-shade) / 0.35),
     rgb(var(--c-dash-shade) / 0.15) 35%,
     rgb(var(--c-dash-shade) / 0.6)
   );
-  /* Below 80rem the heading lands on the lit window; this shades it. */
+  /* Below 80rem the heading lands on the light columns; this shades them. */
   --dash-room-side-shade: linear-gradient(
     90deg,
     rgb(var(--c-dash-shade) / 0.72),
@@ -1946,18 +1950,20 @@
      put as the page scrolls: it is the background of the scroller itself. */
   background:
     var(--dash-room-fade),
+    var(--dash-room-dim),
     url('../assets/dashboard/room.webp') left center / cover no-repeat,
     var(--c-dash-room);
   color: var(--c-dash-ink);
 }
-/* Narrower than the room is wide, the heading lands on the lit window at its
-   left edge, and the grey caption under it all but vanished there. So the
-   left of the room is shaded until the window is off to the side. */
+/* Narrower than this the heading lands on the light columns at the picture's
+   left edge, and the grey caption under it all but vanishes there. So the
+   left of the room is shaded. */
 @media (max-width: 79.999rem) {
   .dashboard {
     background:
       var(--dash-room-side-shade),
       var(--dash-room-fade),
+      var(--dash-room-dim),
       url('../assets/dashboard/room.webp') left center / cover no-repeat,
       var(--c-dash-room);
   }
